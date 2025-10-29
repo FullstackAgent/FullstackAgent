@@ -1,87 +1,73 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { signIn } from 'next-auth/react';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { UserPlus } from 'lucide-react';
+import { UserPlus } from "lucide-react";
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    confirmPassword: '',
-    name: '',
-  });
+  const searchParams = useSearchParams();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-  };
+  // Pre-fill username if passed from login page
+  useEffect(() => {
+    const usernameParam = searchParams.get('username');
+    if (usernameParam) {
+      setUsername(usernameParam);
+    }
+  }, [searchParams]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
     setError('');
 
     // Validate passwords match
-    if (formData.password !== formData.confirmPassword) {
+    if (password !== confirmPassword) {
       setError('Passwords do not match');
+      setIsLoading(false);
       return;
     }
 
     // Validate password length
-    if (formData.password.length < 6) {
+    if (password.length < 6) {
       setError('Password must be at least 6 characters');
+      setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
-
     try {
-      // Register the user
       const response = await fetch('/api/auth/register', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-          name: formData.name,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || 'Registration failed');
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        console.error('Failed to parse response:', parseError);
+        setError('Invalid response from server');
         return;
       }
 
-      // Automatically sign in after registration
-      const result = await signIn('credentials', {
-        email: formData.email,
-        password: formData.password,
-        redirect: false,
-      });
-
-      if (result?.error) {
-        setError('Registration successful but login failed. Please sign in manually.');
-        setTimeout(() => router.push('/login'), 2000);
+      if (!response.ok) {
+        setError(data.error || 'Registration failed');
       } else {
-        router.push('/projects');
-        router.refresh();
+        // Registration successful - redirect to login
+        router.push(`/login?registered=true&username=${encodeURIComponent(username)}`);
       }
-    } catch (error) {
+    } catch (err) {
+      console.error('Registration error:', err);
       setError('An error occurred. Please try again.');
     } finally {
       setIsLoading(false);
@@ -92,41 +78,23 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-black text-white flex items-center justify-center">
       <Card className="w-full max-w-md bg-gray-900 border-gray-800">
         <CardHeader>
-          <CardTitle className="text-2xl text-white">Create an Account</CardTitle>
+          <CardTitle className="text-2xl text-white">Create Account</CardTitle>
           <CardDescription className="text-gray-400">
-            Sign up to start using FullStack Agent
-            <br />
-            <span className="text-xs">If you've signed in with GitHub before, you can set a password for email login</span>
+            Register for a new FullStack Agent account
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleRegister} className="space-y-4">
             <div>
-              <Label htmlFor="name" className="text-gray-200">
-                Name (optional)
+              <Label htmlFor="username" className="text-gray-200">
+                Username
               </Label>
               <Input
-                id="name"
-                name="name"
+                id="username"
                 type="text"
-                placeholder="John Doe"
-                value={formData.name}
-                onChange={handleChange}
-                className="bg-gray-800 border-gray-700 text-white"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="email" className="text-gray-200">
-                Email *
-              </Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="you@example.com"
-                value={formData.email}
-                onChange={handleChange}
+                placeholder="your-username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 required
                 className="bg-gray-800 border-gray-700 text-white"
               />
@@ -134,32 +102,32 @@ export default function RegisterPage() {
 
             <div>
               <Label htmlFor="password" className="text-gray-200">
-                Password *
+                Password
               </Label>
               <Input
                 id="password"
-                name="password"
                 type="password"
                 placeholder="••••••••"
-                value={formData.password}
-                onChange={handleChange}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 required
+                minLength={6}
                 className="bg-gray-800 border-gray-700 text-white"
               />
             </div>
 
             <div>
               <Label htmlFor="confirmPassword" className="text-gray-200">
-                Confirm Password *
+                Confirm Password
               </Label>
               <Input
                 id="confirmPassword"
-                name="confirmPassword"
                 type="password"
                 placeholder="••••••••"
-                value={formData.confirmPassword}
-                onChange={handleChange}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
                 required
+                minLength={6}
                 className="bg-gray-800 border-gray-700 text-white"
               />
             </div>
@@ -177,14 +145,18 @@ export default function RegisterPage() {
               <UserPlus className="mr-2 h-5 w-5" />
               {isLoading ? 'Creating account...' : 'Create Account'}
             </Button>
-          </form>
 
-          <p className="mt-4 text-center text-sm text-gray-400">
-            Already have an account?{' '}
-            <Link href="/login" className="text-blue-500 hover:text-blue-400">
-              Sign in
-            </Link>
-          </p>
+            <p className="text-xs text-gray-500 text-center">
+              Already have an account?{' '}
+              <button
+                type="button"
+                onClick={() => router.push('/login')}
+                className="text-blue-500 hover:underline"
+              >
+                Sign in
+              </button>
+            </p>
+          </form>
         </CardContent>
       </Card>
     </div>

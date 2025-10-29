@@ -1,91 +1,75 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
-import { z } from 'zod';
 import { prisma } from '@/lib/db';
 
-const registerSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-  name: z.string().optional(),
-});
-
-export async function POST(req: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const body = await req.json();
+    const { username, password } = await request.json();
 
     // Validate input
-    const validatedData = registerSchema.parse(body);
-
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: {
-        email: validatedData.email,
-      },
-    });
-
-    // Hash password
-    const hashedPassword = await bcrypt.hash(validatedData.password, 10);
-
-    let user;
-
-    if (existingUser) {
-      // If user exists but has no password (OAuth user), add password
-      if (!existingUser.password) {
-        user = await prisma.user.update({
-          where: {
-            id: existingUser.id,
-          },
-          data: {
-            password: hashedPassword,
-            name: validatedData.name || existingUser.name,
-          },
-          select: {
-            id: true,
-            email: true,
-            name: true,
-          },
-        });
-      } else {
-        // User exists with password
-        return NextResponse.json(
-          { error: 'User with this email already exists' },
-          { status: 400 }
-        );
-      }
-    } else {
-      // Create new user
-      user = await prisma.user.create({
-        data: {
-          email: validatedData.email,
-          password: hashedPassword,
-          name: validatedData.name,
-        },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-        },
-      });
-    }
-
-    return NextResponse.json(
-      {
-        message: 'User created successfully',
-        user,
-      },
-      { status: 201 }
-    );
-  } catch (error) {
-    if (error instanceof z.ZodError) {
+    if (!username || !password) {
       return NextResponse.json(
-        { error: error.errors[0].message },
+        { error: 'Username and password are required' },
         { status: 400 }
       );
     }
 
+    if (password.length < 6) {
+      return NextResponse.json(
+        { error: 'Password must be at least 6 characters' },
+        { status: 400 }
+      );
+    }
+
+    // Check if user already exists
+    const existingIdentity = await prisma.userIdentity.findUnique({
+      where: {
+        unique_provider_user: {
+          provider: 'PASSWORD',
+          providerUserId: username,
+        },
+      },
+    });
+
+    if (existingIdentity) {
+      return NextResponse.json(
+        { error: 'Username already exists' },
+        { status: 409 }
+      );
+    }
+
+    // Hash password
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // Create user with PASSWORD identity
+    const newUser = await prisma.user.create({
+      data: {
+        name: username,
+        identities: {
+          create: {
+            provider: 'PASSWORD',
+            providerUserId: username,
+            metadata: {
+              passwordHash,
+            },
+            isPrimary: true,
+          },
+        },
+      },
+    });
+
+    return NextResponse.json(
+      {
+        success: true,
+        userId: newUser.id,
+        username: newUser.name
+      },
+      { status: 201 }
+    );
+  } catch (error) {
     console.error('Registration error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Failed to create account' },
       { status: 500 }
     );
   }

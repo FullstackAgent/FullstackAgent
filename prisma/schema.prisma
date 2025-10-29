@@ -8,80 +8,215 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  name          String?
-  password      String?   // For email/password auth
-  githubToken   String?
-  githubId      String?   @unique
-  systemPrompt  String?   // Custom system prompt for Claude Code
-  kubeconfig    String?   // Custom kubeconfig content
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  projects      Project[]
+  id        String   @id @default(cuid())
+  name      String?  @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  identities UserIdentity[] // One-to-many: User has multiple authentication identities
+  projects   Project[] // One-to-many: User owns multiple projects
+  configs    UserConfig[] // One-to-many: User global configurations
 }
 
+model UserIdentity {
+  id             String       @id @default(cuid())
+  userId         String
+  provider       AuthProvider
+  providerUserId String // External provider's user ID (email for password, githubId for github)
+
+  // Store sensitive data like tokens, password hashes
+  // Example structures:
+  // { "token": "github_access_token", "scope": "repo read:user" }
+  // { "passwordHash": "bcrypt_hash", "needReset": false }
+  // { "sealosId": "xxaffeee", "sealosKubeconfig": "sealos_kubeconfig" }
+  metadata Json @default("{}")
+
+  isPrimary Boolean  @default(false) // Mark primary login method
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relation: Many-to-one to User (foreign key: userId)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId], name: "unique_provider_user")
+  @@index([userId, provider], name: "idx_user_provider")
+}
+
+// UserConfig: User-level global configuration
+// For settings like API keys, kubeconfig, etc. that apply to all projects
+model UserConfig {
+  id       String  @id @default(cuid())
+  userId   String
+  key      String // ANTHROPIC_AUTH_TOKEN, ANTHROPIC_BASE_URL, KUBECONFIG, etc.
+  value    String // Configuration value
+  category String? // anthropic-api, kc, github, general (for UI organization)
+  isSecret Boolean @default(false) // Mark sensitive values (masked in UI)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relation: Many-to-one to User (foreign key: userId)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([userId, category])
+}
+
+// Project: Abstract resource collection
+// Status is derived from child resources (databases, sandboxes, environments)
 model Project {
-  id                   String        @id @default(cuid())
-  name                 String
-  description          String?
-  userId               String
-  githubRepo           String?
-  status               ProjectStatus @default(PENDING)
-  createdAt            DateTime      @default(now())
-  updatedAt            DateTime      @updatedAt
-  databaseUrl          String?
-  environmentVariables Environment[]
-  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sandboxes            Sandbox[]
+  id          String  @id @default(cuid())
+  name        String // Display name
+  description String?
+  userId      String
+  githubRepo  String? // Optional GitHub repository
+
+  // Aggregated status based on child resources
+  status ProjectStatus @default(CREATING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations: Project is a collection of resources
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade) // Many-to-one: Project belongs to a User
+  environments Environment[] // One-to-many: Configuration variables
+  databases    Database[] // One-to-many: Multiple database clusters
+  sandboxes    Sandbox[] // One-to-many: Multiple runtime containers
 }
 
+// Environment: Configuration key-value pairs for the project
+// No status - just configuration data
 model Environment {
   id        String   @id @default(cuid())
   projectId String
   key       String
   value     String
-  category  String?
-  isSecret  Boolean  @default(false)
+  category  String? // auth/payment/general/kc/anthropic-api for UI organization
+  isSecret  Boolean  @default(false) // Mark sensitive values (masked in UI)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // Relation: Many-to-one to Project (foreign key: projectId)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, key])
+  @@index([projectId])
 }
 
+// Database: Independent K8s resource (KubeBlocks PostgreSQL cluster)
+// Manages its own lifecycle and status
+model Database {
+  id        String @id @default(cuid())
+  projectId String
+  name      String // Human-readable name (e.g., "main", "analytics")
+
+  // K8s resource identifiers
+  k8sNamespace   String
+  k8sClusterName String // KubeBlocks cluster name
+  k8sSecretName  String // Secret containing credentials
+
+  // Connection information
+  host          String?
+  port          Int?    @default(5432)
+  database      String? @default("postgres")
+  username      String?
+  password      String?
+  connectionUrl String? // Full connection string
+
+  // Resource status (managed independently)
+  status ResourceStatus @default(CREATING)
+
+  // Resource configuration
+  storageSize   String? @default("3Gi")
+  cpuRequest    String? @default("100m")
+  cpuLimit      String? @default("1000m")
+  memoryRequest String? @default("102Mi")
+  memoryLimit   String? @default("1024Mi")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relation: Many-to-one to Project (foreign key: projectId)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, name]) // Unique database name per project
+  @@index([projectId])
+  @@index([k8sClusterName])
+}
+
+// Sandbox: Independent K8s resource (Deployment + Service + Ingresses)
+// Manages its own lifecycle and status
 model Sandbox {
-  id                String        @id @default(cuid())
-  projectId         String
-  k8sNamespace      String
-  k8sDeploymentName String
-  k8sServiceName    String
-  dbHost            String?
-  dbPort            Int?
-  dbName            String?
-  dbUser            String?
-  dbPassword        String?
-  publicUrl         String?
-  status            SandboxStatus @default(CREATING)
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  ttydUrl           String?
-  project           Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id        String @id @default(cuid())
+  projectId String
+  name      String // Human-readable name (e.g., "dev", "staging")
+
+  // K8s resource identifiers
+  k8sNamespace       String
+  k8sStatefulsetName String
+  k8sServiceName     String
+
+  // Ingress URLs
+  publicUrl String? // App ingress (port 3000)
+  ttydUrl   String? // Terminal ingress (port 7681)
+
+  // Resource status (managed independently)
+  status ResourceStatus @default(CREATING)
+
+  // Runtime configuration
+  runtimeImage  String? // Docker image tag
+  cpuRequest    String? @default("100m")
+  cpuLimit      String? @default("1000m")
+  memoryRequest String? @default("200Mi")
+  memoryLimit   String? @default("2048Mi")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relation: Many-to-one to Project (foreign key: projectId)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, name]) // Unique sandbox name per project
+  @@index([projectId])
+  @@index([k8sStatefulsetName])
 }
 
+// Project aggregated status based on child resources and operations
+// Reflects both resource states and project-level operations
 enum ProjectStatus {
-  PENDING
-  INITIALIZING
-  READY
-  DEPLOYING
-  DEPLOYED
-  ERROR
+  // Stable states (no ongoing operations)
+  RUNNING // All resources are RUNNING - project is fully operational
+  STOPPED // All resources are STOPPED - project is paused (cost saving)
+  PARTIAL // Mixed states - not all resources are running or stopped (manual management)
+
+  // Transition states (project-level operations in progress)
+  STARTING // Project start-all operation in progress (STOPPED → RUNNING)
+  STOPPING // Project stop-all operation in progress (RUNNING → STOPPED)
+  TERMINATING // Project terminating operation in progress (any → TERMINATED)
+  CREATING // Initial project creation in progress (Any resource creating ⇒ overall CREATING)
+
+  // Final/Error states
+  ERROR // At least one resource has error
+  TERMINATED // All resources deleted (soft delete: record kept)
 }
 
-enum SandboxStatus {
-  CREATING
-  RUNNING
-  STOPPED
-  ERROR
-  TERMINATED
+// Individual resource status (Database and Sandbox)
+// Follows K8s resource lifecycle with transition states
+enum ResourceStatus {
+  CREATING // K8s resource is being created (initial state)
+  STARTING // Resource is transitioning from STOPPED to RUNNING
+  RUNNING // Resource is active and operational
+  STOPPING // Resource is transitioning from RUNNING to STOPPED
+  STOPPED // Resource is stopped (replicas=0 or cluster paused)
+  TERMINATING // Resource is being deleted from K8s
+  TERMINATED // Resource deleted from K8s (soft delete: keep record)
+  ERROR // Resource encountered an error
+}
+
+enum AuthProvider {
+  PASSWORD // Email/password authentication
+  GITHUB // GitHub OAuth
+  GOOGLE // Google OAuth (future)
+  SEALOS // Sealos OAuth
 }

@@ -12,25 +12,33 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Get user with GitHub token
-    const user = await prisma.user.findUnique({
+    // Get GitHub identity with token
+    const githubIdentity = await prisma.userIdentity.findFirst({
       where: {
-        id: session.user.id,
-      },
-      select: {
-        githubToken: true,
+        userId: session.user.id,
+        provider: 'GITHUB',
       },
     });
 
-    if (!user || !user.githubToken) {
+    if (!githubIdentity) {
       return NextResponse.json(
-        { error: "GitHub account not connected. Please reconnect your GitHub account." },
+        { error: "GitHub account not connected. Please sign in with GitHub." },
+        { status: 400 }
+      );
+    }
+
+    const metadata = githubIdentity.metadata as { token?: string };
+    const githubToken = metadata.token;
+
+    if (!githubToken) {
+      return NextResponse.json(
+        { error: "GitHub token not found. Please reconnect your GitHub account." },
         { status: 400 }
       );
     }
 
     // Fetch data from GitHub API in parallel
-    const githubClient = createGitHubClient(user.githubToken);
+    const githubClient = createGitHubClient(githubToken);
     const [githubUser, allRepos, organizations] = await Promise.all([
       githubClient.getUser(),
       githubClient.listRepos(),

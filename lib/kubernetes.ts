@@ -68,6 +68,30 @@ export class KubernetesService {
     return 'ns-ajno7yq7'
   }
 
+  // Get the ingress domain from kubeconfig server URL
+  // Extracts domain from Kubernetes API server URL
+  // Example: https://usw.sealos.io:6443 -> usw.sealos.io
+  getIngressDomain(): string {
+    try {
+      const cluster = this.kc.getCurrentCluster()
+      if (!cluster || !cluster.server) {
+        console.warn('⚠️ No cluster server found in kubeconfig, using default domain')
+        return 'usw.sealos.io'
+      }
+
+      // Parse the server URL to extract domain
+      // Format: https://domain:port or https://domain
+      const url = new URL(cluster.server)
+      const hostname = url.hostname
+
+      console.log(`✅ Extracted ingress domain from kubeconfig: ${hostname}`)
+      return hostname
+    } catch (error) {
+      console.error('❌ Failed to extract domain from kubeconfig:', error)
+      return 'usw.sealos.io' // Fallback
+    }
+  }
+
   async createPostgreSQLDatabase(projectName: string, namespace?: string) {
     namespace = namespace || this.getDefaultNamespace()
     const randomSuffix = this.generateRandomSuffix()
@@ -306,6 +330,9 @@ export class KubernetesService {
     // Generate random domains for ingress
     const appDomain = this.generateRandomName()
     const ttydDomain = this.generateRandomName()
+
+    // Get the ingress domain from kubeconfig
+    const ingressDomain = this.getIngressDomain()
 
     // Load Claude Code environment variables from .secret/.env
     // Check both current directory and parent directory (same as kubeconfig loading)
@@ -750,7 +777,7 @@ export class KubernetesService {
         spec: {
           rules: [
             {
-              host: `${appDomain}.usw.sealos.io`,
+              host: `${appDomain}.${ingressDomain}`,
               http: {
                 paths: [
                   {
@@ -771,7 +798,7 @@ export class KubernetesService {
           ],
           tls: [
             {
-              hosts: [`${appDomain}.usw.sealos.io`],
+              hosts: [`${appDomain}.${ingressDomain}`],
               secretName: 'wildcard-cert',
             },
           ],
@@ -805,7 +832,7 @@ export class KubernetesService {
         spec: {
           rules: [
             {
-              host: `${ttydDomain}.usw.sealos.io`,
+              host: `${ttydDomain}.${ingressDomain}`,
               http: {
                 paths: [
                   {
@@ -826,7 +853,7 @@ export class KubernetesService {
           ],
           tls: [
             {
-              hosts: [`${ttydDomain}.usw.sealos.io`],
+              hosts: [`${ttydDomain}.${ingressDomain}`],
               secretName: 'wildcard-cert',
             },
           ],
@@ -842,8 +869,8 @@ export class KubernetesService {
     return {
       statefulSetName: sandboxName,
       serviceName: serviceName,
-      publicUrl: `https://${appDomain}.usw.sealos.io`,
-      ttydUrl: `https://${ttydDomain}.usw.sealos.io`,
+      publicUrl: `https://${appDomain}.${ingressDomain}`,
+      ttydUrl: `https://${ttydDomain}.${ingressDomain}`,
     }
   }
 

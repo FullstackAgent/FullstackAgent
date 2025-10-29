@@ -13,13 +13,13 @@ import SettingsClient from "./settings-client";
 export default async function SettingsPage() {
   const session = await auth();
 
-  if (!session || !session.user?.email) {
+  if (!session || !session.user?.id) {
     redirect("/login");
   }
 
-  // Find user by email
+  // Find user by id
   const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
+    where: { id: session.user.id },
   });
 
   if (!user) {
@@ -33,12 +33,11 @@ export default async function SettingsPage() {
       id: true,
       name: true,
       description: true,
-      environmentVariables: {
+      environments: {
         select: {
           key: true,
           value: true,
           category: true,
-          isSecret: true,
         },
       },
     },
