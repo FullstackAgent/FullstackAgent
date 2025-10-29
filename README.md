@@ -367,3 +367,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 <div align="center">
 100% AI-generated code. Prompted by fanux. Thanks for Claude code & Opus & Sonnet 4.5 & GLM 
 </div>
+#### AI Agent Marketplace Index And Router | [API Doc](https://www.deepnlp.org/doc/ai_agent_marketplace)
+[![AI Agent Marketplace and Router Badge](https://www.deepnlp.org/api/ai_agent_marketplace/svg?name=FullstackAgent/FullstackAgent&badge_type=review)](https://www.deepnlp.org/store/ai-agent/ai-operations-agent/pub-FullstackAgent/fullstackagent)
+
+```
+curl 'https://www.deepnlp.org/api/ai_agent_marketplace/v2?id=FullstackAgent/FullstackAgent'
+```
+    
