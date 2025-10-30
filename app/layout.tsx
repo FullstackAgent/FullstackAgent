@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 
 import { Toaster } from '@/components/ui/sonner';
-import { SealosProvider } from '@/provider/sealos';
+import { Providers } from '@/provider/providers';
 
 import './globals.css';
 
@@ -21,7 +21,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <body className={`${inter.className} bg-black text-white antialiased`}>
-        <SealosProvider>{children}</SealosProvider>
+        <Providers>{children}</Providers>
         <Toaster richColors position="top-right" />
       </body>
     </html>

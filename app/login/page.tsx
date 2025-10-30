@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Github, User } from 'lucide-react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 
 import { Button } from '@/components/ui/button';
@@ -12,28 +12,15 @@ import { Label } from '@/components/ui/label';
 
 export default function LoginPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-
-  // Check for registration success message
-  useEffect(() => {
-    const registered = searchParams.get('registered');
-    const usernameParam = searchParams.get('username');
-    if (registered === 'true' && usernameParam) {
-      setSuccessMessage('Account created successfully! Please sign in.');
-      setUsername(usernameParam);
-    }
-  }, [searchParams]);
 
   const handleCredentialsLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
-    setSuccessMessage(''); // Clear success message on new login attempt
 
     try {
       const result = await signIn('credentials', {
@@ -44,19 +31,10 @@ export default function LoginPage() {
       });
 
       if (result?.error) {
-        // Check error type to determine action
-        if (result.error.includes('UserNotFound')) {
-          // User doesn't exist - redirect to register
-          router.push(`/register?username=${encodeURIComponent(username)}`);
-        } else if (result.error.includes('InvalidCredentials')) {
-          setError('Invalid username or password');
-        } else if (result.error.includes('CredentialsRequired')) {
-          setError('Username and password are required');
-        } else {
-          setError('An error occurred. Please try again.');
-        }
+        // Show generic error message for security
+        setError('Invalid username or password');
       } else if (result?.ok) {
-        // Login successful - redirect to callbackUrl
+        // Login successful - redirect to projects
         router.push('/projects');
         router.refresh();
       }
@@ -74,7 +52,7 @@ export default function LoginPage() {
         <CardHeader>
           <CardTitle className="text-2xl text-white">Welcome to FullStack Agent</CardTitle>
           <CardDescription className="text-gray-400">
-            Sign in or create an account to get started
+            Sign in to get started. New users will be automatically registered.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -110,10 +88,6 @@ export default function LoginPage() {
               />
             </div>
 
-            {successMessage && (
-              <p className="text-green-500 text-sm text-center">{successMessage}</p>
-            )}
-
             {error && <p className="text-red-500 text-sm text-center">{error}</p>}
 
             <Button
@@ -123,11 +97,12 @@ export default function LoginPage() {
               size="lg"
             >
               <User className="mr-2 h-5 w-5" />
-              {isLoading ? 'Signing in...' : 'Sign in'}
+              {isLoading ? 'Signing in...' : 'Sign in / Register'}
             </Button>
 
             <p className="text-xs text-gray-500 text-center">
-              No account? You will be redirected to register page
+              Don&apos;t have an account? Just enter your desired credentials and we&apos;ll create
+              one for&apos; you.
             </p>
           </form>
 

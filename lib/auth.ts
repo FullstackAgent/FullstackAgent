@@ -16,46 +16,78 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       },
       async authorize(credentials) {
         if (!credentials?.username || !credentials?.password) {
-          throw new Error('CredentialsRequired')
+          console.info('Missing username or password')
+          return null
         }
 
         const username = credentials.username as string
         const password = credentials.password as string
 
-        // Find user by username (providerUserId in PASSWORD identity)
-        const identity = await prisma.userIdentity.findUnique({
-          where: {
-            unique_provider_user: {
-              provider: 'PASSWORD',
-              providerUserId: username,
+        try {
+          // Find user by username (providerUserId in PASSWORD identity)
+          const identity = await prisma.userIdentity.findUnique({
+            where: {
+              unique_provider_user: {
+                provider: 'PASSWORD',
+                providerUserId: username,
+              },
             },
-          },
-          include: {
-            user: true,
-          },
-        })
+            include: {
+              user: true,
+            },
+          })
 
-        if (identity) {
+          if (!identity) {
+            // User doesn't exist - auto-register
+            console.log(`[Auto-Register] Creating new user: ${username}`)
+            const passwordHash = await bcrypt.hash(password, 10)
+
+            const newUser = await prisma.user.create({
+              data: {
+                name: username,
+                identities: {
+                  create: {
+                    provider: 'PASSWORD',
+                    providerUserId: username,
+                    metadata: { passwordHash },
+                    isPrimary: true,
+                  },
+                },
+              },
+            })
+
+            console.log(`[Auto-Register] User created successfully: ${newUser.id}`)
+
+            return {
+              id: newUser.id,
+              name: newUser.name || username,
+            }
+          }
+
           // User exists - verify password
           const metadata = identity.metadata as { passwordHash?: string }
           const passwordHash = metadata.passwordHash
 
           if (!passwordHash) {
-            throw new Error('InvalidCredentials')
+            console.log(`No password hash found for user: ${username}`)
+            return null
           }
 
           const passwordMatch = await bcrypt.compare(password, passwordHash)
           if (!passwordMatch) {
-            throw new Error('InvalidCredentials')
+            console.log(`[Auth Failed] Invalid password for user: ${username}`)
+            return null
           }
 
+          // Authentication successful
+          console.log(`[Auth Success] User logged in: ${username}`)
           return {
             id: identity.user.id,
             name: identity.user.name || username,
           }
-        } else {
-          // User doesn't exist - throw error to redirect to register
-          throw new Error('UserNotFound')
+        } catch (error) {
+          console.error('[Auth Error] Error in authorize:', error)
+          return null
         }
       },
     }),
@@ -282,6 +314,38 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   session: {
     strategy: 'jwt',
   },
+  cookies: {
+    // Configure cookies for iframe support (Sealos environment)
+    sessionToken: {
+      name: `next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'none', // Required for iframe cross-origin access
+        path: '/',
+        secure: true, // Required when sameSite is 'none'
+      },
+    },
+    callbackUrl: {
+      name: `next-auth.callback-url`,
+      options: {
+        httpOnly: true,
+        sameSite: 'none',
+        path: '/',
+        secure: true,
+      },
+    },
+    csrfToken: {
+      name: `next-auth.csrf-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'none',
+        path: '/',
+        secure: true,
+      },
+    },
+  },
+  // Use secure cookies in production
+  useSecureCookies: process.env.NODE_ENV === 'production',
   pages: {
     signIn: '/login',
     error: '/error',

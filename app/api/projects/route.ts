@@ -6,23 +6,14 @@ import { k8sService } from "@/lib/kubernetes";
 export async function GET() {
   const session = await auth();
 
-  if (!session || !session.user?.email) {
+  if (!session || !session.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    // Find user by email
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    });
-
-    if (!user) {
-      return NextResponse.json([]);
-    }
-
     const projects = await prisma.project.findMany({
       where: {
-        userId: user.id,
+        userId: session.user.id,
       },
       orderBy: {
         updatedAt: "desc",
@@ -39,7 +30,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const session = await auth();
 
-  if (!session || !session.user?.email) {
+  if (!session || !session.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -47,28 +38,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { name, description } = body;
 
-    // First, ensure user exists in database
-    let user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    });
-
-    if (!user) {
-      // Create user if doesn't exist
-      user = await prisma.user.create({
-        data: {
-          email: session.user.email,
-          name: session.user.name,
-          githubId: session.user.id,
-        },
-      });
-    }
-
     // Create project in database
     const project = await prisma.project.create({
       data: {
         name,
         description,
-        userId: user.id,
+        userId: session.user.id,
         status: "INITIALIZING",
       },
     });
