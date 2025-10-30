@@ -1,25 +1,26 @@
-import NextAuth from 'next-auth';
-import GitHub from 'next-auth/providers/github';
-import Credentials from 'next-auth/providers/credentials';
-import bcrypt from 'bcryptjs';
-import { prisma } from '@/lib/db';
-import { parseSealosJWT, isJWTExpired } from '@/lib/jwt';
+import bcrypt from 'bcryptjs'
+import NextAuth from 'next-auth'
+import Credentials from 'next-auth/providers/credentials'
+import GitHub from 'next-auth/providers/github'
+
+import { prisma } from '@/lib/db'
+import { isJWTExpired, parseSealosJWT } from '@/lib/jwt'
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
     Credentials({
       name: 'credentials',
       credentials: {
-        username: { label: "Username", type: "text" },
-        password: { label: "Password", type: "password" }
+        username: { label: 'Username', type: 'text' },
+        password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
         if (!credentials?.username || !credentials?.password) {
-          throw new Error('CredentialsRequired');
+          throw new Error('CredentialsRequired')
         }
 
-        const username = credentials.username as string;
-        const password = credentials.password as string;
+        const username = credentials.username as string
+        const password = credentials.password as string
 
         // Find user by username (providerUserId in PASSWORD identity)
         const identity = await prisma.userIdentity.findUnique({
@@ -32,68 +33,68 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           include: {
             user: true,
           },
-        });
+        })
 
         if (identity) {
           // User exists - verify password
-          const metadata = identity.metadata as { passwordHash?: string };
-          const passwordHash = metadata.passwordHash;
+          const metadata = identity.metadata as { passwordHash?: string }
+          const passwordHash = metadata.passwordHash
 
           if (!passwordHash) {
-            throw new Error('InvalidCredentials');
+            throw new Error('InvalidCredentials')
           }
 
-          const passwordMatch = await bcrypt.compare(password, passwordHash);
+          const passwordMatch = await bcrypt.compare(password, passwordHash)
           if (!passwordMatch) {
-            throw new Error('InvalidCredentials');
+            throw new Error('InvalidCredentials')
           }
 
           return {
             id: identity.user.id,
             name: identity.user.name || username,
-          };
+          }
         } else {
           // User doesn't exist - throw error to redirect to register
-          throw new Error('UserNotFound');
+          throw new Error('UserNotFound')
         }
       },
     }),
     Credentials({
       id: 'sealos',
-      name: 'Sealos',
+      name: 'sealos',
       credentials: {
-        sealosToken: { label: "Sealos Token", type: "text" },
-        sealosKubeconfig: { label: "Sealos Kubeconfig", type: "text" }
+        sealosToken: { label: 'Sealos Token', type: 'text' },
+        sealosKubeconfig: { label: 'Sealos Kubeconfig', type: 'text' },
       },
       async authorize(credentials) {
         if (!credentials?.sealosToken) {
-          throw new Error('SealosTokenRequired');
+          throw new Error('SealosTokenRequired')
         }
 
-        const sealosToken = credentials.sealosToken as string;
-        const sealosKubeconfig = credentials.sealosKubeconfig as string;
+        const sealosToken = credentials.sealosToken as string
+        const sealosKubeconfig = credentials.sealosKubeconfig as string
 
         // Validate JWT token
         if (!process.env.SEALOS_JWT_SECRET) {
-          console.error('SEALOS_JWT_SECRET is not configured');
-          throw new Error('SealosConfigurationError');
+          console.error('SEALOS_JWT_SECRET is not configured')
+          throw new Error('SealosConfigurationError')
         }
 
         // Check if JWT is expired
         if (isJWTExpired(sealosToken)) {
-          throw new Error('SealosTokenExpired');
+          throw new Error('SealosTokenExpired')
         }
 
         // Parse and verify Sealos JWT
-        let sealosJwtPayload;
+        let sealosJwtPayload
         try {
-          sealosJwtPayload = parseSealosJWT(sealosToken, process.env.SEALOS_JWT_SECRET);
+          sealosJwtPayload = parseSealosJWT(sealosToken, process.env.SEALOS_JWT_SECRET)
         } catch (error) {
-          console.error('Error parsing Sealos JWT:', error);
-          throw new Error('SealosTokenInvalid');
+          console.error('Error parsing Sealos JWT:', error)
+          throw new Error('SealosTokenInvalid')
         }
 
-        const sealosUserId = sealosJwtPayload.userId;
+        const sealosUserId = sealosJwtPayload.userId
 
         // Find existing Sealos identity
         const existingIdentity = await prisma.userIdentity.findUnique({
@@ -106,11 +107,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           include: {
             user: true,
           },
-        });
+        })
 
         if (existingIdentity) {
           // User exists - only update sealosKubeconfig, NOT sealosId
-          const existingMetadata = existingIdentity.metadata as { sealosId?: string, sealosKubeconfig?: string };
+          const existingMetadata = existingIdentity.metadata as {
+            sealosId?: string
+            sealosKubeconfig?: string
+          }
           await prisma.userIdentity.update({
             where: { id: existingIdentity.id },
             data: {
@@ -119,7 +123,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 sealosKubeconfig: sealosKubeconfig, // Update kubeconfig
               },
             },
-          });
+          })
 
           // Update KUBECONFIG in UserConfig
           await prisma.userConfig.upsert({
@@ -139,12 +143,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             update: {
               value: sealosKubeconfig,
             },
-          });
+          })
 
           return {
             id: existingIdentity.user.id,
             name: existingIdentity.user.name || sealosUserId,
-          };
+          }
         } else {
           // Create new user - use sealosId as name
           const newUser = await prisma.user.create({
@@ -170,12 +174,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 },
               },
             },
-          });
+          })
 
           return {
             id: newUser.id,
             name: newUser.name || sealosUserId,
-          };
+          }
         }
       },
     }),
@@ -193,9 +197,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async signIn({ user, account, profile }) {
       if (account?.provider === 'github') {
         try {
-          const githubId = account.providerAccountId;
-          const githubToken = account.access_token;
-          const scope = account.scope || 'repo read:user';
+          const githubId = account.providerAccountId
+          const githubToken = account.access_token
+          const scope = account.scope || 'repo read:user'
 
           // Check if identity exists
           const existingIdentity = await prisma.userIdentity.findUnique({
@@ -208,7 +212,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             include: {
               user: true,
             },
-          });
+          })
 
           if (existingIdentity) {
             // Update GitHub token in metadata
@@ -220,16 +224,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                   scope,
                 },
               },
-            });
+            })
 
             // Set user info for JWT callback
-            user.id = existingIdentity.user.id;
-            user.name = existingIdentity.user.name;
+            user.id = existingIdentity.user.id
+            user.name = existingIdentity.user.name
           } else {
             // Create new user with GitHub identity
             const newUser = await prisma.user.create({
               data: {
-                name: (profile?.name as string) || (profile?.login as string) || user.name || 'GitHub User',
+                name:
+                  (profile?.name as string) ||
+                  (profile?.login as string) ||
+                  user.name ||
+                  'GitHub User',
                 identities: {
                   create: {
                     provider: 'GITHUB',
@@ -242,33 +250,33 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                   },
                 },
               },
-            });
+            })
 
-            user.id = newUser.id;
-            user.name = newUser.name;
+            user.id = newUser.id
+            user.name = newUser.name
           }
         } catch (error) {
-          console.error('Error in GitHub signIn callback:', error);
-          return false;
+          console.error('Error in GitHub signIn callback:', error)
+          return false
         }
       }
-      return true;
+      return true
     },
     async jwt({ token, user }) {
       // On initial sign in, store minimal user data in JWT
       if (user) {
-        token.id = user.id;
-        token.name = user.name;
+        token.id = user.id
+        token.name = user.name
       }
-      return token;
+      return token
     },
     async session({ session, token }) {
       // Pass user data from JWT to session
       if (token && session.user) {
-        session.user.id = token.id as string;
-        session.user.name = token.name as string | null | undefined;
+        session.user.id = token.id as string
+        session.user.name = token.name as string | null | undefined
       }
-      return session;
+      return session
     },
   },
   session: {
@@ -279,28 +287,28 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     error: '/error',
   },
   secret: process.env.NEXTAUTH_SECRET,
-});
+})
 
 // Extend NextAuth types
 declare module 'next-auth' {
   interface Session {
     user: {
-      id: string;
-      name?: string | null;
-    };
+      id: string
+      name?: string | null
+    }
   }
 
   interface User {
-    id: string;
-    name?: string | null;
+    id: string
+    name?: string | null
   }
 }
 
-import 'next-auth/jwt';
+import 'next-auth/jwt'
 
 declare module 'next-auth/jwt' {
   interface JWT {
-    id?: string;
-    name?: string | null;
+    id?: string
+    name?: string | null
   }
 }

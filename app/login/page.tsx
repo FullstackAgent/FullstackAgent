@@ -1,38 +1,39 @@
-"use client"
+'use client';
 
-import { useState, useEffect } from 'react'
-import { signIn } from "next-auth/react"
-import { useRouter, useSearchParams } from 'next/navigation'
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Github, User } from "lucide-react"
+import { useEffect, useState } from 'react';
+import { Github, User } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { signIn } from 'next-auth/react';
+
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 export default function LoginPage() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [successMessage, setSuccessMessage] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   // Check for registration success message
   useEffect(() => {
-    const registered = searchParams.get('registered')
-    const usernameParam = searchParams.get('username')
+    const registered = searchParams.get('registered');
+    const usernameParam = searchParams.get('username');
     if (registered === 'true' && usernameParam) {
-      setSuccessMessage('Account created successfully! Please sign in.')
-      setUsername(usernameParam)
+      setSuccessMessage('Account created successfully! Please sign in.');
+      setUsername(usernameParam);
     }
-  }, [searchParams])
+  }, [searchParams]);
 
   const handleCredentialsLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setError('')
-    setSuccessMessage('')  // Clear success message on new login attempt
+    e.preventDefault();
+    setIsLoading(true);
+    setError('');
+    setSuccessMessage(''); // Clear success message on new login attempt
 
     try {
       const result = await signIn('credentials', {
@@ -40,32 +41,32 @@ export default function LoginPage() {
         password,
         redirect: false,
         callbackUrl: '/projects',
-      })
+      });
 
       if (result?.error) {
         // Check error type to determine action
         if (result.error.includes('UserNotFound')) {
           // User doesn't exist - redirect to register
-          router.push(`/register?username=${encodeURIComponent(username)}`)
+          router.push(`/register?username=${encodeURIComponent(username)}`);
         } else if (result.error.includes('InvalidCredentials')) {
-          setError('Invalid username or password')
+          setError('Invalid username or password');
         } else if (result.error.includes('CredentialsRequired')) {
-          setError('Username and password are required')
+          setError('Username and password are required');
         } else {
-          setError('An error occurred. Please try again.')
+          setError('An error occurred. Please try again.');
         }
       } else if (result?.ok) {
         // Login successful - redirect to callbackUrl
-        router.push('/projects')
-        router.refresh()
+        router.push('/projects');
+        router.refresh();
       }
     } catch (err) {
-      console.error('Login error:', err)
-      setError('An error occurred. Please try again.')
+      console.error('Login error:', err);
+      setError('An error occurred. Please try again.');
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <div className="min-h-screen bg-black text-white flex items-center justify-center">
@@ -113,9 +114,7 @@ export default function LoginPage() {
               <p className="text-green-500 text-sm text-center">{successMessage}</p>
             )}
 
-            {error && (
-              <p className="text-red-500 text-sm text-center">{error}</p>
-            )}
+            {error && <p className="text-red-500 text-sm text-center">{error}</p>}
 
             <Button
               type="submit"
@@ -142,7 +141,7 @@ export default function LoginPage() {
           </div>
 
           <Button
-            onClick={() => signIn("github", { callbackUrl: "/projects" })}
+            onClick={() => signIn('github', { callbackUrl: '/projects' })}
             className="w-full bg-white text-black hover:bg-gray-200"
             size="lg"
             variant="outline"
@@ -153,5 +152,5 @@ export default function LoginPage() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

@@ -1,13 +1,16 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css";
-import { Toaster } from "@/components/ui/sonner";
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
 
-const inter = Inter({ subsets: ["latin"] });
+import { Toaster } from '@/components/ui/sonner';
+import { SealosProvider } from '@/provider/sealos';
+
+import './globals.css';
+
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: "FullStack Agent - AI-Powered Development Platform",
-  description: "Create, develop, and deploy full-stack applications with AI",
+  title: 'FullStack Agent - AI-Powered Development Platform',
+  description: 'Create, develop, and deploy full-stack applications with AI',
 };
 
 export default function RootLayout({
@@ -18,7 +21,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <body className={`${inter.className} bg-black text-white antialiased`}>
-        {children}
+        <SealosProvider>{children}</SealosProvider>
         <Toaster richColors position="top-right" />
       </body>
     </html>
