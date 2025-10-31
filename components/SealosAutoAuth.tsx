@@ -10,148 +10,181 @@ import { useSealos } from '@/provider/sealos';
 const MAX_RETRY_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 2000;
 
+type AuthState =
+  | 'idle'           // Initial state
+  | 'authenticating' // Currently authenticating
+  | 'success'        // Authentication successful
+  | 'failed'         // Authentication failed (max retries reached)
+  | 'retrying';      // Retrying after failure
+
+/**
+ * Sealos Auto Authentication Component
+ *
+ * @remarks
+ * This component should ONLY be rendered when:
+ * 1. Sealos initialization is complete (isInitialized === true)
+ * 2. In Sealos environment (isSealos === true)
+ *
+ * The parent component (page.tsx) handles environment detection and
+ * only renders this component in Sealos environments.
+ */
 export function SealosAutoAuth() {
   const router = useRouter();
   const { status } = useSession();
-  const { isInitialized, isLoading, isSealos, sealosToken, sealosKubeconfig } = useSealos();
+  const { sealosToken, sealosKubeconfig } = useSealos();
+
+  const [authState, setAuthState] = useState<AuthState>('idle');
   const [retryCount, setRetryCount] = useState(0);
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
-  const authAttempted = useRef(false);
+  const hasAttempted = useRef(false);
 
   useEffect(() => {
-    // Wait for Sealos and NextAuth initialization to complete
-    if (!isInitialized || isLoading || status === 'loading') {
+    // ========== Early Returns: Check preconditions ==========
+
+    // 1. NextAuth session still loading
+    if (status === 'loading') {
       return;
     }
 
-    // If already authenticated, redirect to /projects
+    // 2. Already authenticated - redirect to projects page
     if (status === 'authenticated') {
+      setAuthState('success');
       router.push('/projects');
       return;
     }
 
-    // If in Sealos environment and unauthenticated, auto-initiate Sealos authentication
-    if (
-      isSealos &&
-      status === 'unauthenticated' &&
-      sealosToken &&
-      sealosKubeconfig &&
-      !authAttempted.current &&
-      !isAuthenticating &&
-      retryCount < MAX_RETRY_ATTEMPTS
-    ) {
-      authAttempted.current = true;
-      setIsAuthenticating(true);
-      console.log(
-        `[Sealos Auth] Attempt ${retryCount + 1}/${MAX_RETRY_ATTEMPTS} - Auto-initiating authentication (iframe mode)...`
-      );
-
-      // Use server action for authentication in iframe environment
-      // This bypasses client-side CSRF token issues
-      authenticateWithSealos(sealosToken, sealosKubeconfig)
-        .then((result) => {
-          if (!result.success) {
-            console.error('[Sealos Auth] Authentication failed:', result.error);
-
-            // Retry with delay if under max attempts
-            if (retryCount < MAX_RETRY_ATTEMPTS - 1) {
-              console.log(`[Sealos Auth] Retrying in ${RETRY_DELAY_MS / 1000}s...`);
-              setTimeout(() => {
-                authAttempted.current = false;
-                setIsAuthenticating(false);
-                setRetryCount((prev) => prev + 1);
-              }, RETRY_DELAY_MS);
-            } else {
-              console.error('[Sealos Auth] Max retry attempts reached, giving up');
-              setIsAuthenticating(false);
-            }
-          } else {
-            console.log('[Sealos Auth] Authentication successful, redirecting...');
-            // Authentication successful, redirect to projects page
-            router.push('/projects');
-            router.refresh();
-          }
-        })
-        .catch((error) => {
-          console.error('[Sealos Auth] Error during authentication:', error);
-
-          // Retry with delay if under max attempts
-          if (retryCount < MAX_RETRY_ATTEMPTS - 1) {
-            console.log(`[Sealos Auth] Retrying in ${RETRY_DELAY_MS / 1000}s...`);
-            setTimeout(() => {
-              authAttempted.current = false;
-              setIsAuthenticating(false);
-              setRetryCount((prev) => prev + 1);
-            }, RETRY_DELAY_MS);
-          } else {
-            console.error('[Sealos Auth] Max retry attempts reached, giving up');
-            setIsAuthenticating(false);
-          }
-        });
+    // 3. Already attempted authentication - wait for state changes
+    if (hasAttempted.current) {
+      return;
     }
-  }, [
-    isInitialized,
-    isLoading,
-    isSealos,
-    status,
-    sealosToken,
-    sealosKubeconfig,
-    router,
-    retryCount,
-    isAuthenticating,
-  ]);
 
-  // Display loading state
-  if (isLoading || status === 'loading') {
+    // 4. Missing required credentials
+    if (!sealosToken || !sealosKubeconfig) {
+      console.warn('[Sealos Auth] Missing required credentials (token or kubeconfig)');
+      return;
+    }
+
+    // 5. Max retry attempts reached
+    if (retryCount >= MAX_RETRY_ATTEMPTS) {
+      setAuthState('failed');
+      return;
+    }
+
+    // ========== Start Auto Authentication ==========
+
+    hasAttempted.current = true;
+    setAuthState('authenticating');
+
+    console.log(
+      `[Sealos Auth] Attempt ${retryCount + 1}/${MAX_RETRY_ATTEMPTS} - Starting authentication (iframe mode)...`
+    );
+
+    // Use server action to bypass client-side CSRF token issues in iframe
+    authenticateWithSealos(sealosToken, sealosKubeconfig)
+      .then((result) => {
+        if (result.success) {
+          console.log('[Sealos Auth] Authentication successful! Redirecting to projects...');
+          setAuthState('success');
+          router.push('/projects');
+          router.refresh();
+        } else {
+          handleAuthFailure(result.error);
+        }
+      })
+      .catch((error) => {
+        console.error('[Sealos Auth] Unexpected error during authentication:', error);
+        handleAuthFailure(error.message);
+      });
+
+    // Handle authentication failure with retry logic
+    function handleAuthFailure(errorMsg?: string) {
+      console.error('[Sealos Auth] Authentication failed:', errorMsg || 'Unknown error');
+
+      if (retryCount < MAX_RETRY_ATTEMPTS - 1) {
+        console.log(`[Sealos Auth] Scheduling retry in ${RETRY_DELAY_MS / 1000}s...`);
+        setAuthState('retrying');
+
+        setTimeout(() => {
+          hasAttempted.current = false;
+          setAuthState('idle');
+          setRetryCount((prev) => prev + 1);
+        }, RETRY_DELAY_MS);
+      } else {
+        console.error('[Sealos Auth] Max retry attempts reached. Giving up.');
+        setAuthState('failed');
+      }
+    }
+  }, [status, sealosToken, sealosKubeconfig, retryCount, router]);
+
+  // ========== UI Rendering Based on State ==========
+
+  // Currently authenticating or retrying
+  if (authState === 'authenticating' || authState === 'retrying') {
     return (
-      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-          <p className="text-gray-400">
-            {isSealos ? 'Authenticating with Sealos...' : 'Loading...'}
-          </p>
-        </div>
-      </div>
+      <LoadingOverlay
+        message="Authenticating with Sealos..."
+        retry={retryCount > 0 ? { current: retryCount, max: MAX_RETRY_ATTEMPTS } : undefined}
+      />
     );
   }
 
-  // If in Sealos environment and authenticating, display loading state with retry info
-  if (isSealos && isAuthenticating) {
-    return (
-      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-          <p className="text-gray-400">Authenticating with Sealos...</p>
-          {retryCount > 0 && (
-            <p className="text-gray-500 text-sm mt-2">
-              Retry attempt {retryCount}/{MAX_RETRY_ATTEMPTS}
-            </p>
-          )}
-        </div>
-      </div>
-    );
+  // Authentication failed after max retries
+  if (authState === 'failed') {
+    return <FailedOverlay maxAttempts={MAX_RETRY_ATTEMPTS} />;
   }
 
-  // If max retries reached, show error message
-  if (isSealos && retryCount >= MAX_RETRY_ATTEMPTS && !isAuthenticating) {
-    return (
-      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
-        <div className="text-center max-w-md mx-auto px-4">
-          <div className="text-red-500 text-5xl mb-4">⚠️</div>
-          <h2 className="text-xl font-bold text-white mb-2">Sealos Authentication Failed</h2>
-          <p className="text-gray-400 mb-4">
-            Unable to authenticate with Sealos after {MAX_RETRY_ATTEMPTS} attempts.
-          </p>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
-          >
-            Reload Page
-          </button>
-        </div>
-      </div>
-    );
-  }
-
+  // Other states (idle, success): no overlay needed
   return null;
+}
+
+// ========== UI Components ==========
+
+interface LoadingOverlayProps {
+  message: string;
+  retry?: {
+    current: number;
+    max: number;
+  };
+}
+
+function LoadingOverlay({ message, retry }: LoadingOverlayProps) {
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+        <p className="text-gray-400">{message}</p>
+        {retry && (
+          <p className="text-gray-500 text-sm mt-2">
+            Retry attempt {retry.current}/{retry.max}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface FailedOverlayProps {
+  maxAttempts: number;
+}
+
+function FailedOverlay({ maxAttempts }: FailedOverlayProps) {
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="text-center max-w-md mx-auto px-4">
+        <div className="text-red-500 text-5xl mb-4">⚠️</div>
+        <h2 className="text-xl font-bold text-white mb-2">
+          Sealos Authentication Failed
+        </h2>
+        <p className="text-gray-400 mb-4">
+          Unable to authenticate with Sealos after {maxAttempts} attempts.
+          Please check your credentials and try again.
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
+        >
+          Reload Page
+        </button>
+      </div>
+    </div>
+  );
 }
