@@ -1,8 +1,7 @@
 import * as k8s from '@kubernetes/client-node'
 import fs from 'fs'
 import path from 'path'
-
-import { getRuntimeImage, VERSIONS } from './config/versions'
+import { VERSIONS, getRuntimeImage } from './config/versions'
 
 export class KubernetesService {
   private kc: k8s.KubeConfig
@@ -341,7 +340,7 @@ export class KubernetesService {
     if (!fs.existsSync(claudeEnvPath)) {
       claudeEnvPath = path.join(process.cwd(), '..', '.secret', '.env')
     }
-    const claudeEnvVars: Record<string, string> = {}
+    let claudeEnvVars: Record<string, string> = {}
 
     if (fs.existsSync(claudeEnvPath)) {
       console.log(`Loading Claude Code env from: ${claudeEnvPath}`)
@@ -350,7 +349,7 @@ export class KubernetesService {
         // Skip comment lines and export statements
         if (line.startsWith('#') || !line.includes('=')) return
 
-        const cleanLine = line.replace(/^export\s+/, '')
+        let cleanLine = line.replace(/^export\s+/, '')
         const [key, ...valueParts] = cleanLine.split('=')
         const value = valueParts.join('=') // Handle values with = signs
 
@@ -1107,14 +1106,14 @@ export class KubernetesService {
 
       // Load Claude Code environment variables from .secret/.env
       const claudeEnvPath = path.join(process.cwd(), '.secret', '.env')
-      const claudeEnvVars: Record<string, string> = {}
+      let claudeEnvVars: Record<string, string> = {}
 
       if (fs.existsSync(claudeEnvPath)) {
         const envContent = fs.readFileSync(claudeEnvPath, 'utf-8')
         envContent.split('\n').forEach((line) => {
           if (line.startsWith('#') || !line.includes('=')) return
 
-          const cleanLine = line.replace(/^export\s+/, '')
+          let cleanLine = line.replace(/^export\s+/, '')
           const [key, ...valueParts] = cleanLine.split('=')
           const value = valueParts.join('=')
 
