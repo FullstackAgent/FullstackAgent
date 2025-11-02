@@ -3,11 +3,9 @@
  * IMPORTANT: Always use specific version tags to ensure consistency
  */
 
-import { getRuntimeImage as getImage } from '../versions';
-
 export const VERSIONS = {
   // Runtime container image version - now using centralized version
-  RUNTIME_IMAGE: getImage(),
+  RUNTIME_IMAGE: 'fullstackagent/fullstack-web-runtime:v0.0.1-alpha.12',
 
   // PostgreSQL version for KubeBlocks
   POSTGRESQL_VERSION: 'postgresql-14.8.0',
@@ -43,25 +41,4 @@ export const VERSIONS = {
     SANDBOX_SIZE: '5Gi',
     STORAGE_CLASS: 'openebs-backup',
   },
-} as const;
-
-/**
- * Get the current runtime image with tag
- */
-export function getRuntimeImage(): string {
-  return VERSIONS.RUNTIME_IMAGE;
-}
-
-/**
- * Get the image name without tag
- */
-export function getRuntimeImageName(): string {
-  return VERSIONS.RUNTIME_IMAGE.split(':')[0];
-}
-
-/**
- * Get the image tag only
- */
-export function getRuntimeImageTag(): string {
-  return VERSIONS.RUNTIME_IMAGE.split(':')[1] || 'v0.0.1-alpha.0';
-}
+} as const

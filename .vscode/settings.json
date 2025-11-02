@@ -31,8 +31,14 @@
     },
     "typescript.tsdk": "node_modules/typescript/lib",
     "cSpell.words": [
+        "clusterdefinition",
+        "clusterversion",
+        "fullstackagent",
+        "kbcli",
+        "kubeblocks",
         "Kubeconfig",
         "nsid",
+        "openebs",
         "sealos"
     ]
 }

@@ -1,19 +1,74 @@
 import * as k8s from '@kubernetes/client-node'
-import fs from 'fs'
-import path from 'path'
 
-import { getRuntimeImage, VERSIONS } from './config/versions'
-import { DatabaseInfo } from './database-manager'
+import { logger as baseLogger } from '@/lib/logger'
 
+import { KubernetesUtils } from './kubernetes-utils'
+import { VERSIONS } from './versions'
+
+const logger = baseLogger.child({ module: 'lib/k8s/sandbox-manager' })
+
+/**
+ * Sandbox information
+ */
 export interface SandboxInfo {
+  /** StatefulSet name (equals sandboxName) */
   statefulSetName: string
+  /** Service name */
   serviceName: string
+  /** Application access URL */
   publicUrl: string
+  /** Terminal access URL */
   ttydUrl: string
 }
 
-export type SandboxStatus = 'RUNNING' | 'STOPPED' | 'CREATING' | 'TERMINATED' | 'ERROR'
+/**
+ * Sandbox running status (matches ResourceStatus enum in Prisma schema)
+ *
+ * Status is determined purely from K8s StatefulSet state:
+ * - STARTING: spec.replicas > 0, but pods not ready yet (starting up)
+ * - RUNNING: spec.replicas > 0, all pods ready
+ * - STOPPING: spec.replicas = 0, but currentReplicas > 0 (pods terminating)
+ * - STOPPED: spec.replicas = 0, currentReplicas = 0 (fully stopped)
+ * - TERMINATED: StatefulSet doesn't exist (deleted from K8s)
+ * - ERROR: Failed to query K8s or other errors
+ *
+ * Note: CREATING state is managed at DB level, not returned by this K8s layer
+ */
+export type SandboxStatus = 'STARTING' | 'RUNNING' | 'STOPPING' | 'STOPPED' | 'TERMINATED' | 'ERROR'
 
+/**
+ * StatefulSet detailed status information
+ */
+export interface StatefulSetStatusDetail {
+  /** Current status */
+  status: SandboxStatus
+  /** Desired replica count */
+  replicas: number
+  /** Ready replica count */
+  readyReplicas: number
+  /** Current replica count */
+  currentReplicas: number
+  /** Updated replica count */
+  updatedReplicas: number
+  /** Current revision */
+  currentRevision?: string
+  /** Update revision */
+  updateRevision?: string
+  /** Whether ready (all replicas are ready) */
+  isReady: boolean
+}
+
+/**
+ * Sandbox Manager - Manages Kubernetes StatefulSet sandbox environments
+ *
+ * Core principles:
+ * 1. All resource operations based on exact sandboxName and k8sProjectName
+ * 2. No fuzzy matching, all lookups are exact matches
+ * 3. Resource naming rules:
+ *    - StatefulSet: {sandboxName}
+ *    - Service: {sandboxName}-service
+ *    - Ingress: {sandboxName}-app-ingress, {sandboxName}-ttyd-ingress
+ */
 export class SandboxManager {
   private kc: k8s.KubeConfig
   private k8sApi: k8s.CoreV1Api
@@ -28,298 +83,481 @@ export class SandboxManager {
   }
 
   /**
-   * 创建 Sandbox 环境
+   * Create Sandbox environment
+   *
+   * @param projectName - Project name (used to generate k8sProjectName)
+   * @param namespace - Kubernetes namespace
+   * @param ingressDomain - Ingress domain (e.g., usw.sealos.io)
+   * @param sandboxName - Sandbox name (exact resource name, e.g., project-abc123)
+   * @returns Sandbox information
    */
   async createSandbox(
     projectName: string,
-    envVars: Record<string, string>,
     namespace: string,
     ingressDomain: string,
-    randomSuffix: string,
-    databaseInfo?: DatabaseInfo
+    sandboxName: string
   ): Promise<SandboxInfo> {
-    const k8sProjectName = projectName
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, '')
-      .substring(0, 20)
-    const sandboxName = `${k8sProjectName}-agentruntime-${randomSuffix}`
+    logger.info(`Creating sandbox: ${sandboxName} for project: ${projectName}`)
 
-    // Generate random names
-    const port3000Name = this.generateRandomName()
-    const port5000Name = this.generateRandomName()
-    const port7681Name = this.generateRandomName()
-    const port8080Name = this.generateRandomName()
-    const appDomain = this.generateRandomName()
-    const ttydDomain = this.generateRandomName()
+    const k8sProjectName = KubernetesUtils.toK8sProjectName(projectName)
 
     // Load environment variables
-    const claudeEnvVars = this.loadClaudeEnvVars()
-
-    // Prepare database connection string
-    const dbConnectionString = this.prepareDatabaseConnectionString(
-      databaseInfo,
-      k8sProjectName,
-      namespace,
-      claudeEnvVars
-    )
+    const envVars = this.loadEnvVars()
 
     // Prepare container environment
-    const containerEnv = {
-      ...claudeEnvVars,
+    const containerEnv: Record<string, string> = {
       ...envVars,
-      DATABASE_URL: dbConnectionString || claudeEnvVars.DATABASE,
-      NODE_ENV: 'development',
-      TTYD_PORT: '7681',
-      TTYD_INTERFACE: '0.0.0.0',
       PROJECT_NAME: projectName,
     }
 
-    // Create ConfigMaps
-    await this.createConfigMaps(sandboxName, k8sProjectName, namespace)
-
     // Create StatefulSet
     await this.createStatefulSet(sandboxName, k8sProjectName, namespace, containerEnv)
+    logger.info(`StatefulSet created: ${sandboxName}`)
 
     // Create Service
-    const serviceName = await this.createService(
-      sandboxName,
-      k8sProjectName,
-      namespace,
-      port3000Name,
-      port5000Name,
-      port7681Name,
-      port8080Name
-    )
+    const serviceName = this.getServiceName(sandboxName)
+    await this.createService(sandboxName, k8sProjectName, namespace)
+    logger.info(`Service created: ${serviceName}`)
 
     // Create Ingresses
-    await this.createIngresses(
-      sandboxName,
-      k8sProjectName,
-      namespace,
-      serviceName,
-      appDomain,
-      ttydDomain,
-      ingressDomain
-    )
+    await this.createIngresses(sandboxName, k8sProjectName, namespace, serviceName, ingressDomain)
+    logger.info(`Ingresses created for: ${sandboxName}`)
 
     return {
       statefulSetName: sandboxName,
       serviceName: serviceName,
-      publicUrl: `https://${appDomain}.${ingressDomain}`,
-      ttydUrl: `https://${ttydDomain}.${ingressDomain}`,
+      publicUrl: `https://${sandboxName}-app.${ingressDomain}`,
+      ttydUrl: `https://${sandboxName}-ttyd.${ingressDomain}`,
     }
   }
 
   /**
-   * 加载 Claude Code 环境变量
+   * Delete Sandbox environment
+   *
+   * Precisely delete all resources for specified sandboxName
+   *
+   * @param namespace - Kubernetes namespace
+   * @param sandboxName - Sandbox name (exact match)
    */
-  private loadClaudeEnvVars(): Record<string, string> {
-    let claudeEnvPath = path.join(process.cwd(), '.secret', '.env')
-    if (!fs.existsSync(claudeEnvPath)) {
-      claudeEnvPath = path.join(process.cwd(), '..', '.secret', '.env')
-    }
+  async deleteSandbox(namespace: string, sandboxName: string): Promise<void> {
+    logger.info(`Deleting sandbox: ${sandboxName}`)
 
-    const claudeEnvVars: Record<string, string> = {}
+    // Delete all resources in parallel
+    await Promise.all([
+      this.deleteStatefulSet(sandboxName, namespace),
+      this.deleteService(sandboxName, namespace),
+      this.deleteIngresses(sandboxName, namespace),
+    ])
 
-    if (fs.existsSync(claudeEnvPath)) {
-      console.log(`Loading Claude Code env from: ${claudeEnvPath}`)
-      const envContent = fs.readFileSync(claudeEnvPath, 'utf-8')
-      envContent.split('\n').forEach((line) => {
-        if (line.startsWith('#') || !line.includes('=')) return
+    logger.info(`Sandbox deleted: ${sandboxName}`)
+  }
 
-        const cleanLine = line.replace(/^export\s+/, '')
-        const [key, ...valueParts] = cleanLine.split('=')
-        const value = valueParts.join('=')
+  /**
+   * Stop Sandbox (set replica count to 0)
+   *
+   * This method is idempotent - can be called multiple times safely:
+   * - If StatefulSet doesn't exist, logs warning and returns (already deleted)
+   * - If already stopped (replicas=0), logs info and returns (no-op)
+   * - Otherwise, sets replicas to 0
+   *
+   * @param namespace - Kubernetes namespace
+   * @param sandboxName - Sandbox name (exact match)
+   */
+  async stopSandbox(namespace: string, sandboxName: string): Promise<void> {
+    logger.info(`Stopping sandbox: ${sandboxName}`)
 
-        if (key && value) {
-          claudeEnvVars[key.trim()] = value.trim().replace(/^["']|["']$/g, '')
-        }
+    try {
+      // Find StatefulSet by exact match
+      const statefulSet = await this.getStatefulSet(sandboxName, namespace)
+
+      if (!statefulSet) {
+        // Idempotent: StatefulSet doesn't exist (already deleted or never created)
+        logger.warn(`StatefulSet not found (already deleted): ${sandboxName}`)
+        return
+      }
+
+      const currentReplicas = statefulSet.spec?.replicas || 0
+
+      // Idempotent: Already stopped, no need to patch
+      if (currentReplicas === 0) {
+        logger.info(`Sandbox already stopped: ${sandboxName}`)
+        return
+      }
+
+      // Update replica count to 0
+      await this.k8sAppsApi.patchNamespacedStatefulSet({
+        name: sandboxName,
+        namespace,
+        body: {
+          spec: {
+            replicas: 0,
+          },
+        },
       })
-    }
 
-    return claudeEnvVars
-  }
-
-  /**
-   * 准备数据库连接字符串
-   */
-  private prepareDatabaseConnectionString(
-    databaseInfo: DatabaseInfo | undefined,
-    k8sProjectName: string,
-    namespace: string,
-    claudeEnvVars: Record<string, string>
-  ): string {
-    if (databaseInfo) {
-      console.log(`📊 Using provided database credentials for '${databaseInfo.clusterName}'`)
-      return `postgresql://${databaseInfo.username}:${databaseInfo.password}@${databaseInfo.host}:${databaseInfo.port}/${databaseInfo.database}?schema=public`
-    }
-
-    return ''
-  }
-
-  /**
-   * 创建 ConfigMaps
-   */
-  private async createConfigMaps(sandboxName: string, k8sProjectName: string, namespace: string) {
-    // Read kubeconfig
-    const kubeconfigContent = this.readKubeconfigContent()
-    if (kubeconfigContent) {
-      await this.createKubeconfigConfigMap(
-        sandboxName,
-        k8sProjectName,
-        namespace,
-        kubeconfigContent
-      )
-    }
-
-    // Read CLAUDE.md
-    const claudeMdContent = this.readClaudeMdContent()
-    if (claudeMdContent) {
-      await this.createClaudeMdConfigMap(sandboxName, k8sProjectName, namespace, claudeMdContent)
-    }
-  }
-
-  /**
-   * 读取 kubeconfig 内容
-   */
-  private readKubeconfigContent(): string {
-    try {
-      let kubeconfigPath = path.join(process.cwd(), '.secret', 'kubeconfig')
-      if (!fs.existsSync(kubeconfigPath)) {
-        kubeconfigPath = path.join(process.cwd(), '..', '.secret', 'kubeconfig')
-      }
-
-      if (fs.existsSync(kubeconfigPath)) {
-        console.log(`✅ Loaded kubeconfig for ConfigMap creation`)
-        return fs.readFileSync(kubeconfigPath, 'utf8')
-      } else {
-        console.warn(`⚠️  Kubeconfig file not found for ConfigMap creation`)
-        return ''
-      }
+      logger.info(`Sandbox stopped: ${sandboxName}`)
     } catch (error) {
-      console.error(`❌ Failed to read kubeconfig for ConfigMap: ${error}`)
-      return ''
-    }
-  }
-
-  /**
-   * 读取 CLAUDE.md 内容
-   */
-  private readClaudeMdContent(): string {
-    try {
-      let claudeMdPath = path.join(process.cwd(), '..', 'CLAUDE.md')
-      if (!fs.existsSync(claudeMdPath)) {
-        claudeMdPath = path.join(process.cwd(), 'CLAUDE.md')
-      }
-
-      if (fs.existsSync(claudeMdPath)) {
-        console.log(`✅ Loaded CLAUDE.md for ConfigMap creation`)
-        return fs.readFileSync(claudeMdPath, 'utf8')
-      } else {
-        console.warn(`⚠️  CLAUDE.md file not found for ConfigMap creation`)
-        return ''
-      }
-    } catch (error) {
-      console.error(`❌ Failed to read CLAUDE.md for ConfigMap: ${error}`)
-      return ''
-    }
-  }
-
-  /**
-   * 创建 kubeconfig ConfigMap
-   */
-  private async createKubeconfigConfigMap(
-    sandboxName: string,
-    k8sProjectName: string,
-    namespace: string,
-    kubeconfigContent: string
-  ) {
-    const configMap = {
-      apiVersion: 'v1',
-      kind: 'ConfigMap',
-      metadata: {
-        name: `${sandboxName}-kubeconfig`,
-        namespace,
-        labels: {
-          'cloud.sealos.io/app-deploy-manager': sandboxName,
-          app: sandboxName,
-          'project.fullstackagent.io/name': k8sProjectName,
-        },
-      },
-      data: {
-        kubeconfig: kubeconfigContent,
-      },
-    }
-
-    try {
-      await this.k8sApi.createNamespacedConfigMap({ namespace, body: configMap as any })
-      console.log(`✅ Created ConfigMap: ${sandboxName}-kubeconfig`)
-    } catch (error) {
-      console.error(`❌ Failed to create ConfigMap: ${error}`)
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      logger.error(`Failed to stop sandbox: ${sandboxName} - ${errorMessage}`)
       throw error
     }
   }
 
   /**
-   * 创建 CLAUDE.md ConfigMap
+   * Start Sandbox (set replica count to 1)
+   *
+   * This method is idempotent - can be called multiple times safely:
+   * - If StatefulSet doesn't exist, logs warning and returns (already deleted)
+   * - If already running (replicas=1), logs info and returns (no-op)
+   * - Otherwise, sets replicas to 1
+   *
+   * @param namespace - Kubernetes namespace
+   * @param sandboxName - Sandbox name (exact match)
    */
-  private async createClaudeMdConfigMap(
-    sandboxName: string,
-    k8sProjectName: string,
-    namespace: string,
-    claudeMdContent: string
-  ) {
-    const configMap = {
-      apiVersion: 'v1',
-      kind: 'ConfigMap',
-      metadata: {
-        name: `${sandboxName}-claude-md`,
-        namespace,
-        labels: {
-          'cloud.sealos.io/app-deploy-manager': sandboxName,
-          app: sandboxName,
-          'project.fullstackagent.io/name': k8sProjectName,
-        },
-      },
-      data: {
-        'CLAUDE.md': claudeMdContent,
-      },
-    }
+  async startSandbox(namespace: string, sandboxName: string): Promise<void> {
+    logger.info(`Starting sandbox: ${sandboxName}`)
 
     try {
-      await this.k8sApi.createNamespacedConfigMap({ namespace, body: configMap as any })
-      console.log(`✅ Created ConfigMap: ${sandboxName}-claude-md`)
+      // Find StatefulSet by exact match
+      const statefulSet = await this.getStatefulSet(sandboxName, namespace)
+
+      if (!statefulSet) {
+        // Idempotent: StatefulSet doesn't exist (already deleted or never created)
+        logger.warn(`StatefulSet not found (already deleted): ${sandboxName}`)
+        return
+      }
+
+      const currentReplicas = statefulSet.spec?.replicas || 0
+
+      // Idempotent: Already running, no need to patch
+      if (currentReplicas >= 1) {
+        logger.info(`Sandbox already running: ${sandboxName}`)
+        return
+      }
+
+      // Update replica count to 1
+      await this.k8sAppsApi.patchNamespacedStatefulSet({
+        name: sandboxName,
+        namespace,
+        body: {
+          spec: {
+            replicas: 1,
+          },
+        },
+      })
+
+      logger.info(`Sandbox started: ${sandboxName}`)
     } catch (error) {
-      console.error(`❌ Failed to create CLAUDE.md ConfigMap: ${error}`)
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      logger.error(`Failed to start sandbox: ${sandboxName} - ${errorMessage}`)
       throw error
     }
   }
 
   /**
-   * 创建 StatefulSet
+   * Get Sandbox status (simple version)
+   *
+   * @param namespace - Kubernetes namespace
+   * @param sandboxName - Sandbox name
+   * @returns Sandbox status
+   */
+  async getSandboxStatus(namespace: string, sandboxName: string): Promise<SandboxStatus> {
+    const detail = await this.getStatefulSetStatus(sandboxName, namespace)
+    return detail.status
+  }
+
+  /**
+   * Get StatefulSet detailed status
+   *
+   * Status determination logic based on K8s StatefulSet state:
+   * 1. StatefulSet doesn't exist → TERMINATED
+   * 2. spec.replicas = 0, currentReplicas = 0 → STOPPED
+   * 3. spec.replicas = 0, currentReplicas > 0 → STOPPING (pods terminating)
+   * 4. spec.replicas > 0, all pods ready → RUNNING
+   * 5. spec.replicas > 0, pods not ready → STARTING (pods starting up)
+   * 6. Error cases → ERROR
+   *
+   * @param sandboxName - Sandbox name
+   * @param namespace - Kubernetes namespace
+   * @returns StatefulSet detailed status
+   */
+  async getStatefulSetStatus(
+    sandboxName: string,
+    namespace: string
+  ): Promise<StatefulSetStatusDetail> {
+    try {
+      const statefulSet = await this.getStatefulSet(sandboxName, namespace)
+
+      if (!statefulSet) {
+        return {
+          status: 'TERMINATED',
+          replicas: 0,
+          readyReplicas: 0,
+          currentReplicas: 0,
+          updatedReplicas: 0,
+          isReady: false,
+        }
+      }
+
+      const specReplicas = statefulSet.spec?.replicas || 0
+      const statusReplicas = statefulSet.status?.replicas || 0
+      const readyReplicas = statefulSet.status?.readyReplicas || 0
+      const currentReplicas = statefulSet.status?.currentReplicas || 0
+      const updatedReplicas = statefulSet.status?.updatedReplicas || 0
+      const currentRevision = statefulSet.status?.currentRevision
+      const updateRevision = statefulSet.status?.updateRevision
+
+      // Determine if ready (all replicas running and ready)
+      const isReady =
+        specReplicas > 0 &&
+        statusReplicas === specReplicas &&
+        readyReplicas === specReplicas &&
+        currentReplicas === specReplicas &&
+        updatedReplicas === specReplicas
+
+      // Determine status based on K8s state
+      let status: SandboxStatus
+
+      if (specReplicas === 0) {
+        // Desired state: stopped (replicas=0)
+        if (currentReplicas > 0) {
+          // Pods still terminating
+          status = 'STOPPING'
+        } else {
+          // Fully stopped
+          status = 'STOPPED'
+        }
+      } else {
+        // Desired state: running (specReplicas > 0)
+        if (isReady) {
+          // All pods ready
+          status = 'RUNNING'
+        } else {
+          // Pods not ready yet (starting up)
+          status = 'STARTING'
+        }
+      }
+
+      return {
+        status,
+        replicas: specReplicas,
+        readyReplicas,
+        currentReplicas,
+        updatedReplicas,
+        currentRevision,
+        updateRevision,
+        isReady,
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      logger.error(`Failed to get StatefulSet status: ${sandboxName} - ${errorMessage}`)
+
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'response' in error &&
+        typeof (error as { response: { statusCode?: number } }).response === 'object' &&
+        (error as { response: { statusCode?: number } }).response.statusCode === 404
+      ) {
+        return {
+          status: 'TERMINATED',
+          replicas: 0,
+          readyReplicas: 0,
+          currentReplicas: 0,
+          updatedReplicas: 0,
+          isReady: false,
+        }
+      }
+
+      return {
+        status: 'ERROR',
+        replicas: 0,
+        readyReplicas: 0,
+        currentReplicas: 0,
+        updatedReplicas: 0,
+        isReady: false,
+      }
+    }
+  }
+
+  // TODO: This method is not idempotent - it will create a new StatefulSet if it doesn't exist (this method should be idempotent)
+  /**
+   * Update StatefulSet environment variables
+   *
+   * @param projectName - Project name
+   * @param namespace - Kubernetes namespace
+   * @param sandboxName - Sandbox name
+   * @param envVars - Environment variables
+   */
+  async updateStatefulSetEnvVars(
+    projectName: string,
+    namespace: string,
+    sandboxName: string,
+    envVars: Record<string, string>
+  ): Promise<boolean> {
+    logger.info(`Updating StatefulSet env vars: ${sandboxName}`)
+
+    try {
+      // Find StatefulSet by exact match
+      const statefulSet = await this.getStatefulSet(sandboxName, namespace)
+
+      if (!statefulSet) {
+        throw new Error(`StatefulSet not found: ${sandboxName}`)
+      }
+
+      // Load base environment variables
+      const defaultEnvVars = this.loadEnvVars()
+
+      // Merge all environment variables
+      const allEnvVars: Record<string, string> = {
+        ...defaultEnvVars,
+        ...envVars,
+        PROJECT_NAME: projectName,
+        NODE_ENV: 'development',
+        TTYD_PORT: '7681',
+        TTYD_INTERFACE: '0.0.0.0',
+      }
+
+      // Update container environment variables
+      const containers = statefulSet.spec!.template.spec!.containers.map((container) => {
+        // Match main container (name equals sandboxName)
+        if (container.name === sandboxName) {
+          return {
+            ...container,
+            env: Object.entries(allEnvVars).map(([key, value]) => ({
+              name: key,
+              value: String(value),
+            })),
+          }
+        }
+        return container
+      })
+
+      // Create updated StatefulSet spec
+      const updatedSpec: k8s.V1StatefulSetSpec = {
+        ...statefulSet.spec!,
+        template: {
+          ...statefulSet.spec!.template,
+          spec: {
+            ...statefulSet.spec!.template.spec!,
+            containers,
+          },
+        },
+      }
+
+      // Create updated StatefulSet
+      const updatedStatefulSet: k8s.V1StatefulSet = {
+        ...statefulSet,
+        spec: updatedSpec,
+      }
+
+      await this.k8sAppsApi.replaceNamespacedStatefulSet({
+        name: sandboxName,
+        namespace,
+        body: updatedStatefulSet,
+      })
+
+      logger.info(`StatefulSet env vars updated: ${sandboxName}`)
+      return true
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      logger.error(`Failed to update StatefulSet env vars: ${sandboxName} - ${errorMessage}`)
+      throw error
+    }
+  }
+
+  // ==================== Private Methods ====================
+
+  /**
+   * Get Service name
+   */
+  private getServiceName(sandboxName: string): string {
+    return `${sandboxName}-service`
+  }
+
+  /**
+   * Get App Ingress name
+   */
+  private getAppIngressName(sandboxName: string): string {
+    return `${sandboxName}-app-ingress`
+  }
+
+  /**
+   * Get Ttyd Ingress name
+   */
+  private getTtydIngressName(sandboxName: string): string {
+    return `${sandboxName}-ttyd-ingress`
+  }
+
+  /**
+   * Find StatefulSet by exact match
+   *
+   * @param sandboxName - Sandbox name
+   * @param namespace - Kubernetes namespace
+   * @returns StatefulSet object, or null if not found
+   */
+  private async getStatefulSet(
+    sandboxName: string,
+    namespace: string
+  ): Promise<k8s.V1StatefulSet | null> {
+    try {
+      const response = await this.k8sAppsApi.readNamespacedStatefulSet({
+        name: sandboxName,
+        namespace,
+      })
+      // Handle different response formats from kubernetes client
+      const body = (response as { body?: k8s.V1StatefulSet }).body
+      return body || (response as k8s.V1StatefulSet)
+    } catch (error) {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'response' in error &&
+        typeof (error as { response: { statusCode?: number } }).response === 'object' &&
+        (error as { response: { statusCode?: number } }).response.statusCode === 404
+      ) {
+        return null
+      }
+      throw error
+    }
+  }
+
+  /**
+   * Load environment variables
+   */
+  private loadEnvVars(): Record<string, string> {
+    const envVars: Record<string, string> = {
+      NODE_ENV: 'development',
+      TTYD_PORT: '7681',
+      TTYD_INTERFACE: '0.0.0.0',
+    }
+    return envVars
+  }
+
+  /**
+   * Create StatefulSet (idempotent - skips if already exists)
    */
   private async createStatefulSet(
     sandboxName: string,
     k8sProjectName: string,
     namespace: string,
     containerEnv: Record<string, string>
-  ) {
-    const currentTime = new Date()
-      .toISOString()
-      .replace(/[-:T.]/g, '')
-      .substring(0, 14)
+  ): Promise<void> {
+    // Check if StatefulSet already exists
+    const existingStatefulSet = await this.getStatefulSet(sandboxName, namespace)
+    if (existingStatefulSet) {
+      logger.info(`StatefulSet already exists, skipping creation: ${sandboxName}`)
+      return
+    }
 
-    const kubeconfigContent = this.readKubeconfigContent()
-    const claudeMdContent = this.readClaudeMdContent()
-
-    const statefulSet = {
+    const statefulSet: k8s.V1StatefulSet = {
       apiVersion: 'apps/v1',
       kind: 'StatefulSet',
       metadata: {
         name: sandboxName,
         namespace,
         annotations: {
-          originImageName: getRuntimeImage(),
+          originImageName: VERSIONS.RUNTIME_IMAGE,
           'deploy.cloud.sealos.io/minReplicas': '1',
           'deploy.cloud.sealos.io/maxReplicas': '1',
           'deploy.cloud.sealos.io/resize': VERSIONS.STORAGE.SANDBOX_SIZE,
@@ -333,7 +571,7 @@ export class SandboxManager {
       spec: {
         replicas: 1,
         revisionHistoryLimit: 1,
-        serviceName: `${sandboxName}-service`,
+        serviceName: this.getServiceName(sandboxName),
         selector: {
           matchLabels: {
             app: sandboxName,
@@ -350,7 +588,6 @@ export class SandboxManager {
           metadata: {
             labels: {
               app: sandboxName,
-              restartTime: currentTime,
               'project.fullstackagent.io/name': k8sProjectName,
             },
           },
@@ -358,30 +595,14 @@ export class SandboxManager {
             initContainers: [
               {
                 name: 'init-home-directory',
-                image: getRuntimeImage(),
+                image: VERSIONS.RUNTIME_IMAGE,
                 command: ['sh', '-c'],
-                args: [this.generateInitContainerScript(kubeconfigContent, claudeMdContent)],
+                args: [this.generateInitContainerScript()],
                 volumeMounts: [
                   {
                     name: 'vn-homevn-agent',
                     mountPath: '/home/agent',
                   },
-                  ...(kubeconfigContent
-                    ? [
-                        {
-                          name: 'kubeconfig-volume',
-                          mountPath: '/tmp/kubeconfig',
-                        },
-                      ]
-                    : []),
-                  ...(claudeMdContent
-                    ? [
-                        {
-                          name: 'claude-md-volume',
-                          mountPath: '/tmp/claude-md',
-                        },
-                      ]
-                    : []),
                 ],
                 securityContext: {
                   runAsUser: 0,
@@ -399,17 +620,15 @@ export class SandboxManager {
             containers: [
               {
                 name: sandboxName,
-                image: getRuntimeImage(),
+                image: VERSIONS.RUNTIME_IMAGE,
                 env: Object.entries(containerEnv).map(([key, value]) => ({
                   name: key,
                   value: String(value),
                 })),
                 resources: VERSIONS.RESOURCES.SANDBOX,
                 ports: [
-                  { containerPort: 3000, name: this.generateRandomName() },
-                  { containerPort: 5000, name: this.generateRandomName() },
-                  { containerPort: 7681, name: this.generateRandomName() },
-                  { containerPort: 8080, name: this.generateRandomName() },
+                  { containerPort: 3000, name: 'port-3000' },
+                  { containerPort: 7681, name: 'port-7681' },
                 ],
                 imagePullPolicy: 'Always',
                 volumeMounts: [
@@ -420,28 +639,7 @@ export class SandboxManager {
                 ],
               },
             ],
-            volumes: [
-              ...(kubeconfigContent
-                ? [
-                    {
-                      name: 'kubeconfig-volume',
-                      configMap: {
-                        name: `${sandboxName}-kubeconfig`,
-                      },
-                    },
-                  ]
-                : []),
-              ...(claudeMdContent
-                ? [
-                    {
-                      name: 'claude-md-volume',
-                      configMap: {
-                        name: `${sandboxName}-claude-md`,
-                      },
-                    },
-                  ]
-                : []),
-            ],
+            volumes: [],
           },
         },
         volumeClaimTemplates: [
@@ -466,58 +664,54 @@ export class SandboxManager {
       },
     }
 
-    await this.k8sAppsApi.createNamespacedStatefulSet({ namespace, body: statefulSet as any })
+    await this.k8sAppsApi.createNamespacedStatefulSet({ namespace, body: statefulSet })
   }
 
   /**
-   * 生成初始化容器脚本
+   * Generate init container script
    */
-  private generateInitContainerScript(kubeconfigContent: string, claudeMdContent: string): string {
+  private generateInitContainerScript(): string {
     const commands = [
       'mkdir -p /home/agent/.kube /home/agent/.config',
       'cp /etc/skel/.bashrc /home/agent/.bashrc',
       'chmod 644 /home/agent/.bashrc',
-    ]
-
-    if (kubeconfigContent) {
-      commands.push(
-        'cp /tmp/kubeconfig/kubeconfig /home/agent/.kube/config',
-        'chmod 600 /home/agent/.kube/config'
-      )
-    } else {
-      commands.push('touch /home/agent/.kube/config')
-    }
-
-    if (claudeMdContent) {
-      commands.push(
-        'cp /tmp/claude-md/CLAUDE.md /home/agent/CLAUDE.md',
-        'chmod 644 /home/agent/CLAUDE.md'
-      )
-    }
-
-    commands.push(
       'chown -R 1001:1001 /home/agent',
       'chmod 755 /home/agent',
-      'echo "Home directory initialization completed"'
-    )
+      'echo "Home directory initialization completed"',
+    ]
 
     return commands.join(' && ')
   }
 
   /**
-   * 创建 Service
+   * Create Service (idempotent - skips if already exists)
    */
   private async createService(
     sandboxName: string,
     k8sProjectName: string,
-    namespace: string,
-    port3000Name: string,
-    port5000Name: string,
-    port7681Name: string,
-    port8080Name: string
-  ): Promise<string> {
-    const serviceName = `${sandboxName}-service`
-    const service = {
+    namespace: string
+  ): Promise<void> {
+    const serviceName = this.getServiceName(sandboxName)
+
+    // Check if Service already exists
+    try {
+      await this.k8sApi.readNamespacedService({ name: serviceName, namespace })
+      logger.info(`Service already exists, skipping creation: ${serviceName}`)
+      return
+    } catch (error) {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'response' in error &&
+        typeof (error as { response: { statusCode?: number } }).response === 'object' &&
+        (error as { response: { statusCode?: number } }).response.statusCode !== 404
+      ) {
+        throw error
+      }
+      // 404 means doesn't exist, continue to create
+    }
+
+    const service: k8s.V1Service = {
       apiVersion: 'v1',
       kind: 'Service',
       metadata: {
@@ -530,10 +724,8 @@ export class SandboxManager {
       },
       spec: {
         ports: [
-          { port: 3000, targetPort: 3000, name: port3000Name, protocol: 'TCP' },
-          { port: 5000, targetPort: 5000, name: port5000Name, protocol: 'TCP' },
-          { port: 7681, targetPort: 7681, name: port7681Name, protocol: 'TCP' },
-          { port: 8080, targetPort: 8080, name: port8080Name, protocol: 'TCP' },
+          { port: 3000, targetPort: 3000, name: 'port-3000', protocol: 'TCP' },
+          { port: 7681, targetPort: 7681, name: 'port-7681', protocol: 'TCP' },
         ],
         selector: {
           app: sandboxName,
@@ -541,66 +733,92 @@ export class SandboxManager {
       },
     }
 
-    await this.k8sApi.createNamespacedService({ namespace, body: service as any })
-    return serviceName
+    await this.k8sApi.createNamespacedService({ namespace, body: service })
   }
 
   /**
-   * 创建 Ingresses
+   * Create Ingresses (App and Ttyd) - idempotent
    */
   private async createIngresses(
     sandboxName: string,
     k8sProjectName: string,
     namespace: string,
     serviceName: string,
-    appDomain: string,
-    ttydDomain: string,
     ingressDomain: string
-  ) {
-    const ingresses = [
-      this.createAppIngress(
-        sandboxName,
-        k8sProjectName,
-        namespace,
-        serviceName,
-        appDomain,
-        ingressDomain
-      ),
-      this.createTtydIngress(
-        sandboxName,
-        k8sProjectName,
-        namespace,
-        serviceName,
-        ttydDomain,
-        ingressDomain
-      ),
-    ]
+  ): Promise<void> {
+    const appIngressName = this.getAppIngressName(sandboxName)
+    const ttydIngressName = this.getTtydIngressName(sandboxName)
 
-    for (const ingress of ingresses) {
-      await this.k8sNetworkingApi.createNamespacedIngress({ namespace, body: ingress as any })
+    const appIngress = this.createAppIngress(
+      sandboxName,
+      k8sProjectName,
+      namespace,
+      serviceName,
+      ingressDomain
+    )
+    const ttydIngress = this.createTtydIngress(
+      sandboxName,
+      k8sProjectName,
+      namespace,
+      serviceName,
+      ingressDomain
+    )
+
+    await Promise.all([
+      this.createIngressIfNotExists(appIngressName, namespace, appIngress),
+      this.createIngressIfNotExists(ttydIngressName, namespace, ttydIngress),
+    ])
+  }
+
+  /**
+   * Create Ingress if it doesn't exist (idempotent helper)
+   */
+  private async createIngressIfNotExists(
+    ingressName: string,
+    namespace: string,
+    ingress: k8s.V1Ingress
+  ): Promise<void> {
+    try {
+      await this.k8sNetworkingApi.readNamespacedIngress({ name: ingressName, namespace })
+      logger.info(`Ingress already exists, skipping creation: ${ingressName}`)
+    } catch (error) {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'response' in error &&
+        typeof (error as { response: { statusCode?: number } }).response === 'object' &&
+        (error as { response: { statusCode?: number } }).response.statusCode === 404
+      ) {
+        // Doesn't exist, create it
+        await this.k8sNetworkingApi.createNamespacedIngress({ namespace, body: ingress })
+      } else {
+        throw error
+      }
     }
   }
 
   /**
-   * 创建应用 Ingress
+   * Create App Ingress
    */
   private createAppIngress(
     sandboxName: string,
     k8sProjectName: string,
     namespace: string,
     serviceName: string,
-    appDomain: string,
     ingressDomain: string
-  ) {
+  ): k8s.V1Ingress {
+    const ingressName = this.getAppIngressName(sandboxName)
+    const host = `${sandboxName}-app.${ingressDomain}`
+
     return {
       apiVersion: 'networking.k8s.io/v1',
       kind: 'Ingress',
       metadata: {
-        name: `${sandboxName}-app-ingress`,
+        name: ingressName,
         namespace,
         labels: {
           'cloud.sealos.io/app-deploy-manager': sandboxName,
-          'cloud.sealos.io/app-deploy-manager-domain': appDomain,
+          'cloud.sealos.io/app-deploy-manager-domain': `${sandboxName}-app`,
           'project.fullstackagent.io/name': k8sProjectName,
         },
         annotations: {
@@ -619,7 +837,7 @@ export class SandboxManager {
       spec: {
         rules: [
           {
-            host: `${appDomain}.${ingressDomain}`,
+            host,
             http: {
               paths: [
                 {
@@ -638,7 +856,7 @@ export class SandboxManager {
         ],
         tls: [
           {
-            hosts: [`${appDomain}.${ingressDomain}`],
+            hosts: [host],
             secretName: 'wildcard-cert',
           },
         ],
@@ -647,25 +865,27 @@ export class SandboxManager {
   }
 
   /**
-   * 创建 ttyd Ingress
+   * Create ttyd Ingress
    */
   private createTtydIngress(
     sandboxName: string,
     k8sProjectName: string,
     namespace: string,
     serviceName: string,
-    ttydDomain: string,
     ingressDomain: string
-  ) {
+  ): k8s.V1Ingress {
+    const ingressName = this.getTtydIngressName(sandboxName)
+    const host = `${sandboxName}-ttyd.${ingressDomain}`
+
     return {
       apiVersion: 'networking.k8s.io/v1',
       kind: 'Ingress',
       metadata: {
-        name: `${sandboxName}-ttyd-ingress`,
+        name: ingressName,
         namespace,
         labels: {
           'cloud.sealos.io/app-deploy-manager': sandboxName,
-          'cloud.sealos.io/app-deploy-manager-domain': ttydDomain,
+          'cloud.sealos.io/app-deploy-manager-domain': `${sandboxName}-ttyd`,
           'project.fullstackagent.io/name': k8sProjectName,
         },
         annotations: {
@@ -684,7 +904,7 @@ export class SandboxManager {
       spec: {
         rules: [
           {
-            host: `${ttydDomain}.${ingressDomain}`,
+            host,
             http: {
               paths: [
                 {
@@ -703,7 +923,7 @@ export class SandboxManager {
         ],
         tls: [
           {
-            hosts: [`${ttydDomain}.${ingressDomain}`],
+            hosts: [host],
             secretName: 'wildcard-cert',
           },
         ],
@@ -712,342 +932,97 @@ export class SandboxManager {
   }
 
   /**
-   * 删除 Sandbox
+   * Delete StatefulSet (exact deletion)
    */
-  async deleteSandbox(projectName: string, namespace: string) {
-    const k8sProjectName = projectName
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, '')
-      .substring(0, 20)
-    console.log(`🗑️ Deleting sandbox for project: ${projectName} (k8s: ${k8sProjectName})`)
-
+  private async deleteStatefulSet(sandboxName: string, namespace: string): Promise<void> {
     try {
-      await this.deleteStatefulSets(k8sProjectName, namespace)
-      await this.deleteServices(k8sProjectName, namespace)
-      await this.deleteIngresses(k8sProjectName, namespace)
-      await this.deleteConfigMaps(k8sProjectName, namespace)
+      await this.k8sAppsApi.deleteNamespacedStatefulSet({
+        name: sandboxName,
+        namespace,
+      })
+      logger.info(`Deleted StatefulSet: ${sandboxName}`)
     } catch (error) {
-      console.error('Failed to delete sandbox resources:', error)
-    }
-  }
-
-  /**
-   * 删除 StatefulSets
-   */
-  private async deleteStatefulSets(k8sProjectName: string, namespace: string) {
-    const statefulSets = await this.k8sAppsApi.listNamespacedStatefulSet({ namespace })
-    const statefulSetItems = (statefulSets as any).body?.items || statefulSets.items || []
-    const projectStatefulSets = statefulSetItems.filter((sts: any) =>
-      sts.metadata.name.startsWith(`${k8sProjectName}-agentruntime-`)
-    )
-
-    for (const statefulSet of projectStatefulSets) {
-      try {
-        await this.k8sAppsApi.deleteNamespacedStatefulSet({
-          name: statefulSet.metadata.name,
-          namespace,
-        })
-        console.log(`Deleted StatefulSet: ${statefulSet.metadata.name}`)
-      } catch (error) {
-        console.error(`Failed to delete StatefulSet ${statefulSet.metadata.name}:`, error)
-      }
-    }
-  }
-
-  /**
-   * 删除 Services
-   */
-  private async deleteServices(k8sProjectName: string, namespace: string) {
-    const services = await this.k8sApi.listNamespacedService({ namespace })
-    const serviceItems = services.body?.items || (services as any).items || []
-    const projectServices = serviceItems.filter((svc: any) =>
-      svc.metadata.name.startsWith(`${k8sProjectName}-agentruntime-`)
-    )
-
-    for (const service of projectServices) {
-      try {
-        await this.k8sApi.deleteNamespacedService({
-          name: service.metadata.name,
-          namespace,
-        })
-        console.log(`Deleted service: ${service.metadata.name}`)
-      } catch (error) {
-        console.error(`Failed to delete service ${service.metadata.name}:`, error)
-      }
-    }
-  }
-
-  /**
-   * 删除 Ingresses
-   */
-  private async deleteIngresses(k8sProjectName: string, namespace: string) {
-    const ingresses = await this.k8sNetworkingApi.listNamespacedIngress({ namespace })
-    const ingressItems = ingresses.body?.items || (ingresses as any).items || []
-    const projectIngresses = ingressItems.filter(
-      (ing: any) =>
-        ing.metadata.labels &&
-        ing.metadata.labels['cloud.sealos.io/app-deploy-manager'] &&
-        ing.metadata.labels['cloud.sealos.io/app-deploy-manager'].startsWith(
-          `${k8sProjectName}-agentruntime-`
-        )
-    )
-
-    for (const ingress of projectIngresses) {
-      try {
-        await this.k8sNetworkingApi.deleteNamespacedIngress({
-          name: ingress.metadata.name,
-          namespace,
-        })
-        console.log(`Deleted ingress: ${ingress.metadata.name}`)
-      } catch (error) {
-        console.error(`Failed to delete ingress ${ingress.metadata.name}:`, error)
-      }
-    }
-  }
-
-  /**
-   * 删除 ConfigMaps
-   */
-  private async deleteConfigMaps(k8sProjectName: string, namespace: string) {
-    try {
-      const configMaps = await this.k8sApi.listNamespacedConfigMap({ namespace })
-      const configMapItems = configMaps.body?.items || (configMaps as any).items || []
-      const projectConfigMaps = configMapItems.filter(
-        (cm: any) =>
-          cm.metadata.name.startsWith(`${k8sProjectName}-agentruntime-`) &&
-          (cm.metadata.name.endsWith('-kubeconfig') || cm.metadata.name.endsWith('-claude-md'))
-      )
-
-      for (const configMap of projectConfigMaps) {
-        try {
-          await this.k8sApi.deleteNamespacedConfigMap({
-            name: configMap.metadata.name,
-            namespace,
-          })
-          console.log(`Deleted ConfigMap: ${configMap.metadata.name}`)
-        } catch (error) {
-          console.error(`Failed to delete ConfigMap ${configMap.metadata.name}:`, error)
-        }
-      }
-    } catch (error) {
-      console.error('Failed to list or delete ConfigMaps:', error)
-    }
-  }
-
-  /**
-   * 获取 Sandbox 状态
-   */
-  async getSandboxStatus(projectName: string, namespace: string): Promise<SandboxStatus> {
-    try {
-      const k8sProjectName = projectName
-        .toLowerCase()
-        .replace(/[^a-z0-9-]/g, '')
-        .substring(0, 20)
-
-      const statefulSets = await this.k8sAppsApi.listNamespacedStatefulSet({ namespace })
-      const statefulSetItems = (statefulSets as any).body?.items || statefulSets.items || []
-      const projectStatefulSet = statefulSetItems.find((sts: any) =>
-        sts.metadata.name.startsWith(`${k8sProjectName}-agentruntime-`)
-      )
-
-      if (!projectStatefulSet) {
-        return 'TERMINATED'
-      }
-
-      const replicas = projectStatefulSet.status?.replicas || 0
-      const readyReplicas = projectStatefulSet.status?.readyReplicas || 0
-
-      if (readyReplicas === replicas && replicas > 0) {
-        return 'RUNNING'
-      } else if (replicas === 0) {
-        return 'STOPPED'
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'response' in error &&
+        typeof (error as { response: { statusCode?: number } }).response === 'object' &&
+        (error as { response: { statusCode?: number } }).response.statusCode === 404
+      ) {
+        logger.warn(`StatefulSet not found (already deleted): ${sandboxName}`)
       } else {
-        return 'CREATING'
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        logger.error(`Failed to delete StatefulSet: ${sandboxName} - ${errorMessage}`)
+        throw error
       }
-    } catch (error: any) {
-      if (error?.response?.statusCode === 404) {
-        return 'TERMINATED'
-      }
-      return 'ERROR'
     }
   }
 
   /**
-   * 停止 Sandbox
+   * Delete Service (exact deletion)
    */
-  async stopSandbox(projectName: string, namespace: string) {
-    const k8sProjectName = projectName
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, '')
-      .substring(0, 20)
-    console.log(`⏸️ Stopping sandbox for project: ${projectName} (k8s: ${k8sProjectName})`)
-
+  private async deleteService(sandboxName: string, namespace: string): Promise<void> {
+    const serviceName = this.getServiceName(sandboxName)
     try {
-      const statefulSets = await this.k8sAppsApi.listNamespacedStatefulSet({ namespace })
-      const statefulSetItems = (statefulSets as any).body?.items || statefulSets.items || []
-      const projectStatefulSet = statefulSetItems.find((sts: any) =>
-        sts.metadata.name.startsWith(`${k8sProjectName}-agentruntime-`)
-      )
-
-      if (!projectStatefulSet) {
-        throw new Error(`No StatefulSet found for project ${projectName}`)
-      }
-
-      const statefulSetName = projectStatefulSet.metadata.name
-      const updatedStatefulSet = {
-        ...projectStatefulSet,
-        spec: {
-          ...projectStatefulSet.spec,
-          replicas: 0,
-        },
-      }
-
-      await this.k8sAppsApi.replaceNamespacedStatefulSet({
-        name: statefulSetName,
+      await this.k8sApi.deleteNamespacedService({
+        name: serviceName,
         namespace,
-        body: updatedStatefulSet,
       })
-
-      console.log(`✅ Stopped StatefulSet: ${statefulSetName} (scaled to 0 replicas)`)
+      logger.info(`Deleted Service: ${serviceName}`)
     } catch (error) {
-      console.error(`Failed to stop sandbox:`, error)
-      throw error
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'response' in error &&
+        typeof (error as { response: { statusCode?: number } }).response === 'object' &&
+        (error as { response: { statusCode?: number } }).response.statusCode === 404
+      ) {
+        logger.warn(`Service not found (already deleted): ${serviceName}`)
+      } else {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        logger.error(`Failed to delete Service: ${serviceName} - ${errorMessage}`)
+        throw error
+      }
     }
   }
 
   /**
-   * 启动 Sandbox
+   * Delete Ingresses (exact deletion of App and Ttyd Ingress)
    */
-  async startSandbox(projectName: string, namespace: string) {
-    const k8sProjectName = projectName
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, '')
-      .substring(0, 20)
-    console.log(`▶️ Starting sandbox for project: ${projectName} (k8s: ${k8sProjectName})`)
+  private async deleteIngresses(sandboxName: string, namespace: string): Promise<void> {
+    const appIngressName = this.getAppIngressName(sandboxName)
+    const ttydIngressName = this.getTtydIngressName(sandboxName)
 
+    await Promise.all([
+      this.deleteIngress(appIngressName, namespace),
+      this.deleteIngress(ttydIngressName, namespace),
+    ])
+  }
+
+  /**
+   * Delete single Ingress
+   */
+  private async deleteIngress(ingressName: string, namespace: string): Promise<void> {
     try {
-      const statefulSets = await this.k8sAppsApi.listNamespacedStatefulSet({ namespace })
-      const statefulSetItems = (statefulSets as any).body?.items || statefulSets.items || []
-      const projectStatefulSet = statefulSetItems.find((sts: any) =>
-        sts.metadata.name.startsWith(`${k8sProjectName}-agentruntime-`)
-      )
-
-      if (!projectStatefulSet) {
-        throw new Error(`No StatefulSet found for project ${projectName}`)
-      }
-
-      const statefulSetName = projectStatefulSet.metadata.name
-
-      await this.k8sAppsApi.patchNamespacedStatefulSet({
-        name: statefulSetName,
+      await this.k8sNetworkingApi.deleteNamespacedIngress({
+        name: ingressName,
         namespace,
-        body: {
-          spec: {
-            replicas: 1,
-          },
-        },
       })
-
-      console.log(`✅ Started StatefulSet: ${statefulSetName} (scaled to 1 replica)`)
+      logger.info(`Deleted Ingress: ${ingressName}`)
     } catch (error) {
-      console.error(`Failed to start sandbox:`, error)
-      throw error
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'response' in error &&
+        typeof (error as { response: { statusCode?: number } }).response === 'object' &&
+        (error as { response: { statusCode?: number } }).response.statusCode === 404
+      ) {
+        logger.warn(`Ingress not found (already deleted): ${ingressName}`)
+      } else {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        logger.error(`Failed to delete Ingress: ${ingressName} - ${errorMessage}`)
+        throw error
+      }
     }
-  }
-
-  /**
-   * 更新 StatefulSet 环境变量
-   */
-  async updateStatefulSetEnvVars(
-    projectName: string,
-    namespace: string,
-    envVars: Record<string, string>,
-    getDatabaseSecret: (projectName: string, namespace: string) => Promise<DatabaseInfo>
-  ) {
-    const k8sProjectName = projectName
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, '')
-      .substring(0, 20)
-
-    try {
-      const statefulSets = await this.k8sAppsApi.listNamespacedStatefulSet({ namespace })
-      const statefulSetItems = (statefulSets as any).body?.items || statefulSets.items || []
-      const projectStatefulSet = statefulSetItems.find((sts: any) =>
-        sts.metadata.name.startsWith(`${k8sProjectName}-agentruntime-`)
-      )
-
-      if (!projectStatefulSet) {
-        throw new Error(`No StatefulSet found for project ${projectName}`)
-      }
-
-      const statefulSetName = projectStatefulSet.metadata.name
-      const claudeEnvVars = this.loadClaudeEnvVars()
-
-      let dbConnectionString = ''
-      try {
-        const dbInfo = await getDatabaseSecret(k8sProjectName, namespace)
-        dbConnectionString = `postgresql://${dbInfo.username}:${dbInfo.password}@${dbInfo.host}:${dbInfo.port}/${dbInfo.database}?schema=public`
-      } catch (error) {
-        console.log('Could not get database info for environment update')
-      }
-
-      const allEnvVars = {
-        ...claudeEnvVars,
-        ...envVars,
-        DATABASE_URL: dbConnectionString || claudeEnvVars.DATABASE_URL,
-        NODE_ENV: 'development',
-        TTYD_PORT: '7681',
-        TTYD_INTERFACE: '0.0.0.0',
-      }
-
-      const updatedStatefulSet = {
-        ...projectStatefulSet,
-        spec: {
-          ...projectStatefulSet.spec,
-          template: {
-            ...projectStatefulSet.spec.template,
-            spec: {
-              ...projectStatefulSet.spec.template.spec,
-              containers: projectStatefulSet.spec.template.spec.containers.map((container: any) => {
-                if (container.name === statefulSetName) {
-                  return {
-                    ...container,
-                    env: Object.entries(allEnvVars).map(([key, value]) => ({
-                      name: key,
-                      value: String(value),
-                    })),
-                  }
-                }
-                return container
-              }),
-            },
-          },
-        },
-      }
-
-      await this.k8sAppsApi.replaceNamespacedStatefulSet({
-        name: statefulSetName,
-        namespace,
-        body: updatedStatefulSet,
-      })
-
-      console.log(`✅ Updated StatefulSet ${statefulSetName} with new environment variables`)
-      return true
-    } catch (error) {
-      console.error(`Failed to update StatefulSet environment variables:`, error)
-      throw error
-    }
-  }
-
-  /**
-   * 生成随机名称
-   */
-  private generateRandomName(length: number = 12): string {
-    const charset = 'abcdefghijklmnopqrstuvwxyz'
-    let result = ''
-    for (let i = 0; i < length; i++) {
-      result += charset.charAt(Math.floor(Math.random() * charset.length))
-    }
-    return result
   }
 }

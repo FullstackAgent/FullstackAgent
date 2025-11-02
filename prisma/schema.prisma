@@ -112,9 +112,8 @@ model Database {
   name      String // Human-readable name (e.g., "main", "analytics")
 
   // K8s resource identifiers
-  k8sNamespace   String
-  k8sClusterName String // KubeBlocks cluster name
-  k8sSecretName  String // Secret containing credentials
+  k8sNamespace String
+  databaseName String // KubeBlocks database name
 
   // Connection information
   host          String?
@@ -141,8 +140,9 @@ model Database {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, name]) // Unique database name per project
+  @@unique([k8sNamespace, databaseName]) // Unique database name per namespace
   @@index([projectId])
-  @@index([k8sClusterName])
+  @@index([databaseName])
 }
 
 // Sandbox: Independent K8s resource (Deployment + Service + Ingresses)
@@ -153,9 +153,8 @@ model Sandbox {
   name      String // Human-readable name (e.g., "dev", "staging")
 
   // K8s resource identifiers
-  k8sNamespace       String
-  k8sStatefulsetName String
-  k8sServiceName     String
+  k8sNamespace String
+  sandboxName  String
 
   // Ingress URLs
   publicUrl String? // App ingress (port 3000)
@@ -178,8 +177,9 @@ model Sandbox {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, name]) // Unique sandbox name per project
+  @@unique([k8sNamespace, sandboxName]) // Unique sandbox name per namespace
   @@index([projectId])
-  @@index([k8sStatefulsetName])
+  @@index([sandboxName])
 }
 
 // Project aggregated status based on child resources and operations

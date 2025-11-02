@@ -1,0 +1,225 @@
+import { getK8sServiceForUser } from '@/lib/k8s/k8s-service-helper'
+import { logger as baseLogger } from '@/lib/logger'
+
+import { Events, on, type SandboxEventPayload } from './bus'
+import { updateSandboxStatus, updateSandboxUrls } from './sandboxRepo'
+
+const logger = baseLogger.child({ module: 'lib/events/sandbox/sandboxListener' })
+
+/**
+ * Handle sandbox creation
+ * Only processes CREATING sandboxes
+ * On success: changes status to STARTING
+ */
+async function handleCreateSandbox(payload: SandboxEventPayload): Promise<void> {
+  const { user, project, sandbox } = payload
+
+  // Only process CREATING sandboxes
+  if (sandbox.status !== 'CREATING') {
+    logger.warn(
+      `Skipping create for sandbox ${sandbox.id} - status is ${sandbox.status}, expected CREATING`
+    )
+    return
+  }
+
+  logger.info(`Creating sandbox ${sandbox.id} (${sandbox.name}) for project ${project.name}`)
+
+  try {
+    // Get Kubernetes service for user
+    const k8sService = await getK8sServiceForUser(user.id)
+
+    // Create sandbox in Kubernetes
+    const sandboxInfo = await k8sService.createSandbox(
+      project.name,
+      sandbox.k8sNamespace,
+      sandbox.sandboxName
+    )
+
+    logger.info(
+      ` Sandbox ${sandbox.id} created in Kubernetes: ${sandboxInfo.publicUrl}, ${sandboxInfo.ttydUrl}`
+    )
+
+    // Update sandbox with URLs
+    await updateSandboxUrls(sandbox.id, sandboxInfo.publicUrl, sandboxInfo.ttydUrl)
+
+    // Change status to STARTING
+    await updateSandboxStatus(sandbox.id, 'STARTING')
+
+    logger.info(` Sandbox ${sandbox.id} status changed to STARTING`)
+  } catch (error) {
+    logger.error(`Failed to create sandbox ${sandbox.id}: ${error}`)
+
+    // Update status to ERROR
+    await updateSandboxStatus(sandbox.id, 'ERROR')
+
+    throw error
+  }
+}
+
+/**
+ * Handle sandbox start
+ * Only processes STARTING sandboxes
+ * Executes startSandbox, then checks status
+ * If status is RUNNING, changes to RUNNING
+ */
+async function handleStartSandbox(payload: SandboxEventPayload): Promise<void> {
+  const { user, project, sandbox } = payload
+
+  // Only process STARTING sandboxes
+  if (sandbox.status !== 'STARTING') {
+    logger.warn(
+      `Skipping start for sandbox ${sandbox.id} - status is ${sandbox.status}, expected STARTING`
+    )
+    return
+  }
+
+  logger.info(`Starting sandbox ${sandbox.id} (${sandbox.name}) for project ${project.name}`)
+
+  try {
+    // Get Kubernetes service for user
+    const k8sService = await getK8sServiceForUser(user.id)
+
+    // Start sandbox (idempotent operation)
+    await k8sService.startSandbox(sandbox.k8sNamespace, sandbox.sandboxName)
+
+    logger.info(` Sandbox ${sandbox.id} start command executed`)
+
+    // Get current status from Kubernetes
+    const k8sStatus = await k8sService.getSandboxStatus(sandbox.k8sNamespace, sandbox.sandboxName)
+
+    logger.info(`Sandbox ${sandbox.id} K8s status: ${k8sStatus}`)
+
+    // If status is RUNNING, update database
+    if (k8sStatus === 'RUNNING') {
+      await updateSandboxStatus(sandbox.id, 'RUNNING')
+      logger.info(` Sandbox ${sandbox.id} is now RUNNING`)
+    } else {
+      logger.info(`Sandbox ${sandbox.id} is still starting (K8s status: ${k8sStatus})`)
+      // Keep status as STARTING, may need to poll again
+    }
+  } catch (error) {
+    logger.error(`Failed to start sandbox ${sandbox.id}: ${error}`)
+
+    // Update status to ERROR
+    await updateSandboxStatus(sandbox.id, 'ERROR')
+
+    throw error
+  }
+}
+
+/**
+ * Handle sandbox stop
+ * Only processes STOPPING sandboxes
+ * Executes stopSandbox, then checks status
+ * If status is STOPPED, changes to STOPPED
+ */
+async function handleStopSandbox(payload: SandboxEventPayload): Promise<void> {
+  const { user, project, sandbox } = payload
+
+  // Only process STOPPING sandboxes
+  if (sandbox.status !== 'STOPPING') {
+    logger.warn(
+      `Skipping stop for sandbox ${sandbox.id} - status is ${sandbox.status}, expected STOPPING`
+    )
+    return
+  }
+
+  logger.info(`Stopping sandbox ${sandbox.id} (${sandbox.name}) for project ${project.name}`)
+
+  try {
+    // Get Kubernetes service for user
+    const k8sService = await getK8sServiceForUser(user.id)
+
+    // Stop sandbox (idempotent operation)
+    await k8sService.stopSandbox(sandbox.k8sNamespace, sandbox.sandboxName)
+
+    logger.info(` Sandbox ${sandbox.id} stop command executed`)
+
+    // Get current status from Kubernetes
+    const k8sStatus = await k8sService.getSandboxStatus(sandbox.k8sNamespace, sandbox.sandboxName)
+
+    logger.info(`Sandbox ${sandbox.id} K8s status: ${k8sStatus}`)
+
+    // If status is STOPPED, update database
+    if (k8sStatus === 'STOPPED') {
+      await updateSandboxStatus(sandbox.id, 'STOPPED')
+      logger.info(` Sandbox ${sandbox.id} is now STOPPED`)
+    } else {
+      logger.info(`Sandbox ${sandbox.id} is still stopping (K8s status: ${k8sStatus})`)
+      // Keep status as STOPPING, may need to poll again
+    }
+  } catch (error) {
+    logger.error(`Failed to stop sandbox ${sandbox.id}: ${error}`)
+
+    // Update status to ERROR
+    await updateSandboxStatus(sandbox.id, 'ERROR')
+
+    throw error
+  }
+}
+
+/**
+ * Handle sandbox deletion
+ * Only processes TERMINATING sandboxes
+ * Executes deleteSandbox, then checks status
+ * If status is TERMINATED, changes to TERMINATED
+ */
+async function handleDeleteSandbox(payload: SandboxEventPayload): Promise<void> {
+  const { user, project, sandbox } = payload
+
+  // Only process TERMINATING sandboxes
+  if (sandbox.status !== 'TERMINATING') {
+    logger.warn(
+      `Skipping delete for sandbox ${sandbox.id} - status is ${sandbox.status}, expected TERMINATING`
+    )
+    return
+  }
+
+  logger.info(`Deleting sandbox ${sandbox.id} (${sandbox.name}) for project ${project.name}`)
+
+  try {
+    // Get Kubernetes service for user
+    const k8sService = await getK8sServiceForUser(user.id)
+
+    // Delete sandbox (idempotent operation)
+    await k8sService.deleteSandbox(sandbox.k8sNamespace, sandbox.sandboxName)
+
+    logger.info(` Sandbox ${sandbox.id} delete command executed`)
+
+    // Get current status from Kubernetes
+    const k8sStatus = await k8sService.getSandboxStatus(sandbox.k8sNamespace, sandbox.sandboxName)
+
+    logger.info(`Sandbox ${sandbox.id} K8s status: ${k8sStatus}`)
+
+    // If status is TERMINATED, update database
+    if (k8sStatus === 'TERMINATED') {
+      await updateSandboxStatus(sandbox.id, 'TERMINATED')
+      logger.info(` Sandbox ${sandbox.id} is now TERMINATED`)
+    } else {
+      logger.info(`Sandbox ${sandbox.id} is still terminating (K8s status: ${k8sStatus})`)
+      // Keep status as TERMINATING, may need to poll again
+    }
+  } catch (error) {
+    logger.error(`Failed to delete sandbox ${sandbox.id}: ${error}`)
+
+    // Update status to ERROR
+    await updateSandboxStatus(sandbox.id, 'ERROR')
+
+    throw error
+  }
+}
+
+/**
+ * Register all sandbox event listeners
+ * Call this function once during application startup
+ */
+export function registerSandboxListeners(): void {
+  logger.info('Registering sandbox event listeners')
+
+  on(Events.CreateSandbox, handleCreateSandbox)
+  on(Events.StartSandbox, handleStartSandbox)
+  on(Events.StopSandbox, handleStopSandbox)
+  on(Events.DeleteSandbox, handleDeleteSandbox)
+
+  logger.info(' Sandbox event listeners registered')
+}

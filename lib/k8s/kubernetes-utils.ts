@@ -1,10 +1,17 @@
 import * as k8s from '@kubernetes/client-node'
+import { customAlphabet } from 'nanoid'
 
-import { logger } from '@/lib/logger'
+// import { logger as baseLogger } from '@/lib/logger'
+
+// const logger = baseLogger.child({ module: 'lib/k8s/kubernetes-utils' })
+
+// Create nanoid generator with lowercase letters only for k8s resource name compatibility
+// nanoid uses cryptographically secure random source
+const nanoidLowercase = customAlphabet('abcdefghijklmnopqrstuvwxyz')
 
 export class KubernetesUtils {
   /**
-   * 从 kubeconfig 获取默认命名空间
+   * Get default namespace from kubeconfig
    */
   static getNamespaceFromKubeConfig(kc: k8s.KubeConfig): string {
     const currentContextName = kc.getCurrentContext()
@@ -20,9 +27,9 @@ export class KubernetesUtils {
   }
 
   /**
-   * 从 kubeconfig 服务器 URL 获取 Ingress 域名
-   * 从 Kubernetes API 服务器 URL 中提取域名
-   * 示例: https://usw.sealos.io:6443 -> usw.sealos.io
+   * Get Ingress domain from kubeconfig server URL
+   * Extracts domain from Kubernetes API server URL
+   * Example: https://usw.sealos.io:6443 -> usw.sealos.io
    */
   static getIngressDomain(kc: k8s.KubeConfig): string {
     const cluster = kc.getCurrentCluster()
@@ -39,32 +46,23 @@ export class KubernetesUtils {
   }
 
   /**
-   * 生成随机后缀 (6 个字符)
+   * Generate random string with extremely low collision probability
+   * Uses nanoid with lowercase letters only (k8s compatible)
+   *
+   * For 8 characters with 26 letters:
+   * - Total combinations: 26^8 ≈ 208 billion
+   * - Collision probability: ~1% after generating 1 million IDs
+   *
+   * @param length - Length of the random string (default: 8)
+   * @returns Random string containing only lowercase letters
    */
-  static generateRandomSuffix(): string {
-    const charset = 'abcdefghijklmnopqrstuvwxyz0123456789'
-    let result = ''
-    for (let i = 0; i < 6; i++) {
-      result += charset.charAt(Math.floor(Math.random() * charset.length))
-    }
-    return result
+  static generateRandomString(length: number = 8): string {
+    return nanoidLowercase(length)
   }
 
   /**
-   * 生成随机名称 (默认 12 个字符)
-   */
-  static generateRandomName(length: number = 12): string {
-    const charset = 'abcdefghijklmnopqrstuvwxyz'
-    let result = ''
-    for (let i = 0; i < length; i++) {
-      result += charset.charAt(Math.floor(Math.random() * charset.length))
-    }
-    return result
-  }
-
-  /**
-   * 将项目名称转换为 Kubernetes 兼容格式
-   * (小写、字母数字、连字符)
+   * Convert project name to Kubernetes compatible format
+   * (lowercase, alphanumeric, hyphens)
    */
   static toK8sProjectName(projectName: string): string {
     return projectName
