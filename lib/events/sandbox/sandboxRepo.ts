@@ -26,7 +26,7 @@ export async function updateSandboxStatus(
     },
   })
 
-  logger.info(` Sandbox ${sandboxId} status updated to ${status}`)
+  logger.info(`Sandbox ${sandboxId} status updated to ${status}`)
 
   return sandbox
 }
@@ -74,7 +74,7 @@ export async function updateSandboxUrls(
     },
   })
 
-  logger.info(` Sandbox ${sandboxId} URLs updated`)
+  logger.info(`Sandbox ${sandboxId} URLs updated`)
 
   return sandbox
 }

@@ -36,7 +36,7 @@ async function handleCreateSandbox(payload: SandboxEventPayload): Promise<void> 
     )
 
     logger.info(
-      ` Sandbox ${sandbox.id} created in Kubernetes: ${sandboxInfo.publicUrl}, ${sandboxInfo.ttydUrl}`
+      `Sandbox ${sandbox.id} created in Kubernetes: ${sandboxInfo.publicUrl}, ${sandboxInfo.ttydUrl}`
     )
 
     // Update sandbox with URLs
@@ -45,7 +45,7 @@ async function handleCreateSandbox(payload: SandboxEventPayload): Promise<void> 
     // Change status to STARTING
     await updateSandboxStatus(sandbox.id, 'STARTING')
 
-    logger.info(` Sandbox ${sandbox.id} status changed to STARTING`)
+    logger.info(`Sandbox ${sandbox.id} status changed to STARTING`)
   } catch (error) {
     logger.error(`Failed to create sandbox ${sandbox.id}: ${error}`)
 
@@ -82,7 +82,7 @@ async function handleStartSandbox(payload: SandboxEventPayload): Promise<void> {
     // Start sandbox (idempotent operation)
     await k8sService.startSandbox(sandbox.k8sNamespace, sandbox.sandboxName)
 
-    logger.info(` Sandbox ${sandbox.id} start command executed`)
+    logger.info(`Sandbox ${sandbox.id} start command executed`)
 
     // Get current status from Kubernetes
     const k8sStatus = await k8sService.getSandboxStatus(sandbox.k8sNamespace, sandbox.sandboxName)
@@ -92,7 +92,7 @@ async function handleStartSandbox(payload: SandboxEventPayload): Promise<void> {
     // If status is RUNNING, update database
     if (k8sStatus === 'RUNNING') {
       await updateSandboxStatus(sandbox.id, 'RUNNING')
-      logger.info(` Sandbox ${sandbox.id} is now RUNNING`)
+      logger.info(`Sandbox ${sandbox.id} is now RUNNING`)
     } else {
       logger.info(`Sandbox ${sandbox.id} is still starting (K8s status: ${k8sStatus})`)
       // Keep status as STARTING, may need to poll again
@@ -133,7 +133,7 @@ async function handleStopSandbox(payload: SandboxEventPayload): Promise<void> {
     // Stop sandbox (idempotent operation)
     await k8sService.stopSandbox(sandbox.k8sNamespace, sandbox.sandboxName)
 
-    logger.info(` Sandbox ${sandbox.id} stop command executed`)
+    logger.info(`Sandbox ${sandbox.id} stop command executed`)
 
     // Get current status from Kubernetes
     const k8sStatus = await k8sService.getSandboxStatus(sandbox.k8sNamespace, sandbox.sandboxName)
@@ -143,7 +143,7 @@ async function handleStopSandbox(payload: SandboxEventPayload): Promise<void> {
     // If status is STOPPED, update database
     if (k8sStatus === 'STOPPED') {
       await updateSandboxStatus(sandbox.id, 'STOPPED')
-      logger.info(` Sandbox ${sandbox.id} is now STOPPED`)
+      logger.info(`Sandbox ${sandbox.id} is now STOPPED`)
     } else {
       logger.info(`Sandbox ${sandbox.id} is still stopping (K8s status: ${k8sStatus})`)
       // Keep status as STOPPING, may need to poll again
@@ -184,7 +184,7 @@ async function handleDeleteSandbox(payload: SandboxEventPayload): Promise<void> 
     // Delete sandbox (idempotent operation)
     await k8sService.deleteSandbox(sandbox.k8sNamespace, sandbox.sandboxName)
 
-    logger.info(` Sandbox ${sandbox.id} delete command executed`)
+    logger.info(`Sandbox ${sandbox.id} delete command executed`)
 
     // Get current status from Kubernetes
     const k8sStatus = await k8sService.getSandboxStatus(sandbox.k8sNamespace, sandbox.sandboxName)
@@ -194,7 +194,7 @@ async function handleDeleteSandbox(payload: SandboxEventPayload): Promise<void> 
     // If status is TERMINATED, update database
     if (k8sStatus === 'TERMINATED') {
       await updateSandboxStatus(sandbox.id, 'TERMINATED')
-      logger.info(` Sandbox ${sandbox.id} is now TERMINATED`)
+      logger.info(`Sandbox ${sandbox.id} is now TERMINATED`)
     } else {
       logger.info(`Sandbox ${sandbox.id} is still terminating (K8s status: ${k8sStatus})`)
       // Keep status as TERMINATING, may need to poll again
@@ -221,5 +221,8 @@ export function registerSandboxListeners(): void {
   on(Events.StopSandbox, handleStopSandbox)
   on(Events.DeleteSandbox, handleDeleteSandbox)
 
-  logger.info(' Sandbox event listeners registered')
+  logger.info('✅ Sandbox event listeners registered')
 }
+
+// Auto-register listeners when module is imported
+registerSandboxListeners()
