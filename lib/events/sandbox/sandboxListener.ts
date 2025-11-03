@@ -1,8 +1,9 @@
 import { getK8sServiceForUser } from '@/lib/k8s/k8s-service-helper'
 import { logger as baseLogger } from '@/lib/logger'
+import { projectStatusReconcile } from '@/lib/repo/project'
+import { deleteSandbox, updateSandboxStatus, updateSandboxUrls } from '@/lib/repo/sandbox'
 
 import { Events, on, type SandboxEventPayload } from './bus'
-import { updateSandboxStatus, updateSandboxUrls } from './sandboxRepo'
 
 const logger = baseLogger.child({ module: 'lib/events/sandbox/sandboxListener' })
 
@@ -44,6 +45,7 @@ async function handleCreateSandbox(payload: SandboxEventPayload): Promise<void> 
 
     // Change status to STARTING
     await updateSandboxStatus(sandbox.id, 'STARTING')
+    await projectStatusReconcile(project.id)
 
     logger.info(`Sandbox ${sandbox.id} status changed to STARTING`)
   } catch (error) {
@@ -51,6 +53,7 @@ async function handleCreateSandbox(payload: SandboxEventPayload): Promise<void> 
 
     // Update status to ERROR
     await updateSandboxStatus(sandbox.id, 'ERROR')
+    await projectStatusReconcile(project.id)
 
     throw error
   }
@@ -92,6 +95,7 @@ async function handleStartSandbox(payload: SandboxEventPayload): Promise<void> {
     // If status is RUNNING, update database
     if (k8sStatus === 'RUNNING') {
       await updateSandboxStatus(sandbox.id, 'RUNNING')
+      await projectStatusReconcile(project.id)
       logger.info(`Sandbox ${sandbox.id} is now RUNNING`)
     } else {
       logger.info(`Sandbox ${sandbox.id} is still starting (K8s status: ${k8sStatus})`)
@@ -102,7 +106,7 @@ async function handleStartSandbox(payload: SandboxEventPayload): Promise<void> {
 
     // Update status to ERROR
     await updateSandboxStatus(sandbox.id, 'ERROR')
-
+    await projectStatusReconcile(project.id)
     throw error
   }
 }
@@ -143,6 +147,7 @@ async function handleStopSandbox(payload: SandboxEventPayload): Promise<void> {
     // If status is STOPPED, update database
     if (k8sStatus === 'STOPPED') {
       await updateSandboxStatus(sandbox.id, 'STOPPED')
+      await projectStatusReconcile(project.id)
       logger.info(`Sandbox ${sandbox.id} is now STOPPED`)
     } else {
       logger.info(`Sandbox ${sandbox.id} is still stopping (K8s status: ${k8sStatus})`)
@@ -153,6 +158,7 @@ async function handleStopSandbox(payload: SandboxEventPayload): Promise<void> {
 
     // Update status to ERROR
     await updateSandboxStatus(sandbox.id, 'ERROR')
+    await projectStatusReconcile(project.id)
 
     throw error
   }
@@ -193,7 +199,13 @@ async function handleDeleteSandbox(payload: SandboxEventPayload): Promise<void> 
 
     // If status is TERMINATED, update database
     if (k8sStatus === 'TERMINATED') {
-      await updateSandboxStatus(sandbox.id, 'TERMINATED')
+      const updated = await updateSandboxStatus(sandbox.id, 'TERMINATED')
+      if (!updated) {
+        logger.warn(`Sandbox ${sandbox.id} status not updated - row locked or not found`)
+        return
+      }
+      await deleteSandbox(sandbox.id)
+      await projectStatusReconcile(project.id)
       logger.info(`Sandbox ${sandbox.id} is now TERMINATED`)
     } else {
       logger.info(`Sandbox ${sandbox.id} is still terminating (K8s status: ${k8sStatus})`)
@@ -204,6 +216,7 @@ async function handleDeleteSandbox(payload: SandboxEventPayload): Promise<void> 
 
     // Update status to ERROR
     await updateSandboxStatus(sandbox.id, 'ERROR')
+    await projectStatusReconcile(project.id)
 
     throw error
   }

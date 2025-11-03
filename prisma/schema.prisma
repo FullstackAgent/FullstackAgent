@@ -126,6 +126,9 @@ model Database {
   // Resource status (managed independently)
   status ResourceStatus @default(CREATING)
 
+  // Optimistic locking to prevent concurrent updates
+  lockedUntil DateTime? // Locked until this timestamp, null means unlocked
+
   // Resource configuration
   storageSize   String? @default("3Gi")
   cpuRequest    String? @default("100m")
@@ -163,6 +166,9 @@ model Sandbox {
   // Resource status (managed independently)
   status ResourceStatus @default(CREATING)
 
+  // Optimistic locking to prevent concurrent updates
+  lockedUntil DateTime? // Locked until this timestamp, null means unlocked
+
   // Runtime configuration
   runtimeImage  String? // Docker image tag
   cpuRequest    String? @default("100m")
@@ -182,23 +188,32 @@ model Sandbox {
   @@index([sandboxName])
 }
 
-// Project aggregated status based on child resources and operations
-// Reflects both resource states and project-level operations
+// Project aggregated status based on child resources
+// Aggregation rules (priority order):
+// 1. ERROR: At least one resource has ERROR status
+// 2. CREATING: At least one resource has CREATING status (initial creation in progress)
+// 3. Pure states: All resources have the same status → Project uses that status
+// 4. Transition states (all resources in consistent transition):
+//    - STARTING: All resources ∈ {RUNNING, STARTING} (goal: RUNNING)
+//    - STOPPING: All resources ∈ {STOPPED, STOPPING} (goal: STOPPED)
+//    - TERMINATING: All resources ∈ {TERMINATED, TERMINATING} (goal: TERMINATED)
+// 5. PARTIAL: Mixed inconsistent states (e.g., some TERMINATING + some STARTING)
+//    This indicates manual intervention or error recovery is needed
 enum ProjectStatus {
-  // Stable states (no ongoing operations)
-  RUNNING // All resources are RUNNING - project is fully operational
-  STOPPED // All resources are STOPPED - project is paused (cost saving)
-  PARTIAL // Mixed states - not all resources are running or stopped (manual management)
+  // Stable states
+  RUNNING // All resources are RUNNING - fully operational
+  STOPPED // All resources are STOPPED - paused for cost saving
+  TERMINATED // All resources are TERMINATED - soft deleted
 
-  // Transition states (project-level operations in progress)
-  STARTING // Project start-all operation in progress (STOPPED → RUNNING)
-  STOPPING // Project stop-all operation in progress (RUNNING → STOPPED)
-  TERMINATING // Project terminating operation in progress (any → TERMINATED)
-  CREATING // Initial project creation in progress (Any resource creating ⇒ overall CREATING)
+  // Transition states (consistent progress toward a goal)
+  CREATING // All resources are CREATING - initial creation
+  STARTING // Resources ∈ {RUNNING, STARTING} - transitioning to RUNNING
+  STOPPING // Resources ∈ {STOPPED, STOPPING} - transitioning to STOPPED
+  TERMINATING // Resources ∈ {TERMINATED, TERMINATING} - transitioning to TERMINATED
 
-  // Final/Error states
-  ERROR // At least one resource has error
-  TERMINATED // All resources deleted (soft delete: record kept)
+  // Special states
+  ERROR // At least one resource has ERROR - requires attention
+  PARTIAL // Inconsistent mixed states - manual intervention needed
 }
 
 // Individual resource status (Database and Sandbox)
