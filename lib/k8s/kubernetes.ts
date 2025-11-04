@@ -124,12 +124,16 @@ export class KubernetesService {
 
   /**
    * Get database credentials from secret
+   * Returns null if secret exists but data is not populated yet (transient state during cluster initialization)
    *
    * @param clusterName - Database cluster name
    * @param namespace - Kubernetes namespace (optional)
-   * @returns Database connection information
+   * @returns Database connection information or null if not ready
    */
-  async getDatabaseCredentials(clusterName: string, namespace?: string): Promise<DatabaseInfo> {
+  async getDatabaseCredentials(
+    clusterName: string,
+    namespace?: string
+  ): Promise<DatabaseInfo | null> {
     namespace = namespace || this.defaultNamespace
     return await this.databaseManager.getDatabaseCredentials(clusterName, namespace)
   }

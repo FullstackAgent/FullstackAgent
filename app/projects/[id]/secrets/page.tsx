@@ -1,10 +1,10 @@
-import { auth } from "@/lib/auth";
-import { redirect } from "next/navigation";
-import { prisma } from "@/lib/db";
-import { notFound } from "next/navigation";
-import { Key, Lock, Shield, Eye, EyeOff, Plus, Trash2, Copy, Check } from "lucide-react";
-import { readSystemEnv } from "@/lib/system-env";
-import { SystemSecretsList } from "@/components/secrets-list";
+import { Check, Copy, Eye, EyeOff, Key, Lock, Plus, Shield, Trash2 } from 'lucide-react';
+import { redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
+
+import { SystemSecretsList } from '@/components/secrets-list';
+import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/db';
 
 export default async function SecretsConfigurationPage({
   params,
@@ -14,7 +14,7 @@ export default async function SecretsConfigurationPage({
   const session = await auth();
 
   if (!session) {
-    redirect("/login");
+    redirect('/login');
   }
 
   const { id } = await params;
@@ -25,7 +25,7 @@ export default async function SecretsConfigurationPage({
       userId: session.user.id,
     },
     include: {
-      environmentVariables: {
+      environments: {
         where: {
           isSecret: true,
         },
@@ -37,8 +37,16 @@ export default async function SecretsConfigurationPage({
     notFound();
   }
 
-  // Read system-wide environment variables
-  const systemSecrets = readSystemEnv();
+  // Get user-level configuration (like ANTHROPIC_API_KEY)
+  const userConfigs = await prisma.userConfig.findMany({
+    where: {
+      userId: session.user.id,
+      isSecret: true,
+    },
+    orderBy: {
+      key: 'asc',
+    },
+  });
 
   return (
     <div className="h-full flex flex-col bg-[#1e1e1e]">
@@ -76,9 +84,9 @@ export default async function SecretsConfigurationPage({
               </button>
             </div>
 
-            {project.environmentVariables.length > 0 ? (
+            {project.environments.length > 0 ? (
               <div className="space-y-3">
-                {project.environmentVariables.map((secret) => (
+                {project.environments.map((secret) => (
                   <div
                     key={secret.id}
                     className="flex items-center justify-between p-3 bg-[#1e1e1e] rounded border border-[#3e3e42]"
@@ -115,8 +123,8 @@ export default async function SecretsConfigurationPage({
             )}
           </div>
 
-          {/* System Secrets (Claude Code) */}
-          <SystemSecretsList systemSecrets={systemSecrets} />
+          {/* User-level Secrets (e.g., ANTHROPIC_API_KEY) */}
+          <SystemSecretsList systemSecrets={userConfigs} />
 
           {/* Security Best Practices */}
           <div className="bg-[#252526] rounded-lg border border-[#3e3e42] p-6">

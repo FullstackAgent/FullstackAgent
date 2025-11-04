@@ -10,11 +10,15 @@ const logger = baseLogger.child({ module: 'lib/repo/project' })
  * Reconcile project status based on its resources
  * Queries all databases and sandboxes, then aggregates their status
  *
+ * Special behavior:
+ * - If no resources exist (TERMINATED state), the project is deleted
+ * - This ensures projects are cleaned up after all resources are terminated
+ *
  * This function handles errors internally and never throws.
  * If reconciliation fails, it logs the error and returns null.
  *
  * @param projectId - Project ID
- * @returns Updated project with new status, or null if failed
+ * @returns Updated project with new status, or null if deleted/failed
  */
 export async function projectStatusReconcile(projectId: string): Promise<Project | null> {
   try {
@@ -50,6 +54,16 @@ export async function projectStatusReconcile(projectId: string): Promise<Project
     logger.info(
       `Project ${projectId} status reconciliation: ${project.status} -> ${newStatus} (${resourceStatuses.length} resources)`
     )
+
+    // Special case: If no resources exist (TERMINATED), delete the project
+    if (resourceStatuses.length === 0 && newStatus === 'TERMINATED') {
+      logger.info(`Project ${projectId} has no resources - deleting project`)
+      await prisma.project.delete({
+        where: { id: projectId },
+      })
+      logger.info(`Project ${projectId} deleted successfully`)
+      return null
+    }
 
     // Update project status if changed
     if (project.status !== newStatus) {

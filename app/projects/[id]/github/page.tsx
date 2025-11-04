@@ -1,9 +1,10 @@
-import { auth } from "@/lib/auth";
-import { redirect } from "next/navigation";
-import { prisma } from "@/lib/db";
-import { notFound } from "next/navigation";
-import { Github as GithubIcon, Link2 } from "lucide-react";
-import { GitHubRepositorySelector } from "@/components/github-repository-selector";
+import { Github as GithubIcon, Link2 } from 'lucide-react';
+import { redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
+
+import { GitHubRepositorySelector } from '@/components/github-repository-selector';
+import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/db';
 
 export default async function GitHubRepositoryPage({
   params,
@@ -13,7 +14,7 @@ export default async function GitHubRepositoryPage({
   const session = await auth();
 
   if (!session) {
-    redirect("/login");
+    redirect('/login');
   }
 
   const { id } = await params;
@@ -38,9 +39,7 @@ export default async function GitHubRepositoryPage({
             <GithubIcon className="h-5 w-5 text-blue-400" />
             GitHub Repository
           </h1>
-          <p className="text-sm text-gray-400 mt-1">
-            Connect and manage your GitHub repository
-          </p>
+          <p className="text-sm text-gray-400 mt-1">Connect and manage your GitHub repository</p>
         </div>
       </div>
 
@@ -54,10 +53,7 @@ export default async function GitHubRepositoryPage({
               Repository Connection
             </h2>
 
-            <GitHubRepositorySelector
-              projectId={id}
-              currentRepo={project.githubRepo}
-            />
+            <GitHubRepositorySelector projectId={id} currentRepo={project.githubRepo} />
           </div>
 
           {/* GitHub Integration Features */}
@@ -79,7 +75,9 @@ export default async function GitHubRepositoryPage({
                 <div className="w-2 h-2 bg-green-400 rounded-full mt-1.5"></div>
                 <div>
                   <p className="text-sm text-gray-300">Automatic Commits</p>
-                  <p className="text-xs text-gray-400">AI commits changes with descriptive messages</p>
+                  <p className="text-xs text-gray-400">
+                    AI commits changes with descriptive messages
+                  </p>
                 </div>
               </div>
               <div className="flex items-start gap-3">

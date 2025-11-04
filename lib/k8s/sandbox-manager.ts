@@ -2,6 +2,7 @@ import * as k8s from '@kubernetes/client-node'
 
 import { logger as baseLogger } from '@/lib/logger'
 
+import { isK8sNotFound } from './k8s-error-utils'
 import { KubernetesUtils } from './kubernetes-utils'
 import { VERSIONS } from './versions'
 
@@ -185,14 +186,17 @@ export class SandboxManager {
       }
 
       // Update replica count to 0
+      // Use JSON Patch format (array of operations)
       await this.k8sAppsApi.patchNamespacedStatefulSet({
         name: sandboxName,
         namespace,
-        body: {
-          spec: {
-            replicas: 0,
+        body: [
+          {
+            op: 'replace',
+            path: '/spec/replicas',
+            value: 0,
           },
-        },
+        ],
       })
 
       logger.info(`Sandbox stopped: ${sandboxName}`)
@@ -236,14 +240,17 @@ export class SandboxManager {
       }
 
       // Update replica count to 1
+      // Use JSON Patch format (array of operations)
       await this.k8sAppsApi.patchNamespacedStatefulSet({
         name: sandboxName,
         namespace,
-        body: {
-          spec: {
-            replicas: 1,
+        body: [
+          {
+            op: 'replace',
+            path: '/spec/replicas',
+            value: 1,
           },
-        },
+        ],
       })
 
       logger.info(`Sandbox started: ${sandboxName}`)
@@ -509,13 +516,7 @@ export class SandboxManager {
       const body = (response as { body?: k8s.V1StatefulSet }).body
       return body || (response as k8s.V1StatefulSet)
     } catch (error) {
-      if (
-        typeof error === 'object' &&
-        error !== null &&
-        'response' in error &&
-        typeof (error as { response: { statusCode?: number } }).response === 'object' &&
-        (error as { response: { statusCode?: number } }).response.statusCode === 404
-      ) {
+      if (isK8sNotFound(error)) {
         return null
       }
       throw error
@@ -782,14 +783,7 @@ export class SandboxManager {
       await this.k8sNetworkingApi.readNamespacedIngress({ name: ingressName, namespace })
       logger.info(`Ingress already exists, skipping creation: ${ingressName}`)
     } catch (error) {
-      if (
-        typeof error === 'object' &&
-        error !== null &&
-        'response' in error &&
-        typeof (error as { response: { statusCode?: number } }).response === 'object' &&
-        (error as { response: { statusCode?: number } }).response.statusCode === 404
-      ) {
-        // Doesn't exist, create it
+      if (isK8sNotFound(error)) {
         await this.k8sNetworkingApi.createNamespacedIngress({ namespace, body: ingress })
       } else {
         throw error
@@ -942,13 +936,7 @@ export class SandboxManager {
       })
       logger.info(`Deleted StatefulSet: ${sandboxName}`)
     } catch (error) {
-      if (
-        typeof error === 'object' &&
-        error !== null &&
-        'response' in error &&
-        typeof (error as { response: { statusCode?: number } }).response === 'object' &&
-        (error as { response: { statusCode?: number } }).response.statusCode === 404
-      ) {
+      if (isK8sNotFound(error)) {
         logger.warn(`StatefulSet not found (already deleted): ${sandboxName}`)
       } else {
         const errorMessage = error instanceof Error ? error.message : String(error)
@@ -970,13 +958,7 @@ export class SandboxManager {
       })
       logger.info(`Deleted Service: ${serviceName}`)
     } catch (error) {
-      if (
-        typeof error === 'object' &&
-        error !== null &&
-        'response' in error &&
-        typeof (error as { response: { statusCode?: number } }).response === 'object' &&
-        (error as { response: { statusCode?: number } }).response.statusCode === 404
-      ) {
+      if (isK8sNotFound(error)) {
         logger.warn(`Service not found (already deleted): ${serviceName}`)
       } else {
         const errorMessage = error instanceof Error ? error.message : String(error)
@@ -1010,13 +992,7 @@ export class SandboxManager {
       })
       logger.info(`Deleted Ingress: ${ingressName}`)
     } catch (error) {
-      if (
-        typeof error === 'object' &&
-        error !== null &&
-        'response' in error &&
-        typeof (error as { response: { statusCode?: number } }).response === 'object' &&
-        (error as { response: { statusCode?: number } }).response.statusCode === 404
-      ) {
+      if (isK8sNotFound(error)) {
         logger.warn(`Ingress not found (already deleted): ${ingressName}`)
       } else {
         const errorMessage = error instanceof Error ? error.message : String(error)

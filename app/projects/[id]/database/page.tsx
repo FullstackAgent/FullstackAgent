@@ -24,7 +24,8 @@ export default async function DatabaseConfigurationPage({
     },
     include: {
       sandboxes: true,
-      environmentVariables: true,
+      databases: true,
+      environments: true,
     },
   });
 
@@ -32,24 +33,22 @@ export default async function DatabaseConfigurationPage({
     notFound();
   }
 
-  // If DATABASE_URL is not in environment variables, try to get it from other sources
-  let dbUrlEnvVar = project.environmentVariables.find(env => env.key === "DATABASE_URL");
-  const sandbox = project.sandboxes[0];
-  let enrichedEnvVars = [...project.environmentVariables];
+  // Get database from project (new architecture uses databases array)
+  const database = project.databases[0];
+  let dbUrlEnvVar = project.environments.find(env => env.key === "DATABASE_URL");
+  let enrichedEnvVars = [...project.environments];
 
-  if (!dbUrlEnvVar) {
+  if (!dbUrlEnvVar && database) {
+    // Construct DATABASE_URL from database connection info
     let databaseUrl = null;
 
-    // First try to use the project's databaseUrl field
-    if (project.databaseUrl) {
-      databaseUrl = project.databaseUrl;
-    }
-    // Otherwise try to construct from sandbox info
-    else if (sandbox && sandbox.dbHost && sandbox.dbUser && sandbox.dbPassword) {
-      databaseUrl = `postgresql://${sandbox.dbUser}:${sandbox.dbPassword}@${sandbox.dbHost}:${sandbox.dbPort || 5432}/${sandbox.dbName || 'postgres'}?schema=public`;
+    if (database.connectionUrl) {
+      databaseUrl = database.connectionUrl;
+    } else if (database.host && database.username && database.password) {
+      databaseUrl = `postgresql://${database.username}:${database.password}@${database.host}:${database.port || 5432}/${database.database || 'postgres'}?schema=public`;
     }
 
-    // If we have a database URL from any source, add it to environment variables for display
+    // If we have a database URL, add it to environment variables for display
     if (databaseUrl) {
       enrichedEnvVars.push({
         id: 'temp-db-url',

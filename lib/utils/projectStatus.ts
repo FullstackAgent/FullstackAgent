@@ -19,7 +19,7 @@ import type { ProjectStatus, ResourceStatus } from '@prisma/client'
 export function aggregateProjectStatus(resourceStatuses: ResourceStatus[]): ProjectStatus {
   // Handle empty case
   if (resourceStatuses.length === 0) {
-    return 'STOPPED' // Default to STOPPED for projects with no resources
+    return 'TERMINATED' // Default to TERMINATED for projects with no resources
   }
 
   // Rule 1: Check for ERROR - highest priority

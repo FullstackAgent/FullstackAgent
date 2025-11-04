@@ -1,8 +1,9 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useState } from 'react';
+
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function DebugPage() {
   const [sessionData, setSessionData] = useState<any>(null);
@@ -11,12 +12,12 @@ export default function DebugPage() {
   const fetchSessionData = async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/debug-session");
+      const response = await fetch('/api/debug-session');
       const data = await response.json();
       setSessionData(data);
     } catch (error) {
-      console.error("Error fetching session:", error);
-      setSessionData({ error: "Failed to fetch session data" });
+      console.error('Error fetching session:', error);
+      setSessionData({ error: 'Failed to fetch session data' });
     } finally {
       setLoading(false);
     }
@@ -85,9 +86,7 @@ export default function DebugPage() {
 
                 {!sessionData?.authenticated && (
                   <div className="mt-4 p-4 bg-yellow-900 rounded">
-                    <p className="text-yellow-200">
-                      You are not logged in. Please login first:
-                    </p>
+                    <p className="text-yellow-200">You are not logged in. Please login first:</p>
                     <a href="/login">
                       <Button className="mt-2 bg-white text-black hover:bg-gray-200">
                         Go to Login

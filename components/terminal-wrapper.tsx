@@ -12,12 +12,12 @@ const Terminal = dynamic(() => import("./terminal"), {
 });
 
 interface TerminalWrapperProps {
-  projectId: string;
   sandboxUrl?: string;
   terminalId?: string;
-  startSandboxTrigger?: number;
+  ttydUrl?: string;
+  sandboxStatus?: string;
 }
 
-export default function TerminalWrapper({ projectId, sandboxUrl, terminalId, startSandboxTrigger }: TerminalWrapperProps) {
-  return <Terminal projectId={projectId} sandboxUrl={sandboxUrl} terminalId={terminalId} startSandboxTrigger={startSandboxTrigger} />;
+export default function TerminalWrapper({ sandboxUrl, terminalId, ttydUrl, sandboxStatus }: TerminalWrapperProps) {
+  return <Terminal sandboxUrl={sandboxUrl} terminalId={terminalId} ttydUrl={ttydUrl} sandboxStatus={sandboxStatus} />;
 }

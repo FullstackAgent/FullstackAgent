@@ -2,10 +2,25 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Eye, EyeOff, Copy, Check, Shield, Key, Settings, ChevronRight } from "lucide-react";
-import { SystemEnvVar, maskSecret, isEmptyValue } from "@/lib/system-env-client";
+
+interface SystemSecret {
+  key: string;
+  value: string;
+  category?: string | null;
+}
 
 interface SecretsListProps {
-  systemSecrets: SystemEnvVar[];
+  systemSecrets: SystemSecret[];
+}
+
+// Helper functions
+function maskSecret(value: string): string {
+  if (!value || value.length < 8) return '••••••••';
+  return '••••' + value.slice(-4);
+}
+
+function isEmptyValue(value: string): boolean {
+  return !value || value.trim() === '';
 }
 
 export function SystemSecretsList({ systemSecrets }: SecretsListProps) {

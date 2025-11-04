@@ -1,12 +1,13 @@
-import { auth } from "@/lib/auth";
-import { redirect } from "next/navigation";
-import { prisma } from "@/lib/db";
-import { notFound } from "next/navigation";
-import ProjectSidebar from "@/components/project-sidebar";
-import ProjectSecondarySidebar from "@/components/project-secondary-sidebar";
-import { TerminalProvider } from "@/components/terminal-provider";
-import PersistentTerminal from "@/components/persistent-terminal";
-import ContentWrapper from "@/components/content-wrapper";
+import { redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
+
+import ContentWrapper from '@/components/content-wrapper';
+import PersistentTerminal from '@/components/persistent-terminal';
+import ProjectSecondarySidebar from '@/components/project-secondary-sidebar';
+import ProjectSidebar from '@/components/project-sidebar';
+import { TerminalProvider } from '@/components/terminal-provider';
+import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/db';
 
 export default async function ProjectLayout({
   children,
@@ -18,7 +19,7 @@ export default async function ProjectLayout({
   const session = await auth();
 
   if (!session) {
-    redirect("/login");
+    redirect('/login');
   }
 
   const { id } = await params;
@@ -30,7 +31,8 @@ export default async function ProjectLayout({
     },
     include: {
       sandboxes: true,
-      environmentVariables: true,
+      databases: true,
+      environments: true,
     },
   });
 
@@ -44,7 +46,7 @@ export default async function ProjectLayout({
       userId: session.user.id,
     },
     orderBy: {
-      createdAt: "desc",
+      createdAt: 'desc',
     },
   });
 
@@ -52,17 +54,13 @@ export default async function ProjectLayout({
     <TerminalProvider>
       <div className="h-screen flex bg-[#1e1e1e] text-white overflow-hidden">
         {/* Primary Sidebar - VSCode style */}
-        <ProjectSidebar
-          projects={projects}
-          currentProjectId={id}
-          userId={session.user.id}
-        />
+        <ProjectSidebar projects={projects} currentProjectId={id} userId={session.user.id} />
 
         {/* Secondary Sidebar - Project Settings */}
         <ProjectSecondarySidebar
           project={project}
           sandboxes={project.sandboxes}
-          envVars={project.environmentVariables}
+          envVars={project.environments}
         />
 
         {/* Main Content Area */}

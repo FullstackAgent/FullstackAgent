@@ -125,7 +125,7 @@ function StatusIndicator({ status }: { status: string }) {
     <div className="flex items-center gap-1.5">
       <div className="relative">
         <Circle className={cn('h-2 w-2', color)} fill="currentColor" />
-        {(status === 'INITIALIZING' || status === 'DEPLOYING') && (
+        {(status === 'CREATING' || status === 'STARTING' || status === 'STOPPING' || status === 'TERMINATING') && (
           <Circle
             className={cn('h-2 w-2 absolute top-0 left-0 animate-ping', pulseColor)}
             fill="currentColor"
@@ -139,24 +139,47 @@ function StatusIndicator({ status }: { status: string }) {
 
 function getStatusInfo(status: string) {
   switch (status) {
-    case 'READY':
-    case 'DEPLOYED':
+    case 'RUNNING':
       return {
         color: 'text-green-500',
         pulseColor: '',
-        label: 'Ready',
+        label: 'Running',
       };
-    case 'INITIALIZING':
+    case 'CREATING':
       return {
         color: 'text-yellow-500',
         pulseColor: 'text-yellow-500 opacity-75',
-        label: 'Initializing',
+        label: 'Creating',
       };
-    case 'DEPLOYING':
+    case 'STARTING':
       return {
-        color: 'text-yellow-500',
-        pulseColor: 'text-yellow-500 opacity-75',
-        label: 'Deploying',
+        color: 'text-blue-500',
+        pulseColor: 'text-blue-500 opacity-75',
+        label: 'Starting',
+      };
+    case 'STOPPING':
+      return {
+        color: 'text-orange-500',
+        pulseColor: 'text-orange-500 opacity-75',
+        label: 'Stopping',
+      };
+    case 'STOPPED':
+      return {
+        color: 'text-gray-500',
+        pulseColor: '',
+        label: 'Stopped',
+      };
+    case 'TERMINATING':
+      return {
+        color: 'text-red-400',
+        pulseColor: 'text-red-400 opacity-75',
+        label: 'Terminating',
+      };
+    case 'TERMINATED':
+      return {
+        color: 'text-gray-600',
+        pulseColor: '',
+        label: 'Terminated',
       };
     case 'ERROR':
       return {
@@ -164,11 +187,17 @@ function getStatusInfo(status: string) {
         pulseColor: '',
         label: 'Error',
       };
+    case 'PARTIAL':
+      return {
+        color: 'text-purple-500',
+        pulseColor: '',
+        label: 'Partial',
+      };
     default:
       return {
         color: 'text-gray-500',
         pulseColor: '',
-        label: 'Stopped',
+        label: status,
       };
   }
 }

@@ -1,8 +1,9 @@
-import { auth } from "@/lib/auth";
-import { redirect } from "next/navigation";
-import { prisma } from "@/lib/db";
-import { notFound } from "next/navigation";
-import AuthConfiguration from "@/components/auth-configuration";
+import { redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
+
+import AuthConfiguration from '@/components/auth-configuration';
+import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/db';
 
 export default async function AuthConfigurationPage({
   params,
@@ -12,7 +13,7 @@ export default async function AuthConfigurationPage({
   const session = await auth();
 
   if (!session) {
-    redirect("/login");
+    redirect('/login');
   }
 
   const { id } = await params;
@@ -24,7 +25,7 @@ export default async function AuthConfigurationPage({
     },
     include: {
       sandboxes: true,
-      environmentVariables: true,
+      environments: true,
     },
   });
 
@@ -40,7 +41,7 @@ export default async function AuthConfigurationPage({
     <AuthConfiguration
       project={project}
       projectUrl={projectUrl}
-      environmentVariables={project.environmentVariables}
+      environmentVariables={project.environments}
     />
   );
 }

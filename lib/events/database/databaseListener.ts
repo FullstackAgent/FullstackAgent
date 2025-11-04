@@ -107,6 +107,16 @@ async function handleStartDatabase(payload: DatabaseEventPayload): Promise<void>
         database.k8sNamespace
       )
 
+      // Check if credentials are ready
+      if (!dbInfo) {
+        // Secret exists but data not populated yet (KubeBlocks still initializing)
+        // Keep status as STARTING and wait for next reconcile cycle
+        logger.info(
+          `Database ${database.id} cluster is running but credentials not ready yet, waiting...`
+        )
+        return
+      }
+
       // Build connection URL
       const connectionUrl = `postgresql://${dbInfo.username}:${dbInfo.password}@${dbInfo.host}:${dbInfo.port}/${dbInfo.database}?schema=public`
 

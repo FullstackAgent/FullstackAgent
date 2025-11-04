@@ -92,7 +92,7 @@ model Environment {
   projectId String
   key       String
   value     String
-  category  String? // auth/payment/general/kc/anthropic-api for UI organization
+  category  String? // auth/payment/general/anthropic-api for UI organization
   isSecret  Boolean  @default(false) // Mark sensitive values (masked in UI)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

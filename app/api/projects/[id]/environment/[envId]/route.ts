@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { k8sService } from "@/lib/kubernetes";
+import { getK8sServiceForUser } from "@/lib/k8s/k8s-service-helper";
 
 export async function PUT(
   request: NextRequest,
@@ -55,7 +55,10 @@ export async function PUT(
         where: { projectId }
       });
 
-      if (sandbox && sandbox.k8sDeploymentName) {
+      if (sandbox && sandbox.sandboxName) {
+        // Get K8s service for user
+        const k8sService = await getK8sServiceForUser(session.user.id);
+
         // Get all environment variables for the project
         const allEnvVars = await prisma.environment.findMany({
           where: { projectId }
@@ -74,10 +77,10 @@ export async function PUT(
           envVarsMap
         );
 
-        console.log(`✅ Updated Kubernetes StatefulSet after editing environment variable: ${envVar.key}`);
+        console.log(`✅ Updated Kubernetes deployment after editing environment variable: ${envVar.key}`);
       }
     } catch (k8sError) {
-      console.error("Failed to update Kubernetes StatefulSet:", k8sError);
+      console.error("Failed to update Kubernetes deployment:", k8sError);
       // Don't fail the request if Kubernetes update fails
     }
 
@@ -136,7 +139,10 @@ export async function DELETE(
         where: { projectId }
       });
 
-      if (sandbox && sandbox.k8sDeploymentName) {
+      if (sandbox && sandbox.sandboxName) {
+        // Get K8s service for user
+        const k8sService = await getK8sServiceForUser(session.user.id);
+
         // Get remaining environment variables for the project
         const remainingEnvVars = await prisma.environment.findMany({
           where: { projectId }
@@ -155,10 +161,10 @@ export async function DELETE(
           envVarsMap
         );
 
-        console.log(`✅ Updated Kubernetes StatefulSet after deleting environment variable: ${envVar.key}`);
+        console.log(`✅ Updated Kubernetes deployment after deleting environment variable: ${envVar.key}`);
       }
     } catch (k8sError) {
-      console.error("Failed to update Kubernetes StatefulSet:", k8sError);
+      console.error("Failed to update Kubernetes deployment:", k8sError);
       // Don't fail the request if Kubernetes update fails
     }
 

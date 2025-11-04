@@ -5,6 +5,9 @@ import GitHub from 'next-auth/providers/github'
 
 import { prisma } from '@/lib/db'
 import { isJWTExpired, parseSealosJWT } from '@/lib/jwt'
+import { logger as baseLogger } from '@/lib/logger'
+
+const logger = baseLogger.child({ module: 'lib/auth' })
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
@@ -16,7 +19,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       },
       async authorize(credentials) {
         if (!credentials?.username || !credentials?.password) {
-          console.info('Missing username or password')
+          logger.info('Missing username or password')
           return null
         }
 
@@ -39,7 +42,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
           if (!identity) {
             // User doesn't exist - auto-register
-            console.log(`[Auto-Register] Creating new user: ${username}`)
+            logger.info(`[Auto-Register] Creating new user: ${username}`)
             const passwordHash = await bcrypt.hash(password, 10)
 
             const newUser = await prisma.user.create({
@@ -56,7 +59,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               },
             })
 
-            console.log(`[Auto-Register] User created successfully: ${newUser.id}`)
+            logger.info(`[Auto-Register] User created successfully: ${newUser.id}`)
 
             return {
               id: newUser.id,
@@ -69,24 +72,24 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           const passwordHash = metadata.passwordHash
 
           if (!passwordHash) {
-            console.log(`No password hash found for user: ${username}`)
+            logger.warn(`No password hash found for user: ${username}`)
             return null
           }
 
           const passwordMatch = await bcrypt.compare(password, passwordHash)
           if (!passwordMatch) {
-            console.log(`[Auth Failed] Invalid password for user: ${username}`)
+            logger.warn(`[Auth Failed] Invalid password for user: ${username}`)
             return null
           }
 
           // Authentication successful
-          console.log(`[Auth Success] User logged in: ${username}`)
+          logger.info(`[Auth Success] User logged in: ${username}`)
           return {
             id: identity.user.id,
             name: identity.user.name || username,
           }
         } catch (error) {
-          console.error('[Auth Error] Error in authorize:', error)
+          logger.error(`[Auth Error] Error in authorize: ${error}`)
           return null
         }
       },
@@ -108,7 +111,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         // Validate JWT token
         if (!process.env.SEALOS_JWT_SECRET) {
-          console.error('SEALOS_JWT_SECRET is not configured')
+          logger.error('SEALOS_JWT_SECRET is not configured')
           throw new Error('SealosConfigurationError')
         }
 
@@ -122,7 +125,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         try {
           sealosJwtPayload = parseSealosJWT(sealosToken, process.env.SEALOS_JWT_SECRET)
         } catch (error) {
-          console.error('Error parsing Sealos JWT:', error)
+          logger.error(`Error parsing Sealos JWT: ${error}`)
           throw new Error('SealosTokenInvalid')
         }
 
@@ -288,7 +291,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             user.name = newUser.name
           }
         } catch (error) {
-          console.error('Error in GitHub signIn callback:', error)
+          logger.error(`Error in GitHub signIn callback: ${error}`)
           return false
         }
       }

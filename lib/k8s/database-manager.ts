@@ -2,6 +2,7 @@ import * as k8s from '@kubernetes/client-node'
 
 import { logger as baseLogger } from '@/lib/logger'
 
+import { isK8sNotFound } from './k8s-error-utils'
 import { KubernetesUtils } from './kubernetes-utils'
 import { VERSIONS } from './versions'
 
@@ -162,28 +163,27 @@ export class DatabaseManager {
 
     try {
       // Patch the cluster to set replicas to 0
-      // Note: We patch the entire componentSpecs array to set replicas
+      // Use JSON Patch format (array of operations)
       await this.customObjectsApi.patchNamespacedCustomObject({
         group: 'apps.kubeblocks.io',
         version: 'v1alpha1',
         namespace,
         plural: 'clusters',
         name: clusterName,
-        body: {
-          spec: {
-            componentSpecs: [
-              {
-                name: componentSpec.name,
-                replicas: 0,
-              },
-            ],
+        body: [
+          {
+            op: 'replace',
+            path: '/spec/componentSpecs/0/replicas',
+            value: 0,
           },
-        },
+        ],
       })
 
       logger.info(`✅ Cluster '${clusterName}' stopped (replicas set to 0)`)
     } catch (error) {
-      logger.error(`Failed to stop cluster '${clusterName}': ${error}`)
+      logger.error(
+        `stopCluster: failed patching cluster=${clusterName} ns=${namespace}: ${String(error)}`
+      )
       throw error
     }
   }
@@ -216,27 +216,27 @@ export class DatabaseManager {
 
     try {
       // Patch the cluster to set replicas to 1
+      // Use JSON Patch format (array of operations)
       await this.customObjectsApi.patchNamespacedCustomObject({
         group: 'apps.kubeblocks.io',
         version: 'v1alpha1',
         namespace,
         plural: 'clusters',
         name: clusterName,
-        body: {
-          spec: {
-            componentSpecs: [
-              {
-                name: componentSpec.name,
-                replicas: 1,
-              },
-            ],
+        body: [
+          {
+            op: 'replace',
+            path: '/spec/componentSpecs/0/replicas',
+            value: 1,
           },
-        },
+        ],
       })
 
       logger.info(`✅ Cluster '${clusterName}' started (replicas set to 1)`)
     } catch (error) {
-      logger.error(`Failed to start cluster '${clusterName}': ${error}`)
+      logger.error(
+        `startCluster: failed patching cluster=${clusterName} ns=${namespace}: ${String(error)}`
+      )
       throw error
     }
   }
@@ -352,8 +352,12 @@ export class DatabaseManager {
 
   /**
    * Get database credentials
+   * Returns null if secret exists but data is not populated yet (transient state during cluster initialization)
    */
-  async getDatabaseCredentials(clusterName: string, namespace: string): Promise<DatabaseInfo> {
+  async getDatabaseCredentials(
+    clusterName: string,
+    namespace: string
+  ): Promise<DatabaseInfo | null> {
     const dbInfo: DatabaseInfo = {
       clusterName,
     }
@@ -363,12 +367,17 @@ export class DatabaseManager {
       const response = await this.k8sApi.readNamespacedSecret({ name: secretName, namespace })
 
       // In @kubernetes/client-node v1.4.0, the response is HttpInfo<V1Secret>
-      // The actual data is in response.data property
-      const secret = response.data
-      const secretData = secret?.data as Record<string, string> | undefined
+      // However, for readNamespacedSecret, response.data is already the secret's data field
+      // (not the full V1Secret object with metadata)
+      const secretData = this.getK8sData<Record<string, string>>(response)
 
-      if (!secretData) {
-        throw new Error(`Secret ${secretName} has no data`)
+      if (!secretData || typeof secretData !== 'object' || Object.keys(secretData).length === 0) {
+        // Secret exists but data not populated yet by KubeBlocks
+        // This is a transient state during cluster initialization - return null to signal not ready
+        logger.warn(
+          `Secret ${secretName} exists but data not populated yet (KubeBlocks still initializing)`
+        )
+        return null
       }
 
       // Helper function to safely decode base64 values
@@ -378,17 +387,29 @@ export class DatabaseManager {
       }
 
       // Decode base64 encoded secret values
-      // KubeBlocks secret structure: host, port, database/endpoint, username, password
+      // KubeBlocks secret structure: host, port, username, password
+      // Note: KubeBlocks doesn't include database name in secret, use clusterName instead
       dbInfo.host = decodeSecretValue('host')
       const portStr = decodeSecretValue('port')
       dbInfo.port = portStr ? parseInt(portStr, 10) : undefined
-      dbInfo.database = decodeSecretValue('database')
       dbInfo.username = decodeSecretValue('username')
       dbInfo.password = decodeSecretValue('password')
+      // Database name is the cluster name (Database.databaseName)
+      dbInfo.database = clusterName
 
-      logger.info(`✅ Retrieved credentials for cluster '${clusterName}'`)
+      logger.info(
+        `✅ Retrieved credentials for cluster '${clusterName}' (fields: host=${Boolean(
+          dbInfo.host
+        )}, port=${Boolean(dbInfo.port)}, database=${Boolean(dbInfo.database)}, username=${Boolean(
+          dbInfo.username
+        )}, password=${Boolean(dbInfo.password)})`
+      )
     } catch (error) {
-      logger.error(`Failed to get credentials for cluster '${clusterName}': ${error}`)
+      logger.error(
+        `getDatabaseCredentials: failed reading secret for cluster='${clusterName}' ns=${namespace}: ${String(
+          error
+        )}`
+      )
       throw error
     }
 
@@ -415,11 +436,18 @@ export class DatabaseManager {
 
       // In @kubernetes/client-node v1.4.0, the response is HttpInfo<T>
       // The actual data is in response.data property
-      return response.data as KubeBlocksCluster
+      const data =
+        (response as { data?: unknown; body?: unknown }).data ??
+        (response as { data?: unknown; body?: unknown }).body ??
+        (response as unknown)
+
+      return data as KubeBlocksCluster
     } catch (error) {
-      if (this.isK8sError(error) && error.statusCode === 404) {
+      if (isK8sNotFound(error)) {
+        logger.warn(`getCluster: 404 NotFound for ${clusterName} in ns=${namespace}`)
         return null
       }
+      logger.error(`getCluster: error fetching ${clusterName} in ns=${namespace}: ${String(error)}`)
       throw error
     }
   }
@@ -434,12 +462,17 @@ export class DatabaseManager {
   ): Promise<void> {
     // Check if ServiceAccount already exists
     try {
-      await this.k8sApi.readNamespacedServiceAccount({ name: clusterName, namespace })
+      await this.k8sApi.readNamespacedServiceAccount({
+        name: clusterName,
+        namespace,
+      })
       logger.info(`ServiceAccount '${clusterName}' already exists, skipping creation`)
       return
     } catch (error) {
-      if (!this.isK8sError(error) || error.statusCode !== 404) {
-        logger.error(`Failed to check ServiceAccount '${clusterName}': ${error}`)
+      if (!isK8sNotFound(error)) {
+        logger.error(
+          `createServiceAccount: failed to check existence sa=${clusterName} ns=${namespace}: ${String(error)}`
+        )
         throw error
       }
       // 404 means doesn't exist, continue to create
@@ -461,10 +494,15 @@ export class DatabaseManager {
     }
 
     try {
-      await this.k8sApi.createNamespacedServiceAccount({ namespace, body: serviceAccount })
+      await this.k8sApi.createNamespacedServiceAccount({
+        namespace,
+        body: serviceAccount,
+      })
       logger.info(`✅ ServiceAccount '${clusterName}' created`)
     } catch (error) {
-      logger.error(`Failed to create ServiceAccount '${clusterName}': ${error}`)
+      logger.error(
+        `createServiceAccount: failed creating sa=${clusterName} ns=${namespace}: ${String(error)}`
+      )
       throw error
     }
   }
@@ -483,8 +521,10 @@ export class DatabaseManager {
       logger.info(`Role '${clusterName}' already exists, skipping creation`)
       return
     } catch (error) {
-      if (!this.isK8sError(error) || error.statusCode !== 404) {
-        logger.error(`Failed to check Role '${clusterName}': ${error}`)
+      if (!isK8sNotFound(error)) {
+        logger.error(
+          `createRole: failed to check role=${clusterName} ns=${namespace}: ${String(error)}`
+        )
         throw error
       }
       // 404 means doesn't exist, continue to create
@@ -516,7 +556,9 @@ export class DatabaseManager {
       await this.rbacApi.createNamespacedRole({ namespace, body: role })
       logger.info(`✅ Role '${clusterName}' created`)
     } catch (error) {
-      logger.error(`Failed to create Role '${clusterName}': ${error}`)
+      logger.error(
+        `createRole: failed creating role=${clusterName} ns=${namespace}: ${String(error)}`
+      )
       throw error
     }
   }
@@ -531,12 +573,17 @@ export class DatabaseManager {
   ): Promise<void> {
     // Check if RoleBinding already exists
     try {
-      await this.rbacApi.readNamespacedRoleBinding({ name: clusterName, namespace })
+      await this.rbacApi.readNamespacedRoleBinding({
+        name: clusterName,
+        namespace,
+      })
       logger.info(`RoleBinding '${clusterName}' already exists, skipping creation`)
       return
     } catch (error) {
-      if (!this.isK8sError(error) || error.statusCode !== 404) {
-        logger.error(`Failed to check RoleBinding '${clusterName}': ${error}`)
+      if (!isK8sNotFound(error)) {
+        logger.error(
+          `createRoleBinding: failed to check rb=${clusterName} ns=${namespace}: ${String(error)}`
+        )
         throw error
       }
       // 404 means doesn't exist, continue to create
@@ -570,10 +617,15 @@ export class DatabaseManager {
     }
 
     try {
-      await this.rbacApi.createNamespacedRoleBinding({ namespace, body: roleBinding })
+      await this.rbacApi.createNamespacedRoleBinding({
+        namespace,
+        body: roleBinding,
+      })
       logger.info(`✅ RoleBinding '${clusterName}' created`)
     } catch (error) {
-      logger.error(`Failed to create RoleBinding '${clusterName}': ${error}`)
+      logger.error(
+        `createRoleBinding: failed creating rb=${clusterName} ns=${namespace}: ${String(error)}`
+      )
       throw error
     }
   }
@@ -660,7 +712,9 @@ export class DatabaseManager {
       })
       logger.info(`✅ KubeBlocks Cluster '${clusterName}' created`)
     } catch (error) {
-      logger.error(`Failed to create Cluster '${clusterName}': ${error}`)
+      logger.error(
+        `createCluster: failed creating cluster=${clusterName} ns=${namespace}: ${String(error)}`
+      )
       throw error
     }
   }
@@ -679,7 +733,7 @@ export class DatabaseManager {
       })
       logger.info(`✅ KubeBlocks Cluster '${clusterName}' deleted`)
     } catch (error) {
-      if (this.isK8sError(error) && error.statusCode === 404) {
+      if (isK8sNotFound(error)) {
         logger.info(`Cluster '${clusterName}' not found (already deleted)`)
         return // Idempotent
       }
@@ -692,10 +746,13 @@ export class DatabaseManager {
    */
   private async deleteRoleBinding(clusterName: string, namespace: string): Promise<void> {
     try {
-      await this.rbacApi.deleteNamespacedRoleBinding({ name: clusterName, namespace })
+      await this.rbacApi.deleteNamespacedRoleBinding({
+        name: clusterName,
+        namespace,
+      })
       logger.info(`✅ RoleBinding '${clusterName}' deleted`)
     } catch (error) {
-      if (this.isK8sError(error) && error.statusCode === 404) {
+      if (isK8sNotFound(error)) {
         logger.info(`RoleBinding '${clusterName}' not found (already deleted)`)
         return // Idempotent
       }
@@ -711,7 +768,7 @@ export class DatabaseManager {
       await this.rbacApi.deleteNamespacedRole({ name: clusterName, namespace })
       logger.info(`✅ Role '${clusterName}' deleted`)
     } catch (error) {
-      if (this.isK8sError(error) && error.statusCode === 404) {
+      if (isK8sNotFound(error)) {
         logger.info(`Role '${clusterName}' not found (already deleted)`)
         return // Idempotent
       }
@@ -724,10 +781,13 @@ export class DatabaseManager {
    */
   private async deleteServiceAccount(clusterName: string, namespace: string): Promise<void> {
     try {
-      await this.k8sApi.deleteNamespacedServiceAccount({ name: clusterName, namespace })
+      await this.k8sApi.deleteNamespacedServiceAccount({
+        name: clusterName,
+        namespace,
+      })
       logger.info(`✅ ServiceAccount '${clusterName}' deleted`)
     } catch (error) {
-      if (this.isK8sError(error) && error.statusCode === 404) {
+      if (isK8sNotFound(error)) {
         logger.info(`ServiceAccount '${clusterName}' not found (already deleted)`)
         return // Idempotent
       }
@@ -735,15 +795,13 @@ export class DatabaseManager {
     }
   }
 
+  // ==================== Internal helpers ====================
+
   /**
-   * Type guard to check if error is a Kubernetes API error
+   * Extract payload from HttpInfo<T> or return original object
    */
-  private isK8sError(error: unknown): error is { statusCode: number; body: unknown } {
-    return (
-      typeof error === 'object' &&
-      error !== null &&
-      'statusCode' in error &&
-      typeof (error as { statusCode: unknown }).statusCode === 'number'
-    )
+  private getK8sData<T>(res: unknown): T {
+    const anyRes = res as { data?: unknown; body?: unknown }
+    return (anyRes?.data ?? anyRes?.body ?? (res as unknown)) as T
   }
 }

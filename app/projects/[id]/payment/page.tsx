@@ -1,8 +1,9 @@
-import { auth } from "@/lib/auth";
-import { redirect } from "next/navigation";
-import { prisma } from "@/lib/db";
-import { notFound } from "next/navigation";
-import { CreditCard, DollarSign, Key, Copy, Check, ExternalLink, Zap } from "lucide-react";
+import { Check, Copy, CreditCard, DollarSign, ExternalLink, Key, Zap } from 'lucide-react';
+import { redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
+
+import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/db';
 
 export default async function PaymentConfigurationPage({
   params,
@@ -12,7 +13,7 @@ export default async function PaymentConfigurationPage({
   const session = await auth();
 
   if (!session) {
-    redirect("/login");
+    redirect('/login');
   }
 
   const { id } = await params;
@@ -23,9 +24,9 @@ export default async function PaymentConfigurationPage({
       userId: session.user.id,
     },
     include: {
-      environmentVariables: {
+      environments: {
         where: {
-          category: "payment",
+          category: 'payment',
         },
       },
     },
@@ -74,9 +75,7 @@ export default async function PaymentConfigurationPage({
             <div className="space-y-4">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-gray-300">
-                    Publishable Key
-                  </label>
+                  <label className="text-sm font-medium text-gray-300">Publishable Key</label>
                   <code className="text-xs bg-[#1e1e1e] px-2 py-1 rounded text-blue-400">
                     NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
                   </code>
@@ -86,16 +85,12 @@ export default async function PaymentConfigurationPage({
                   placeholder="pk_test_..."
                   className="w-full px-3 py-2 bg-[#1e1e1e] border border-[#3e3e42] rounded text-sm text-gray-300 font-mono"
                 />
-                <p className="text-xs text-gray-400">
-                  Public key used in client-side code
-                </p>
+                <p className="text-xs text-gray-400">Public key used in client-side code</p>
               </div>
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-gray-300">
-                    Secret Key
-                  </label>
+                  <label className="text-sm font-medium text-gray-300">Secret Key</label>
                   <code className="text-xs bg-[#1e1e1e] px-2 py-1 rounded text-blue-400">
                     STRIPE_SECRET_KEY
                   </code>
@@ -105,16 +100,12 @@ export default async function PaymentConfigurationPage({
                   placeholder="sk_test_..."
                   className="w-full px-3 py-2 bg-[#1e1e1e] border border-[#3e3e42] rounded text-sm text-gray-300 font-mono"
                 />
-                <p className="text-xs text-gray-400">
-                  Secret key for server-side operations
-                </p>
+                <p className="text-xs text-gray-400">Secret key for server-side operations</p>
               </div>
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-gray-300">
-                    Webhook Secret
-                  </label>
+                  <label className="text-sm font-medium text-gray-300">Webhook Secret</label>
                   <code className="text-xs bg-[#1e1e1e] px-2 py-1 rounded text-blue-400">
                     STRIPE_WEBHOOK_SECRET
                   </code>
@@ -124,9 +115,7 @@ export default async function PaymentConfigurationPage({
                   placeholder="whsec_..."
                   className="w-full px-3 py-2 bg-[#1e1e1e] border border-[#3e3e42] rounded text-sm text-gray-300 font-mono"
                 />
-                <p className="text-xs text-gray-400">
-                  Secret for verifying webhook signatures
-                </p>
+                <p className="text-xs text-gray-400">Secret for verifying webhook signatures</p>
               </div>
             </div>
 
@@ -158,9 +147,7 @@ export default async function PaymentConfigurationPage({
             <div className="space-y-4">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-gray-300">
-                    Client ID
-                  </label>
+                  <label className="text-sm font-medium text-gray-300">Client ID</label>
                   <code className="text-xs bg-[#1e1e1e] px-2 py-1 rounded text-blue-400">
                     PAYPAL_CLIENT_ID
                   </code>
@@ -174,9 +161,7 @@ export default async function PaymentConfigurationPage({
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-gray-300">
-                    Client Secret
-                  </label>
+                  <label className="text-sm font-medium text-gray-300">Client Secret</label>
                   <code className="text-xs bg-[#1e1e1e] px-2 py-1 rounded text-blue-400">
                     PAYPAL_CLIENT_SECRET
                   </code>
@@ -198,9 +183,7 @@ export default async function PaymentConfigurationPage({
 
           {/* Setup Instructions */}
           <div className="bg-[#252526] rounded-lg border border-[#3e3e42] p-6">
-            <h3 className="text-sm font-medium text-gray-300 mb-3">
-              Quick Setup Guide:
-            </h3>
+            <h3 className="text-sm font-medium text-gray-300 mb-3">Quick Setup Guide:</h3>
             <ol className="text-xs text-gray-400 space-y-2 list-decimal list-inside">
               <li>Create accounts on Stripe and/or PayPal developer platforms</li>
               <li>Generate API keys from your dashboard</li>
