@@ -55,52 +55,73 @@ FullStack Agent follows a microservices-inspired architecture deployed on Kubern
 
 ## Core Components
 
-### 1. KubernetesService (`lib/kubernetes.ts`)
+### 1. Kubernetes Management (v0.4.0+)
 
-The heart of the platform's infrastructure management.
+The platform uses **user-specific Kubernetes services** for multi-tenancy isolation.
+
+#### Architecture Changes (v0.4.0):
+- **OLD**: Single global `KubernetesService` class (`lib/kubernetes.ts` - DEPRECATED)
+- **NEW**: User-specific managers via `getK8sServiceForUser()` helper
+- **Components**:
+  - `SandboxManager` (`lib/k8s/sandbox-manager.ts`) - StatefulSet management
+  - `DatabaseManager` (`lib/k8s/database-manager.ts`) - KubeBlocks management
+  - `K8sServiceHelper` (`lib/k8s/k8s-service-helper.ts`) - User kubeconfig loading
 
 #### Key Responsibilities:
-- **Cluster Connection**: Manages kubeconfig loading and API client initialization
-- **Resource Creation**: Creates deployments, services, and ingresses
-- **Database Provisioning**: Integrates with KubeBlocks for PostgreSQL management
-- **Status Monitoring**: Tracks pod and deployment states
+- **User Isolation**: Each user operates in their own Kubernetes namespace
+- **Resource Creation**: StatefulSets, Services, Ingresses (sandboxes)
+- **Database Provisioning**: KubeBlocks PostgreSQL clusters
+- **Status Monitoring**: Real-time resource status from K8s API
+- **Idempotent Operations**: All methods can be safely called multiple times
 
-#### Implementation Details:
+#### Implementation (v0.4.0+):
 
 ```typescript
-export class KubernetesService {
-  private kc: k8s.KubeConfig;
-  private k8sApi: k8s.CoreV1Api;
-  private k8sAppsApi: k8s.AppsV1Api;
-  private k8sNetworkingApi: k8s.NetworkingV1Api;
+// Get user-specific K8s service
+import { getK8sServiceForUser } from '@/lib/k8s/k8s-service-helper'
 
-  constructor() {
-    // Load kubeconfig with proper error handling
-    const kubeconfigPath = path.join(process.cwd(), '.secret', 'kubeconfig');
-    if (fs.existsSync(kubeconfigPath)) {
-      this.kc.loadFromFile(kubeconfigPath);
-      // Verify correct server endpoint (not localhost)
-      const cluster = this.kc.getCurrentCluster();
-      if (!cluster?.server || cluster.server.includes('localhost')) {
-        throw new Error(`Invalid server endpoint: ${cluster?.server}`);
-      }
-    }
-  }
-}
+// Load user's kubeconfig from UserConfig table
+const k8sService = await getK8sServiceForUser(userId)
+
+// Get managers
+const sandboxManager = k8sService.getSandboxManager()
+const databaseManager = k8sService.getDatabaseManager()
+const namespace = k8sService.getNamespace()
+
+// Example: Create sandbox (idempotent)
+await sandboxManager.createSandbox({
+  projectName: 'my-project',
+  sandboxName: 'my-project-sandbox-abc123',
+  namespace,
+  envVars: [
+    { name: 'DATABASE_URL', value: 'postgresql://...' },
+    { name: 'PROJECT_NAME', value: 'my-project' }
+  ]
+})
+
+// Check status (non-blocking)
+const status = await sandboxManager.getSandboxStatus(
+  namespace,
+  'my-project-sandbox-abc123'
+)
+// Returns: 'RUNNING' | 'STARTING' | 'STOPPED' | 'STOPPING' | 'TERMINATED' | 'ERROR'
 ```
 
 #### Critical Fix Applied (2025-10-11):
 **Problem**: Kubernetes API responses have inconsistent structure
-**Solution**: Handle both `response.body.items` and `response.items` patterns
+**Solution**: Handle both `response.body.items` and `response.data` patterns
 
 ```typescript
-// Before (causes errors):
-const deployments = await this.k8sAppsApi.listNamespacedDeployment({ namespace });
-const items = deployments.body?.items || [];
+// Extract data from K8s API response
+private getK8sData<T>(res: unknown): T {
+  const anyRes = res as { data?: unknown; body?: unknown }
+  return (anyRes?.data ?? anyRes?.body ?? (res as unknown)) as T
+}
 
-// After (fixed):
-const deployments = await this.k8sAppsApi.listNamespacedDeployment({ namespace });
-const items = deployments.body?.items || (deployments as any).items || [];
+// Example usage
+const response = await this.k8sApi.listNamespacedStatefulSet({ namespace })
+const statefulSets = this.getK8sData<k8s.V1StatefulSetList>(response)
+const items = statefulSets.items || []
 ```
 
 ### 2. Database Management
@@ -119,71 +140,110 @@ Uses KubeBlocks for managed PostgreSQL instances with automatic:
 5. Wait for cluster to be ready
 6. Retrieve connection credentials from generated secret
 
-#### Implementation:
+#### Implementation (v0.4.0+):
 ```typescript
-async createPostgreSQLDatabase(projectName: string, namespace?: string) {
-  const clusterName = `${projectName}-agentruntime-${randomSuffix}`;
+// DatabaseManager methods (lib/k8s/database-manager.ts)
+class DatabaseManager {
+  async createPostgreSQLDatabase(
+    projectName: string,
+    namespace: string,
+    databaseName: string
+  ): Promise<void> {
+    const k8sProjectName = KubernetesUtils.toK8sProjectName(projectName)
 
-  // 1. Create RBAC resources
-  await this.createServiceAccount(clusterName, namespace);
-  await this.createRole(clusterName, namespace);
-  await this.createRoleBinding(clusterName, namespace);
+    // 1. Create RBAC resources (idempotent)
+    await this.createServiceAccount(databaseName, k8sProjectName, namespace)
+    await this.createRole(databaseName, k8sProjectName, namespace)
+    await this.createRoleBinding(databaseName, k8sProjectName, namespace)
 
-  // 2. Create KubeBlocks Cluster
-  const cluster = {
-    apiVersion: 'apps.kubeblocks.io/v1alpha1',
-    kind: 'Cluster',
-    metadata: {
-      name: clusterName,
-      namespace,
-      labels: {
-        'clusterdefinition.kubeblocks.io/name': 'postgresql',
-        'clusterversion.kubeblocks.io/name': 'postgresql-14.8.0'
-      }
-    },
-    spec: {
-      clusterDefinitionRef: 'postgresql',
-      clusterVersionRef: 'postgresql-14.8.0',
-      componentSpecs: [{
-        componentDefRef: 'postgresql',
-        replicas: 1,
-        resources: {
-          limits: { cpu: '1000m', memory: '1024Mi' },
-          requests: { cpu: '100m', memory: '102Mi' }
-        },
-        volumeClaimTemplates: [{
-          spec: {
-            accessModes: ['ReadWriteOnce'],
-            resources: { requests: { storage: '3Gi' } },
-            storageClassName: 'openebs-backup'
-          }
-        }]
-      }]
+    // 2. Create KubeBlocks Cluster (idempotent)
+    await this.createCluster(databaseName, k8sProjectName, namespace)
+  }
+
+  async getClusterStatus(
+    clusterName: string,
+    namespace: string
+  ): Promise<ClusterStatusDetail> {
+    const cluster = await this.getCluster(clusterName, namespace)
+
+    if (!cluster) {
+      return { status: 'TERMINATED', replicas: 0 }
     }
-  };
 
-  // 3. Wait for cluster ready and get credentials
-  await this.waitForDatabaseReady(clusterName, namespace);
-  return await this.getDatabaseCredentials(clusterName, namespace);
+    const phase = cluster.status?.phase
+    const replicas = cluster.spec.componentSpecs?.[0]?.replicas || 0
+
+    // Map KubeBlocks phase to DatabaseStatus
+    switch (phase) {
+      case 'Running': return { status: 'RUNNING', phase, replicas }
+      case 'Creating': return { status: 'STARTING', phase, replicas }
+      case 'Updating':
+        return replicas === 0
+          ? { status: 'STOPPING', phase, replicas }
+          : { status: 'STARTING', phase, replicas }
+      case 'Stopped': return { status: 'STOPPED', phase, replicas }
+      case 'Deleting': return { status: 'TERMINATING', phase, replicas }
+      case 'Failed':
+      case 'Abnormal':
+        return { status: 'ERROR', phase, replicas }
+      default:
+        return replicas === 0
+          ? { status: 'STOPPED', phase, replicas }
+          : { status: 'STARTING', phase, replicas }
+    }
+  }
+
+  async getDatabaseCredentials(
+    clusterName: string,
+    namespace: string
+  ): Promise<DatabaseInfo | null> {
+    const secretName = `${clusterName}-conn-credential`
+    const response = await this.k8sApi.readNamespacedSecret({
+      name: secretName,
+      namespace
+    })
+
+    const secretData = this.getK8sData<Record<string, string>>(response)
+
+    if (!secretData || Object.keys(secretData).length === 0) {
+      return null // Secret not populated yet
+    }
+
+    // Decode base64 values
+    return {
+      clusterName,
+      host: Buffer.from(secretData.host, 'base64').toString('utf-8'),
+      port: parseInt(Buffer.from(secretData.port, 'base64').toString('utf-8')),
+      username: Buffer.from(secretData.username, 'base64').toString('utf-8'),
+      password: Buffer.from(secretData.password, 'base64').toString('utf-8'),
+      database: clusterName
+    }
+  }
 }
 ```
 
-### 3. Sandbox Management
+**Key Changes in v0.4.0**:
+- All methods are **idempotent** (can be called multiple times safely)
+- Returns immediately without waiting for K8s completion
+- Status checked separately via `getClusterStatus()`
+- Credentials retrieved only when secret is populated
+```
+
+### 3. Sandbox Management (v0.4.0+)
 
 #### Sandbox Components:
-- **Deployment**: Runs the fullstack-web-runtime container
+- **StatefulSet**: Runs the fullstack-web-runtime container (changed from Deployment)
 - **Service**: Internal networking for pod access
-- **Ingress**: External HTTPS access with SSL termination
-- **Environment Variables**: Injected Claude Code API credentials
+- **Ingresses**: Two separate ingresses for app and terminal
+- **Environment Variables**: Injected from project environments
 
-#### Container Specification:
+#### Container Specification (v0.4.0+):
 ```yaml
-image: fullstackagent/fullstack-web-runtime:latest
+image: fullstackagent/fullstack-web-runtime:v0.0.1-alpha.12
 ports:
-  - 3000  # Next.js application
-  - 5000  # Python/Flask
-  - 7681  # ttyd web terminal
-  - 8080  # General HTTP
+  - 3000  # Next.js application (EXPOSED via ingress)
+  - 7681  # ttyd web terminal (EXPOSED via ingress)
+  # Ports 5000, 8080, 5173, 8000 NO LONGER exposed by default
 resources:
   requests:
     cpu: 20m
@@ -191,12 +251,31 @@ resources:
   limits:
     cpu: 200m
     memory: 256Mi
+env:
+  - name: DATABASE_URL
+    value: postgresql://user:pass@host:5432/db
+  - name: PROJECT_NAME
+    value: my-project
+  - name: TTYD_PORT
+    value: "7681"
+  # Additional env vars from Environment table
 ```
 
+#### Port Exposure Policy (v0.4.0+):
+**Exposed Ports**:
+- `3000`: Next.js app → App Ingress (`https://{random}.usw.sealos.io`)
+- `7681`: ttyd terminal → Terminal Ingress (`https://{random}-ttyd.usw.sealos.io`)
+
+**Not Exposed** (security improvement):
+- `5000`, `8080`, `5173`, `8000` - Reduced attack surface
+
 #### ttyd Terminal Integration:
-Special command override for ttyd compatibility:
-```typescript
-command: ['/bin/sh']
+WebSocket support via ingress annotations:
+```yaml
+annotations:
+  nginx.ingress.kubernetes.io/proxy-set-headers: |
+    Upgrade $http_upgrade
+    Connection "upgrade"
 args: [
   '-c',
   `ttyd --port 7681 --interface 0.0.0.0 --check-origin false /bin/bash`
@@ -563,24 +642,225 @@ kubectl --kubeconfig=.secret/kubeconfig get ingress -n ns-ajno7yq7
 .secret/kubeconfig  # Kubernetes config
 ```
 
+## Reconciliation Architecture (v0.4.0+)
+
+### Overview
+
+Starting from v0.4.0, FullstackAgent uses an **asynchronous reconciliation pattern** inspired by Kubernetes controllers:
+
+1. **API endpoints return immediately** - No blocking on K8s operations
+2. **Background jobs** reconcile every 3 seconds
+3. **Event-driven architecture** - Jobs emit events → Listeners execute K8s ops
+4. **Optimistic locking** prevents concurrent conflicts
+5. **Status aggregation** - Project status computed from resources
+
+### Reconciliation Components
+
+#### 1. Reconciliation Jobs (`lib/jobs/`)
+
+**Sandbox Reconcile** (`lib/jobs/sandbox/sandboxReconcile.ts`):
+- Runs every 3 seconds via cron
+- Queries sandboxes with status IN (`CREATING`, `STARTING`, `STOPPING`, `TERMINATING`)
+- Atomically locks up to 10 sandboxes per cycle
+- Emits lifecycle events for each sandbox
+
+**Database Reconcile** (`lib/jobs/database/databaseReconcile.ts`):
+- Same pattern as sandbox reconciliation
+- Handles database lifecycle events
+
+#### 2. Event System (`lib/events/`)
+
+**Event Bus** (`lib/events/sandbox/bus.ts`, `lib/events/database/bus.ts`):
+- Simple EventEmitter-based pub/sub
+- Events: `CreateSandbox`, `StartSandbox`, `StopSandbox`, `DeleteSandbox`
+
+**Event Listeners** (`lib/events/sandbox/sandboxListener.ts`):
+```typescript
+// Example: handleStartSandbox
+async function handleStartSandbox(payload: SandboxEventPayload) {
+  const { user, project, sandbox } = payload
+
+  // Only process STARTING sandboxes
+  if (sandbox.status !== 'STARTING') return
+
+  // Execute K8s operation
+  const k8sService = await getK8sServiceForUser(user.id)
+  await k8sService.startSandbox(sandbox.k8sNamespace, sandbox.sandboxName)
+
+  // Check K8s status
+  const k8sStatus = await k8sService.getSandboxStatus(...)
+
+  // If ready, transition to RUNNING
+  if (k8sStatus === 'RUNNING') {
+    await updateSandboxStatus(sandbox.id, 'RUNNING')
+    await projectStatusReconcile(project.id)
+  }
+  // Otherwise, keep STARTING and poll again next cycle
+}
+```
+
+#### 3. Repository Layer (`lib/repo/`)
+
+**Optimistic Locking** (`lib/repo/sandbox.ts`):
+```typescript
+// Atomic query+lock in single database operation
+export async function acquireAndLockSandboxes(limit: number) {
+  const lockDuration = 30 // seconds
+
+  return await prisma.$queryRaw`
+    UPDATE "Sandbox"
+    SET "lockedUntil" = NOW() + INTERVAL '${lockDuration} seconds',
+        "updatedAt" = NOW()
+    WHERE "id" IN (
+      SELECT "id" FROM "Sandbox"
+      WHERE "status" IN ('CREATING', 'STARTING', 'STOPPING', 'TERMINATING')
+        AND ("lockedUntil" IS NULL OR "lockedUntil" < NOW())
+      LIMIT ${limit}
+    )
+    RETURNING *
+  `
+}
+```
+
+**Benefits**:
+- Prevents thundering herd problem
+- Multiple instances can coexist
+- Each instance gets exclusive lock on different records
+
+#### 4. Status Aggregation (`lib/utils/projectStatus.ts`)
+
+**Aggregation Rules** (priority order):
+1. **ERROR**: At least one resource has ERROR
+2. **CREATING**: At least one resource has CREATING
+3. **Pure states**: All same status → use that status
+4. **Transition states**:
+   - STARTING: All ∈ {RUNNING, STARTING}
+   - STOPPING: All ∈ {STOPPED, STOPPING}
+   - TERMINATING: All ∈ {TERMINATED, TERMINATING}
+5. **PARTIAL**: Inconsistent mixed states
+
+### Resource Lifecycle Example
+
+```
+User clicks "Create Project"
+        ↓
+API: INSERT Project, Sandbox, Database (all status=CREATING)
+     Returns immediately (< 50ms)
+        ↓
+Reconciliation Job (3s later):
+  Query: SELECT * FROM Sandbox WHERE status='CREATING' AND lockedUntil < NOW()
+  Lock sandbox, emit CreateSandbox event
+        ↓
+Event Listener:
+  Execute K8s createSandbox()
+  Update status: CREATING → STARTING
+        ↓
+Reconciliation Job (3s later):
+  Query: SELECT * FROM Sandbox WHERE status='STARTING'
+  Emit StartSandbox event
+        ↓
+Event Listener:
+  Check K8s status
+  If ready: Update status: STARTING → RUNNING
+  Aggregate project status: RUNNING
+```
+
+### Multi-Provider Authentication (v0.4.0+)
+
+#### UserIdentity Model
+
+**Purpose**: Support multiple authentication providers per user
+
+```prisma
+model UserIdentity {
+  id             String       @id
+  userId         String
+  provider       AuthProvider // PASSWORD, GITHUB, SEALOS
+  providerUserId String       // Provider's user identifier
+  metadata       Json         // Provider-specific data
+  isPrimary      Boolean      // Mark primary login method
+
+  @@unique([provider, providerUserId])
+}
+
+enum AuthProvider {
+  PASSWORD  // Username/password
+  GITHUB    // GitHub OAuth
+  SEALOS    // Sealos OAuth (NEW)
+  GOOGLE    // Google OAuth (future)
+}
+```
+
+#### Sealos OAuth Integration (NEW)
+
+**Authentication Flow**:
+1. User logs in via Sealos OAuth
+2. Sealos provides JWT token + kubeconfig
+3. Platform validates JWT with `SEALOS_JWT_SECRET`
+4. Parses Sealos user ID from JWT
+5. Creates/updates `UserIdentity` with `provider=SEALOS`
+6. Stores kubeconfig in `UserConfig` table
+7. Returns user session
+
+**Server Action** (`app/actions/sealos-auth.ts`):
+```typescript
+// Bypass client-side CSRF issues in iframe environments
+export async function authenticateWithSealos(
+  sealosToken: string,
+  sealosKubeconfig: string
+): Promise<{ success: boolean; error?: string }>
+```
+
+**User-Specific Kubeconfig**:
+- Each user operates in their own K8s namespace
+- Kubeconfig stored in `UserConfig` with `key=KUBECONFIG`
+- `lib/k8s/k8s-service-helper.ts` loads per-user credentials
+- Enables true multi-tenancy
+
+**Benefits**:
+- ✅ **Multiple Auth Methods**: Users choose preferred login
+- ✅ **Seamless Sealos Integration**: Native OAuth support
+- ✅ **User-Specific K8s**: Each user has isolated namespace
+- ✅ **Auto-Registration**: No manual signup required
+
+### Port Exposure Policy (v0.4.0+)
+
+**Default Exposed Ports**:
+- **3000**: Next.js application (App Ingress)
+- **7681**: ttyd web terminal (Terminal Ingress)
+
+**Not Exposed by Default** (security improvement):
+- 5000: Python/Flask applications
+- 8080: General HTTP services
+- 5173: Vite development server
+- 8000: Django/FastAPI
+
+**Rationale**:
+- Reduce attack surface
+- Minimize ingress costs
+- Users primarily develop Next.js apps
+- Manual exposure available via custom ingress
+
 ## Future Enhancements
 
-### Planned Features
-1. **Multi-region Support**: Deploy sandboxes across regions
-2. **Custom Images**: User-provided Docker images
-3. **Persistent Storage**: Volume mounts for data persistence
-4. **Collaborative Editing**: Real-time code collaboration
-5. **CI/CD Integration**: Automatic deployment pipelines
-6. **Resource Scaling**: Dynamic resource allocation
-7. **Monitoring Dashboard**: Resource usage visualization
-8. **Backup/Restore**: Project state snapshots
+### Planned Features (v0.5.0+)
+1. **WebSocket Updates**: Real-time status updates (replacing polling)
+2. **Multi-region Support**: Deploy sandboxes across regions
+3. **Custom Images**: User-provided Docker images
+4. **Persistent Storage**: Volume mounts for data persistence
+5. **Collaborative Editing**: Real-time code collaboration
+6. **CI/CD Integration**: Automatic deployment pipelines
+7. **Resource Scaling**: Dynamic resource allocation
+8. **Monitoring Dashboard**: Resource usage visualization
+9. **Backup/Restore**: Project state snapshots
 
-### Architecture Improvements
-1. **Message Queue**: Async sandbox creation
-2. **WebSocket Updates**: Real-time status updates
-3. **Distributed Caching**: Redis for session/data caching
+### Architecture Improvements (v0.5.0+)
+1. **WebSocket Server**: Replace polling with real-time events
+2. **Status Caching**: Redis for status caching
+3. **Distributed Caching**: Session/data caching
 4. **Metrics Collection**: Prometheus integration
 5. **Log Aggregation**: Centralized logging system
+6. **Optimistic UI Updates**: Perceived performance improvements
 
 ## Conclusion
 

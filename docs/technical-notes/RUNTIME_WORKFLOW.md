@@ -167,15 +167,18 @@ fi
 ┌─────────────────────────────────────────────────────────────┐
 │  Kubernetes Cluster (usw.sealos.io)                         │
 │  ┌─────────────────────────────────────────────────────┐    │
-│  │  lib/kubernetes.ts - KubernetesService              │    │
+│  │  Reconciliation System (v0.4.0+)                    │    │
 │  │                                                     │    │
-│  │  Steps:                                             │    │
-│  │  1. Create PostgreSQL database (KubeBlocks)        │    │
-│  │  2. Create Deployment (using runtime image) ────┐  │    │
-│  │  3. Create Service (internal service discovery)  │  │    │
-│  │  4. Create Ingress - app access                  │  │    │
-│  │  5. Create Ingress - terminal access (WebSocket) │  │    │
-│  │  6. Inject environment variables (DATABASE_URL)  │  │    │
+│  │  Flow:                                              │    │
+│  │  1. API creates DB records (Sandbox, Database)     │    │
+│  │     with status=CREATING                           │    │
+│  │  2. Reconciliation job (every 3s) detects records  │    │
+│  │  3. Event listeners execute K8s operations:        │    │
+│  │     - Create PostgreSQL (KubeBlocks) ───────────┐  │    │
+│  │     - Create StatefulSet (runtime image)         │  │    │
+│  │     - Create Service (internal networking)       │  │    │
+│  │     - Create Ingresses (app + terminal)          │  │    │
+│  │  4. Status updated: CREATING → STARTING → RUNNING │  │    │
 │  └─────────────────────────────────────┬───────────────┘    │
 │                                         │                    │
 │                    3. Deploy Sandbox Pod │                   │
@@ -306,45 +309,55 @@ const response = await fetch(`/api/sandbox/${projectId}`, {
 });
 ```
 
-#### Step 3: Kubernetes Resource Creation
+#### Step 3: Kubernetes Resource Creation (v0.4.0+ Reconciliation)
 
 ```typescript
-// Code location: lib/kubernetes.ts
-// KubernetesService.createSandbox()
+// In v0.4.0+, resource creation is handled asynchronously:
 
-// 1. Create PostgreSQL database
-await this.createDatabase(projectId);
-
-// 2. Create Deployment
-const deployment = {
-  metadata: {
-    name: `{project}-agentruntime-{suffix}`,
-    namespace: 'ns-ajno7yq7'
-  },
-  spec: {
-    replicas: 1,
-    template: {
-      spec: {
-        containers: [{
-          name: 'fullstack-sandbox',
-          image: 'fullstackagent/fullstack-web-runtime:v0.0.1-alpha.9',
-          ports: [
-            { containerPort: 3000 },
-            { containerPort: 7681 }
-          ],
-          env: [
-            { name: 'DATABASE_URL', value: dbConnectionString },
-            { name: 'PROJECT_NAME', value: projectName }
-          ]
-        }]
+// API creates database records (app/api/projects/route.ts)
+const project = await prisma.project.create({
+  data: {
+    name: projectName,
+    userId: session.user.id,
+    status: 'CREATING',
+    sandboxes: {
+      create: {
+        name: `${projectName}-sandbox`,
+        sandboxName: `${k8sProjectName}-agentruntime-${randomSuffix}`,
+        k8sNamespace: namespace,
+        status: 'CREATING'
+      }
+    },
+    databases: {
+      create: {
+        name: `${projectName}-db`,
+        databaseName: `${k8sProjectName}-agentruntime-${randomSuffix}`,
+        k8sNamespace: namespace,
+        status: 'CREATING'
       }
     }
   }
-};
+})
 
-// 3. Create Service (internal access)
-// 4. Create Ingress (app access)
-// 5. Create Ingress (terminal access - WebSocket)
+// Reconciliation job detects CREATING status (lib/jobs/sandbox/sandboxReconcile.ts)
+// Emits CreateSandbox event → Event listener executes K8s operations:
+
+// lib/events/sandbox/sandboxListener.ts - handleCreateSandbox()
+const k8sService = await getK8sServiceForUser(user.id)
+const sandboxManager = k8sService.getSandboxManager()
+
+await sandboxManager.createSandbox({
+  projectName: project.name,
+  sandboxName: sandbox.sandboxName,
+  namespace: sandbox.k8sNamespace,
+  envVars: [
+    { name: 'DATABASE_URL', value: dbConnectionString },
+    { name: 'PROJECT_NAME', value: projectName }
+  ]
+})
+// Creates: StatefulSet + Service + 2 Ingresses (app + terminal)
+
+// Status updated: CREATING → STARTING → (wait for pod ready) → RUNNING
 ```
 
 #### Step 4: Container Startup Flow
@@ -653,36 +666,55 @@ https://{random}.usw.sealos.io
 - Kubernetes Client
 - Shadcn/UI + Tailwind CSS v4
 
-**Key Services**:
+**Key Services (v0.4.0+)**:
 ```typescript
-// lib/kubernetes.ts
-export class KubernetesService {
-  async createSandbox(projectId: string): Promise<SandboxInfo> {
-    // Create database, deploy container, configure network
-  }
+// lib/k8s/k8s-service-helper.ts - User-specific K8s operations
+import { getK8sServiceForUser } from '@/lib/k8s/k8s-service-helper'
 
-  async startSandbox(projectId: string): Promise<void> {
-    // Start stopped sandbox
-  }
+// Load user's kubeconfig from UserConfig table
+const k8sService = await getK8sServiceForUser(userId)
 
-  async stopSandbox(projectId: string): Promise<void> {
-    // Stop running sandbox
-  }
+// Get managers for K8s operations
+const sandboxManager = k8sService.getSandboxManager()
+const databaseManager = k8sService.getDatabaseManager()
+const namespace = k8sService.getNamespace()
 
-  async deleteSandbox(projectId: string): Promise<void> {
-    // Delete sandbox and related resources
-  }
-}
+// Example: Create sandbox (idempotent, non-blocking)
+await sandboxManager.createSandbox({
+  projectName: 'my-project',
+  sandboxName: 'my-project-agentruntime-abc123',
+  namespace,
+  envVars: [
+    { name: 'DATABASE_URL', value: 'postgresql://...' },
+    { name: 'PROJECT_NAME', value: 'my-project' }
+  ]
+})
 
-// lib/auth.ts - **Updated path**
-export const { handlers, auth } = NextAuth({
-  providers: [GitHub],
-  // User authentication configuration
+// Example: Create database (idempotent, non-blocking)
+await databaseManager.createPostgreSQLDatabase(
+  'my-project',
+  namespace,
+  'my-project-agentruntime-abc123'
+)
+
+// Example: Check status (non-blocking query)
+const status = await sandboxManager.getSandboxStatus(
+  namespace,
+  'my-project-agentruntime-abc123'
+)
+// Returns: 'RUNNING' | 'STARTING' | 'STOPPED' | 'STOPPING' | 'TERMINATED' | 'ERROR'
+
+// lib/auth.ts - Multi-provider authentication
+export const { handlers, auth, signIn, signOut } = NextAuth({
+  providers: [
+    GitHub({ /* GitHub OAuth */ }),
+    Credentials({ id: 'password', /* Username/password */ }),
+    Credentials({ id: 'sealos', /* Sealos OAuth */ })
+  ]
 });
 
-// lib/db.ts - **Updated path**
+// lib/db.ts - Database client
 export const prisma = new PrismaClient();
-// Database client
 ```
 
 ### 2. Runtime Container
@@ -868,5 +900,140 @@ Main App    Kubernetes          ttyd         Runtime Container      Ingress     
 
 ---
 
-*Last Updated: 2025-10-26*
-*Version: v0.0.1-alpha.9*
+---
+
+## Reconciliation Architecture (v0.4.0+)
+
+### Overview
+
+Starting from v0.4.0, FullstackAgent uses an **asynchronous reconciliation pattern** to manage resources. This means:
+
+1. **API endpoints return immediately** without waiting for Kubernetes operations
+2. **Background jobs** reconcile desired state (database) with actual state (Kubernetes)
+3. **Event-driven architecture** connects reconciliation to K8s operations
+4. **Frontend polls every 3 seconds** for real-time status updates
+
+### Resource Lifecycle Management
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  Reconciliation Loop (every 3s)              │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  1. Query Database for Transition States                    │
+│     - Find sandboxes/databases in CREATING, STARTING,       │
+│       STOPPING, TERMINATING states                          │
+│     - Lock records atomically (optimistic locking)          │
+│                                                              │
+│  2. Emit Events for Each Resource                           │
+│     - CreateSandbox, StartSandbox, StopSandbox, etc.       │
+│                                                              │
+│  3. Event Listeners Execute K8s Operations                  │
+│     - Create/Start/Stop/Delete K8s resources               │
+│     - StatefulSets, Services, Ingresses (for sandboxes)    │
+│     - KubeBlocks Clusters (for databases)                  │
+│                                                              │
+│  4. Check K8s Status                                         │
+│     - Query actual status from Kubernetes API              │
+│                                                              │
+│  5. Update Database Status                                  │
+│     - Transition: CREATING → STARTING → RUNNING            │
+│     - Unlock records for next cycle                         │
+│                                                              │
+│  6. Aggregate Project Status                                │
+│     - Compute project.status from child resources          │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Status States
+
+**ResourceStatus** (individual resources: Sandbox, Database):
+- `CREATING`: K8s resource being initially created
+- `STARTING`: Transitioning from STOPPED to RUNNING
+- `RUNNING`: Active and operational
+- `STOPPING`: Transitioning from RUNNING to STOPPED
+- `STOPPED`: Paused (replicas=0 or cluster stopped)
+- `TERMINATING`: Being deleted from K8s
+- `TERMINATED`: Deleted from K8s (soft delete in database)
+- `ERROR`: Encountered an error
+
+**ProjectStatus** (aggregated from resources):
+- `RUNNING`: All resources operational
+- `STOPPED`: All resources paused
+- `CREATING`: Initial creation in progress
+- `STARTING`: Some resources starting up
+- `STOPPING`: Some resources stopping
+- `TERMINATING`: Some resources being deleted
+- `ERROR`: At least one resource has error
+- `PARTIAL`: Inconsistent mixed states (manual intervention needed)
+
+### Port Exposure Policy
+
+**Default Exposed Ports** (v0.4.0+):
+- **3000**: Next.js application (App Ingress)
+- **7681**: ttyd web terminal (Terminal Ingress)
+
+**Not Exposed by Default** (security improvement):
+- 5000: Python/Flask applications
+- 8080: General HTTP services
+- 5173: Vite development server
+- 8000: Django/FastAPI
+
+**Rationale**: Reduce attack surface, minimize cost, simplify configuration. Users can manually expose additional ports via custom ingress if needed.
+
+### Workflow Changes (v0.4.0+)
+
+**Before (Synchronous)**:
+```
+User Request → API → K8s Operation → Wait 30-60s → Response
+```
+
+**After (Asynchronous)**:
+```
+User Request → API → Update Database → Immediate Response (< 50ms)
+                           ↓
+              Reconciliation Job (every 3s)
+                           ↓
+              Execute K8s Operations → Update Status
+                           ↓
+              Frontend Polls → Shows Latest Status
+```
+
+### Example: Creating a Project
+
+```typescript
+// 1. User clicks "Create Project"
+POST /api/projects { name: "My Blog" }
+
+// 2. API creates records immediately
+// Database inserts:
+//   - Project (status: CREATING)
+//   - Sandbox (status: CREATING)
+//   - Database (status: CREATING)
+// Returns immediately (< 50ms)
+
+// 3. Reconciliation job finds resources (every 3s)
+// Query: SELECT * FROM Sandbox WHERE status = 'CREATING' AND lockedUntil IS NULL
+// Locks records, emits CreateSandbox event
+
+// 4. Event listener executes K8s operations
+// - Creates StatefulSet
+// - Creates Service
+// - Creates Ingresses (app + terminal)
+// Updates status: CREATING → STARTING
+
+// 5. Next cycle checks K8s status
+// If StatefulSet ready: Updates status STARTING → RUNNING
+// If not ready: Keeps STARTING, polls again next cycle
+
+// 6. Project status aggregated
+// If all resources RUNNING: Project status = RUNNING
+// Frontend poll shows latest status every 3s
+```
+
+---
+
+*Last Updated: 2025-01-27*
+*Version: v0.0.1-alpha.12*
+*Architecture: v0.4.0 (Reconciliation Pattern)*

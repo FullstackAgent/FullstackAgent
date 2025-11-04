@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { GET, POST, DELETE } from "@/lib/fetch-client";
 
 interface Account {
   login: string;
@@ -67,12 +68,9 @@ export function GitHubRepositorySelector({
       setLoading(true);
       setError(null);
 
-      const response = await fetch("/api/github/repositories");
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to fetch repositories");
-      }
+      const data = await GET<{ accounts: Account[]; repositories: Repository[] }>(
+        "/api/github/repositories"
+      );
 
       setAccounts(data.accounts || []);
       setRepositories(data.repositories || []);
@@ -93,21 +91,10 @@ export function GitHubRepositorySelector({
     try {
       setConnecting(true);
 
-      const response = await fetch(`/api/projects/${projectId}/github`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          repoName: repoFullName,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to connect repository");
-      }
+      const data = await POST<{ githubRepo: string }>(
+        `/api/projects/${projectId}/github`,
+        { repoName: repoFullName }
+      );
 
       setSelectedRepo(data.githubRepo);
       toast.success("Repository connected successfully!");
@@ -123,15 +110,7 @@ export function GitHubRepositorySelector({
     try {
       setDisconnecting(true);
 
-      const response = await fetch(`/api/projects/${projectId}/github`, {
-        method: "DELETE",
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to disconnect repository");
-      }
+      await DELETE(`/api/projects/${projectId}/github`);
 
       setSelectedRepo(null);
       toast.success("Repository disconnected successfully!");

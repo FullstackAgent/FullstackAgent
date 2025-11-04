@@ -724,6 +724,24 @@ export class DatabaseManager {
    */
   private async deleteKubeBlocksCluster(clusterName: string, namespace: string): Promise<void> {
     try {
+      // Check if cluster is already being deleted
+      const cluster = await this.getCluster(clusterName, namespace)
+
+      if (!cluster) {
+        logger.info(`Cluster '${clusterName}' not found (already deleted)`)
+        return // Idempotent
+      }
+
+      const phase = cluster.status?.phase
+
+      if (phase === 'Deleting') {
+        logger.info(
+          `Cluster '${clusterName}' is already in Deleting phase, skipping duplicate delete request`
+        )
+        return // Idempotent - already being deleted
+      }
+
+      // Proceed with deletion
       await this.customObjectsApi.deleteNamespacedCustomObject({
         group: 'apps.kubeblocks.io',
         version: 'v1alpha1',
@@ -731,7 +749,7 @@ export class DatabaseManager {
         plural: 'clusters',
         name: clusterName,
       })
-      logger.info(`✅ KubeBlocks Cluster '${clusterName}' deleted`)
+      logger.info(`✅ KubeBlocks Cluster '${clusterName}' deletion initiated`)
     } catch (error) {
       if (isK8sNotFound(error)) {
         logger.info(`Cluster '${clusterName}' not found (already deleted)`)

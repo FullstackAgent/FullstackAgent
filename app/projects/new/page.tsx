@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { POST } from '@/lib/fetch-client';
 
 export default function NewProjectPage() {
   const router = useRouter();
@@ -27,24 +28,16 @@ export default function NewProjectPage() {
     setIsCreating(true);
 
     try {
-      const response = await fetch('/api/projects', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: projectName,
-          description: description,
-        }),
+      const project = await POST<{ id: string; name: string }>('/api/projects', {
+        name: projectName,
+        description: description,
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to create project');
-      }
+      toast.success('Project is being created! Redirecting...');
 
-      const project = await response.json();
-      toast.success('Project created successfully!');
-      router.push(`/projects/${project.id}`);
+      // Async creation - redirect immediately to projects list
+      // Project list page will show latest status via polling
+      router.push('/projects');
     } catch (error) {
       console.error('Error creating project:', error);
       toast.error('Failed to create project. Please try again.');

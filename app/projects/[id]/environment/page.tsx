@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { GET, POST } from '@/lib/fetch-client';
 
 interface EnvVariable {
   id?: string;
@@ -30,16 +31,17 @@ export default function EnvironmentPage() {
 
   const fetchEnvironmentVariables = async () => {
     try {
-      const response = await fetch(`/api/projects/${projectId}/environment`);
-      const data = await response.json();
+      const data = await GET<{ general: EnvVariable[]; auth: EnvVariable[]; payment: EnvVariable[] }>(
+        `/api/projects/${projectId}/environment`
+      );
 
       // Load all general environment variables
       const generalVars = data.general || [];
       setEnvVars(generalVars);
-      setLoading(false);
     } catch (error) {
       console.error('Error fetching environment variables:', error);
       toast.error('Failed to load environment variables');
+    } finally {
       setLoading(false);
     }
   };
@@ -65,17 +67,7 @@ export default function EnvironmentPage() {
     const allVars: EnvVariable[] = envVars.filter((env) => env.key && env.value);
 
     try {
-      const response = await fetch(`/api/projects/${projectId}/environment`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ variables: allVars }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to save environment variables');
-      }
+      await POST(`/api/projects/${projectId}/environment`, { variables: allVars });
 
       toast.success('Environment variables saved successfully');
       router.push(`/projects/${projectId}`);

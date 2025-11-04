@@ -1,29 +1,62 @@
-import { Circle, Clock, ExternalLink, Folder, GitBranch, Plus } from 'lucide-react';
+'use client';
+
+import { useEffect, useState } from 'react';
+import { Circle, Clock, Folder, GitBranch, Plus } from 'lucide-react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { auth } from '@/lib/auth';
-import { prisma } from '@/lib/db';
+import { GET } from '@/lib/fetch-client';
 import { cn } from '@/lib/utils';
 
-export default async function ProjectsPage() {
-  const session = await auth();
+interface Project {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+  updatedAt: string;
+  githubRepo: string | null;
+}
 
-  if (!session || !session.user?.id) {
-    redirect('/login');
+export default function ProjectsPage() {
+  const router = useRouter();
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch projects list
+  const fetchProjects = async () => {
+    try {
+      const data = await GET<Project[]>('/api/projects');
+      setProjects(data);
+    } catch (error) {
+      console.error('Failed to fetch projects:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initial load
+  useEffect(() => {
+    fetchProjects();
+  }, []);
+
+  // Polling: refresh project status every 3 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchProjects();
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#1e1e1e] text-white flex items-center justify-center">
+        <p className="text-gray-400">Loading projects...</p>
+      </div>
+    );
   }
-
-  // Fetch user's projects directly using session.user.id
-  const projects = await prisma.project.findMany({
-    where: {
-      userId: session.user.id,
-    },
-    orderBy: {
-      updatedAt: 'desc',
-    },
-  });
 
   return (
     <div className="min-h-screen bg-[#1e1e1e] text-white">
@@ -88,24 +121,6 @@ export default async function ProjectsPage() {
                           })}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {/* {project.githubRepo && ( // causing issue with ssr
-                          <a
-                            href={`https://github.com/${project.githubRepo}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 w-7 p-0 text-gray-400 hover:text-white hover:bg-[#37373d]"
-                            >
-                              <ExternalLink className="h-3 w-3" />
-                            </Button>
-                          </a>
-                        )} */}
-                      </div>
                     </div>
                   </CardContent>
                 </Link>
@@ -125,7 +140,10 @@ function StatusIndicator({ status }: { status: string }) {
     <div className="flex items-center gap-1.5">
       <div className="relative">
         <Circle className={cn('h-2 w-2', color)} fill="currentColor" />
-        {(status === 'CREATING' || status === 'STARTING' || status === 'STOPPING' || status === 'TERMINATING') && (
+        {(status === 'CREATING' ||
+          status === 'STARTING' ||
+          status === 'STOPPING' ||
+          status === 'TERMINATING') && (
           <Circle
             className={cn('h-2 w-2 absolute top-0 left-0 animate-ping', pulseColor)}
             fill="currentColor"

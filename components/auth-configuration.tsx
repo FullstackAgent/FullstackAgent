@@ -16,6 +16,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { POST, PUT } from "@/lib/fetch-client";
 
 interface EnvironmentVariable {
   id: string;
@@ -91,50 +92,37 @@ export default function AuthConfiguration({
 
       if (existingVar) {
         // Update existing variable
-        const response = await fetch(`/api/projects/${project.id}/environment/${existingVar.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ value }),
-        });
+        await PUT(`/api/projects/${project.id}/environment/${existingVar.id}`, { value });
 
-        if (response.ok) {
-          setEnvVars((prev) => ({ ...prev, [key]: value }));
-          setSavedFields((prev) => new Set([...prev, key]));
-          setTimeout(() => {
-            setSavedFields((prev) => {
-              const newSet = new Set(prev);
-              newSet.delete(key);
-              return newSet;
-            });
-          }, 2000);
-        }
+        setEnvVars((prev) => ({ ...prev, [key]: value }));
+        setSavedFields((prev) => new Set([...prev, key]));
+        setTimeout(() => {
+          setSavedFields((prev) => {
+            const newSet = new Set(prev);
+            newSet.delete(key);
+            return newSet;
+          });
+        }, 2000);
       } else if (value) {
         // Create new variable
-        const response = await fetch(`/api/projects/${project.id}/environment`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            key,
-            value,
-            category: "auth",
-            isSecret: key.includes("SECRET") || key.includes("CLIENT_SECRET"),
-            updateDeployment: true,
-          }),
+        await POST(`/api/projects/${project.id}/environment`, {
+          key,
+          value,
+          category: "auth",
+          isSecret: key.includes("SECRET") || key.includes("CLIENT_SECRET"),
         });
 
-        if (response.ok) {
-          setEnvVars((prev) => ({ ...prev, [key]: value }));
-          setSavedFields((prev) => new Set([...prev, key]));
-          setTimeout(() => {
-            setSavedFields((prev) => {
-              const newSet = new Set(prev);
-              newSet.delete(key);
-              return newSet;
-            });
-          }, 2000);
-          // Reload to get the new environment variable ID
-          window.location.reload();
-        }
+        setEnvVars((prev) => ({ ...prev, [key]: value }));
+        setSavedFields((prev) => new Set([...prev, key]));
+        setTimeout(() => {
+          setSavedFields((prev) => {
+            const newSet = new Set(prev);
+            newSet.delete(key);
+            return newSet;
+          });
+        }, 2000);
+        // Reload to get the new environment variable ID
+        window.location.reload();
       }
     } catch (error) {
       console.error("Failed to save environment variable:", error);

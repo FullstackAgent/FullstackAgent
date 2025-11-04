@@ -1,8 +1,9 @@
-import { auth } from "@/lib/auth";
-import { redirect } from "next/navigation";
-import { prisma } from "@/lib/db";
-import ProjectSidebar from "@/components/project-sidebar";
-import { ReactNode } from "react";
+import { ReactNode } from 'react';
+import { redirect } from 'next/navigation';
+
+import ProjectSidebar from '@/components/project-sidebar';
+import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/db';
 
 export default async function SettingsLayout({
   children,
@@ -12,7 +13,7 @@ export default async function SettingsLayout({
   const session = await auth();
 
   if (!session || !session.user?.id) {
-    redirect("/login");
+    redirect('/login');
   }
 
   // Get user's projects for sidebar
@@ -21,7 +22,7 @@ export default async function SettingsLayout({
       userId: session.user.id,
     },
     orderBy: {
-      createdAt: "desc",
+      createdAt: 'desc',
     },
   });
 
@@ -35,9 +36,7 @@ export default async function SettingsLayout({
       />
 
       {/* Main Content Area with Settings */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-auto">
-        {children}
-      </div>
+      <div className="flex-1 flex flex-col min-w-0 overflow-auto">{children}</div>
     </div>
   );
 }

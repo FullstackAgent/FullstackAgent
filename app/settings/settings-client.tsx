@@ -1,14 +1,15 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Save, Terminal, Database, Shield, Code, Globe, Key } from "lucide-react";
-import { toast } from "sonner";
+import { useEffect, useState } from 'react';
+import { Code, Database, Globe, Key, Save, Shield, Terminal } from 'lucide-react';
+import { toast } from 'sonner';
+
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 
 interface SettingsClientProps {
   user: any;
@@ -16,8 +17,8 @@ interface SettingsClientProps {
 }
 
 export default function SettingsClient({ user, projects }: SettingsClientProps) {
-  const [systemPrompt, setSystemPrompt] = useState("");
-  const [kubeconfig, setKubeconfig] = useState("");
+  const [systemPrompt, setSystemPrompt] = useState('');
+  const [kubeconfig, setKubeconfig] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
 
@@ -63,7 +64,7 @@ Description: ${projects[0]?.description || 'No description available'}
     const loadSettings = async () => {
       try {
         // Load system prompt
-        const systemPromptResponse = await fetch("/api/settings/system-prompt");
+        const systemPromptResponse = await fetch('/api/settings/system-prompt');
         if (systemPromptResponse.ok) {
           const data = await systemPromptResponse.json();
           setSystemPrompt(data.systemPrompt || defaultSystemPrompt);
@@ -72,13 +73,13 @@ Description: ${projects[0]?.description || 'No description available'}
         }
 
         // Load kubeconfig
-        const kubeconfigResponse = await fetch("/api/settings/kubeconfig");
+        const kubeconfigResponse = await fetch('/api/settings/kubeconfig');
         if (kubeconfigResponse.ok) {
           const data = await kubeconfigResponse.json();
-          setKubeconfig(data.kubeconfig || "");
+          setKubeconfig(data.kubeconfig || '');
         }
       } catch (error) {
-        console.error("Failed to load settings:", error);
+        console.error('Failed to load settings:', error);
         setSystemPrompt(defaultSystemPrompt);
       } finally {
         setIsInitialLoading(false);
@@ -91,22 +92,22 @@ Description: ${projects[0]?.description || 'No description available'}
   const handleSaveSystemPrompt = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch("/api/settings/system-prompt", {
-        method: "POST",
+      const response = await fetch('/api/settings/system-prompt', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({ systemPrompt }),
       });
 
       if (response.ok) {
-        toast.success("System prompt saved successfully");
+        toast.success('System prompt saved successfully');
       } else {
-        throw new Error("Failed to save system prompt");
+        throw new Error('Failed to save system prompt');
       }
     } catch (error) {
-      toast.error("Failed to save system prompt");
-      console.error("Error saving system prompt:", error);
+      toast.error('Failed to save system prompt');
+      console.error('Error saving system prompt:', error);
     } finally {
       setIsLoading(false);
     }
@@ -115,22 +116,22 @@ Description: ${projects[0]?.description || 'No description available'}
   const handleSaveKubeconfig = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch("/api/settings/kubeconfig", {
-        method: "POST",
+      const response = await fetch('/api/settings/kubeconfig', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({ kubeconfig }),
       });
 
       if (response.ok) {
-        toast.success("Kubeconfig saved successfully");
+        toast.success('Kubeconfig saved successfully');
       } else {
-        throw new Error("Failed to save kubeconfig");
+        throw new Error('Failed to save kubeconfig');
       }
     } catch (error) {
-      toast.error("Failed to save kubeconfig");
-      console.error("Error saving kubeconfig:", error);
+      toast.error('Failed to save kubeconfig');
+      console.error('Error saving kubeconfig:', error);
     } finally {
       setIsLoading(false);
     }
@@ -138,26 +139,26 @@ Description: ${projects[0]?.description || 'No description available'}
 
   const handleResetToDefault = () => {
     setSystemPrompt(defaultSystemPrompt);
-    toast.success("Reset to default system prompt");
+    toast.success('Reset to default system prompt');
   };
 
   const handleLoadDefaultKubeconfig = async () => {
     try {
-      const response = await fetch("/api/settings/kubeconfig");
+      const response = await fetch('/api/settings/kubeconfig');
       if (response.ok) {
         const data = await response.json();
         if (data.isDefault) {
           setKubeconfig(data.kubeconfig);
-          toast.success("Loaded default kubeconfig");
+          toast.success('Loaded default kubeconfig');
         } else {
-          toast.info("No default kubeconfig available");
+          toast.info('No default kubeconfig available');
         }
       } else {
-        toast.error("Failed to load default kubeconfig");
+        toast.error('Failed to load default kubeconfig');
       }
     } catch (error) {
-      toast.error("Failed to load default kubeconfig");
-      console.error("Error loading default kubeconfig:", error);
+      toast.error('Failed to load default kubeconfig');
+      console.error('Error loading default kubeconfig:', error);
     }
   };
 
@@ -195,8 +196,9 @@ Description: ${projects[0]?.description || 'No description available'}
               System Prompt Configuration
             </CardTitle>
             <CardDescription className="text-gray-400">
-              Define the system instruction set for Claude Code. This helps the AI understand your project environment,
-              programming languages, frameworks, and available environment variables.
+              Define the system instruction set for Claude Code. This helps the AI understand your
+              project environment, programming languages, frameworks, and available environment
+              variables.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -210,10 +212,11 @@ Description: ${projects[0]?.description || 'No description available'}
                 onChange={(e) => setSystemPrompt(e.target.value)}
                 disabled={isInitialLoading}
                 className="min-h-[400px] bg-[#1e1e1e] border-[#3e3e42] text-white placeholder:text-gray-500 font-mono text-sm disabled:opacity-50"
-                placeholder={isInitialLoading ? "Loading..." : "Enter your system prompt here..."}
+                placeholder={isInitialLoading ? 'Loading...' : 'Enter your system prompt here...'}
               />
               <p className="text-xs text-gray-500">
-                This prompt will be used as context for Claude Code to understand your project environment and coding preferences.
+                This prompt will be used as context for Claude Code to understand your project
+                environment and coding preferences.
               </p>
             </div>
 
@@ -224,7 +227,7 @@ Description: ${projects[0]?.description || 'No description available'}
                 className="bg-[#0e639c] hover:bg-[#1177bb] text-white"
               >
                 <Save className="mr-2 h-4 w-4" />
-                {isLoading ? "Saving..." : "Save System Prompt"}
+                {isLoading ? 'Saving...' : 'Save System Prompt'}
               </Button>
               <Button
                 variant="outline"
@@ -246,8 +249,8 @@ Description: ${projects[0]?.description || 'No description available'}
               Kubeconfig Configuration
             </CardTitle>
             <CardDescription className="text-gray-400">
-              Configure your Kubernetes cluster settings. The system automatically fetches Sealos kubeconfig settings,
-              but you can customize them here if needed.
+              Configure your Kubernetes cluster settings. The system automatically fetches Sealos
+              kubeconfig settings, but you can customize them here if needed.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -263,8 +266,8 @@ Description: ${projects[0]?.description || 'No description available'}
                 placeholder="Paste your kubeconfig content here..."
               />
               <p className="text-xs text-gray-500">
-                Your kubeconfig file contains cluster connection information and credentials.
-                Leave empty to use the default Sealos configuration.
+                Your kubeconfig file contains cluster connection information and credentials. Leave
+                empty to use the default Sealos configuration.
               </p>
             </div>
 
@@ -275,7 +278,7 @@ Description: ${projects[0]?.description || 'No description available'}
                 className="bg-[#0e639c] hover:bg-[#1177bb] text-white"
               >
                 <Save className="mr-2 h-4 w-4" />
-                {isLoading ? "Saving..." : "Save Kubeconfig"}
+                {isLoading ? 'Saving...' : 'Save Kubeconfig'}
               </Button>
               <Button
                 variant="outline"
@@ -305,9 +308,7 @@ Description: ${projects[0]?.description || 'No description available'}
               <div className="flex items-center justify-between p-4 bg-[#1e1e1e] rounded-lg border border-[#3e3e42]">
                 <div>
                   <h3 className="text-white font-medium">GitHub Integration</h3>
-                  <p className="text-sm text-gray-400">
-                    Connected as {user.name || user.email}
-                  </p>
+                  <p className="text-sm text-gray-400">Connected as {user.name || user.email}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-green-500 rounded-full"></div>
@@ -318,9 +319,7 @@ Description: ${projects[0]?.description || 'No description available'}
               <div className="flex items-center justify-between p-4 bg-[#1e1e1e] rounded-lg border border-[#3e3e42]">
                 <div>
                   <h3 className="text-white font-medium">Authentication Method</h3>
-                  <p className="text-sm text-gray-400">
-                    Sign in with GitHub OAuth
-                  </p>
+                  <p className="text-sm text-gray-400">Sign in with GitHub OAuth</p>
                 </div>
                 <Key className="h-5 w-5 text-gray-400" />
               </div>
@@ -328,9 +327,7 @@ Description: ${projects[0]?.description || 'No description available'}
               <div className="flex items-center justify-between p-4 bg-[#1e1e1e] rounded-lg border border-[#3e3e42]">
                 <div>
                   <h3 className="text-white font-medium">Account Status</h3>
-                  <p className="text-sm text-gray-400">
-                    Active with {projects.length} projects
-                  </p>
+                  <p className="text-sm text-gray-400">Active with {projects.length} projects</p>
                 </div>
                 <Globe className="h-5 w-5 text-gray-400" />
               </div>

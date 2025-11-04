@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { getAvailableProjectActions, type ProjectAction } from '@/lib/utils/action';
 import { cn } from '@/lib/utils';
+import { POST } from '@/lib/fetch-client';
 
 interface ProjectOperationsProps {
   project: Project & {
@@ -41,7 +42,6 @@ export default function ProjectOperations({ project }: ProjectOperationsProps) {
 
     try {
       let endpoint = '';
-      let method = 'POST';
 
       switch (action) {
         case 'START':
@@ -57,12 +57,7 @@ export default function ProjectOperations({ project }: ProjectOperationsProps) {
           throw new Error(`Unknown action: ${action}`);
       }
 
-      const response = await fetch(endpoint, { method });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || `Failed to ${action.toLowerCase()} project`);
-      }
+      await POST(endpoint);
 
       // For delete, redirect to projects list
       if (action === 'DELETE') {

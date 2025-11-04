@@ -57,9 +57,15 @@ export async function projectStatusReconcile(projectId: string): Promise<Project
 
     // Special case: If no resources exist (TERMINATED), delete the project
     if (resourceStatuses.length === 0 && newStatus === 'TERMINATED') {
-      logger.info(`Project ${projectId} has no resources - deleting project`)
-      await prisma.project.delete({
-        where: { id: projectId },
+      logger.info(`Project ${projectId} has no resources - deleting project and its environments`)
+      await prisma.$transaction(async (tx) => {
+        const deletedEnvs = await tx.environment.deleteMany({
+          where: { projectId },
+        })
+        logger.info(`Deleted ${deletedEnvs.count} environment records for project ${projectId}`)
+        await tx.project.delete({
+          where: { id: projectId },
+        })
       })
       logger.info(`Project ${projectId} deleted successfully`)
       return null

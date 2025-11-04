@@ -381,6 +381,121 @@ To contribute to this runtime:
 
 This runtime is provided as-is for development purposes. Please ensure compliance with all included software licenses.
 
+## Port Exposure Policy (v0.4.0+)
+
+### Default Exposed Ports
+
+Starting from v0.4.0, only essential ports are exposed by default:
+
+**Exposed**:
+- **3000**: Next.js application (App Ingress)
+  - Primary development port for Next.js apps
+  - Kubernetes Ingress: `https://{random}.usw.sealos.io`
+- **7681**: ttyd web terminal (Terminal Ingress)
+  - WebSocket-based terminal access
+  - Kubernetes Ingress: `https://{random}-ttyd.usw.sealos.io`
+
+**Not Exposed by Default** (security improvement):
+- 5000: Python/Flask applications
+- 8080: General HTTP services
+- 5173: Vite development server
+- 8000: Django/FastAPI applications
+
+### Rationale
+
+1. **Security**: Reduce attack surface by only exposing necessary ports
+2. **Cost**: Fewer Kubernetes ingresses reduce resource usage
+3. **Simplicity**: Users primarily develop Next.js applications
+4. **Flexibility**: Users can manually expose additional ports if needed
+
+### Exposing Additional Ports
+
+If your application requires additional ports (e.g., Flask on port 5000):
+
+**Option 1: Port Forwarding in Application**
+```typescript
+// Forward Flask to Next.js port
+// In your Next.js app/api/proxy/route.ts
+export async function GET(req: Request) {
+  const flaskResponse = await fetch('http://localhost:5000/api/endpoint')
+  return flaskResponse
+}
+```
+
+**Option 2: Custom Ingress (Manual)**
+```yaml
+# Create custom ingress for port 5000
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {project}-flask
+  namespace: {namespace}
+spec:
+  rules:
+  - host: {custom-domain}.usw.sealos.io
+    http:
+      paths:
+      - path: /
+        backend:
+          service:
+            name: {service-name}
+            port:
+              number: 5000
+```
+
+## Reconciliation Integration (v0.4.0+)
+
+### Sandbox Lifecycle
+
+The runtime container lifecycle is now managed by the reconciliation pattern:
+
+**Creation Flow**:
+```
+User creates project
+    ↓
+API: INSERT Sandbox (status=CREATING)
+    ↓
+Reconciliation Job (every 3s)
+    ↓
+Event Listener: handleCreateSandbox()
+    ↓
+Kubernetes: Create StatefulSet with runtime image
+    ↓
+Update: status=STARTING
+    ↓
+Wait for pod ready
+    ↓
+Update: status=RUNNING
+```
+
+**Key Benefits**:
+- **Non-blocking**: API returns immediately
+- **Automatic retry**: Failed creates automatically retry
+- **Status tracking**: Real-time status in database
+- **Resilient**: Survives app restarts
+
+### Multi-Tenancy with User Kubeconfig
+
+Starting from v0.4.0, each user operates in their own Kubernetes namespace:
+
+**User-Specific Configuration**:
+- Each user has `UserConfig` with `key=KUBECONFIG`
+- `lib/k8s/k8s-service-helper.ts` loads per-user credentials
+- Sandboxes created in user's namespace
+- True multi-tenancy isolation
+
+**Authentication Flow**:
+1. User logs in (PASSWORD/GITHUB/SEALOS)
+2. System retrieves user's kubeconfig from `UserConfig`
+3. Kubernetes operations use user's credentials
+4. Resources created in user's namespace
+
+**Sealos OAuth Integration**:
+- Sealos users authenticate with JWT token
+- Kubeconfig automatically stored in `UserConfig`
+- Seamless namespace isolation
+- No manual configuration required
+
 ## Support
 
 For issues or questions:
@@ -388,3 +503,17 @@ For issues or questions:
 - Open an issue in the repository
 - Check the Dockerfile for specific version information
 - Consult the documentation of individual tools included in the runtime
+
+## Summary
+
+The runtime image provides a complete, pre-configured development environment that:
+- Requires zero local setup
+- Includes AI assistance via Claude Code
+- Provides browser-based terminal access
+- Supports full-stack development out of the box
+- Enables instant project creation and deployment
+- **NEW (v0.4.0+)**: Only exposes essential ports (3000, 7681) for security
+- **NEW (v0.4.0+)**: Managed by reconciliation pattern for reliability
+- **NEW (v0.4.0+)**: Supports multi-tenant isolation via user kubeconfig
+
+This design eliminates the traditional "works on my machine" problem by ensuring every developer works in an identical, cloud-based environment. The reconciliation architecture ensures reliability, scalability, and true multi-tenancy.
