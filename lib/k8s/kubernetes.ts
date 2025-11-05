@@ -152,12 +152,19 @@ export class KubernetesService {
   async createSandbox(
     projectName: string,
     namespace: string,
-    sandboxName: string
+    sandboxName: string,
+    envVars: Record<string, string> = {}
   ): Promise<SandboxInfo> {
     namespace = namespace || this.defaultNamespace
     const ingressDomain = this.getIngressDomain()
 
-    return await this.sandboxManager.createSandbox(projectName, namespace, ingressDomain, sandboxName)
+    return await this.sandboxManager.createSandbox(
+      projectName,
+      namespace,
+      ingressDomain,
+      sandboxName,
+      envVars
+    )
   }
 
   /**

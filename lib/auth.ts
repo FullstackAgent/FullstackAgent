@@ -6,6 +6,7 @@ import GitHub from 'next-auth/providers/github'
 import { prisma } from '@/lib/db'
 import { isJWTExpired, parseSealosJWT } from '@/lib/jwt'
 import { logger as baseLogger } from '@/lib/logger'
+import { createAiproxyToken } from '@/lib/services/aiproxy'
 
 const logger = baseLogger.child({ module: 'lib/auth' })
 
@@ -145,7 +146,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         })
 
         if (existingIdentity) {
-          // User exists - only update sealosKubeconfig, NOT sealosId
+          // User exists - only update sealosKubeconfig and aiproxy token, NOT sealosId
           const existingMetadata = existingIdentity.metadata as {
             sealosId?: string
             sealosKubeconfig?: string
@@ -180,12 +181,108 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             },
           })
 
+          // Create aiproxy token
+          try {
+            const tokenInfo = await createAiproxyToken(
+              `fullstackagent-${sealosUserId}`,
+              sealosKubeconfig
+            )
+
+            if (tokenInfo?.token?.key && tokenInfo.anthropicBaseUrl) {
+              // Store ANTHROPIC_API_KEY in UserConfig
+              await prisma.userConfig.upsert({
+                where: {
+                  userId_key: {
+                    userId: existingIdentity.user.id,
+                    key: 'ANTHROPIC_API_KEY',
+                  },
+                },
+                create: {
+                  userId: existingIdentity.user.id,
+                  key: 'ANTHROPIC_API_KEY',
+                  value: tokenInfo.token.key,
+                  category: 'anthropic',
+                  isSecret: true,
+                },
+                update: {
+                  value: tokenInfo.token.key,
+                },
+              })
+
+              // Store ANTHROPIC_API (base URL) in UserConfig
+              await prisma.userConfig.upsert({
+                where: {
+                  userId_key: {
+                    userId: existingIdentity.user.id,
+                    key: 'ANTHROPIC_API',
+                  },
+                },
+                create: {
+                  userId: existingIdentity.user.id,
+                  key: 'ANTHROPIC_API',
+                  value: tokenInfo.anthropicBaseUrl,
+                  category: 'anthropic',
+                  isSecret: false,
+                },
+                update: {
+                  value: tokenInfo.anthropicBaseUrl,
+                },
+              })
+            }
+          } catch (error) {
+            logger.error(`Failed to create aiproxy token for user ${sealosUserId}: ${error}`)
+            // Don't fail authentication if token creation fails
+          }
+
           return {
             id: existingIdentity.user.id,
             name: existingIdentity.user.name || sealosUserId,
           }
         } else {
           // Create new user - use sealosId as name
+
+          // Try to create aiproxy token first
+          let aiproxyTokenInfo = null
+          try {
+            aiproxyTokenInfo = await createAiproxyToken(
+              `fullstackagent-${sealosUserId}`,
+              sealosKubeconfig
+            )
+          } catch (error) {
+            logger.error(`Failed to create aiproxy token for new user ${sealosUserId}: ${error}`)
+          }
+
+          // Prepare configs array
+          const configs: Array<{
+            key: string
+            value: string
+            category: string
+            isSecret: boolean
+          }> = [
+            {
+              key: 'KUBECONFIG',
+              value: sealosKubeconfig,
+              category: 'kc',
+              isSecret: true,
+            },
+          ]
+
+          // Add aiproxy configs if token was created successfully
+          if (aiproxyTokenInfo?.token?.key && aiproxyTokenInfo.anthropicBaseUrl) {
+            configs.push({
+              key: 'ANTHROPIC_API_KEY',
+              value: aiproxyTokenInfo.token.key,
+              category: 'anthropic',
+              isSecret: true,
+            })
+            configs.push({
+              key: 'ANTHROPIC_API',
+              value: aiproxyTokenInfo.anthropicBaseUrl,
+              category: 'anthropic',
+              isSecret: false,
+            })
+          }
+
           const newUser = await prisma.user.create({
             data: {
               name: sealosUserId, // Use sealosId as username
@@ -201,12 +298,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 },
               },
               configs: {
-                create: {
-                  key: 'KUBECONFIG',
-                  value: sealosKubeconfig,
-                  category: 'kc',
-                  isSecret: true,
-                },
+                create: configs,
               },
             },
           })

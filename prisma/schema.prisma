@@ -44,13 +44,13 @@ model UserIdentity {
 }
 
 // UserConfig: User-level global configuration
-// For settings like API keys, kubeconfig, etc. that apply to all projects
+// For settings like API keys, kubeconfig, etc. 
 model UserConfig {
   id       String  @id @default(cuid())
   userId   String
   key      String // ANTHROPIC_AUTH_TOKEN, ANTHROPIC_BASE_URL, KUBECONFIG, etc.
   value    String // Configuration value
-  category String? // anthropic-api, kc, github, general (for UI organization)
+  category String? // anthropic, kc, github, general
   isSecret Boolean @default(false) // Mark sensitive values (masked in UI)
 
   createdAt DateTime @default(now())

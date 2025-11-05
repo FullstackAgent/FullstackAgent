@@ -96,14 +96,12 @@ export class SandboxManager {
     projectName: string,
     namespace: string,
     ingressDomain: string,
-    sandboxName: string
+    sandboxName: string,
+    envVars: Record<string, string> = {}
   ): Promise<SandboxInfo> {
     logger.info(`Creating sandbox: ${sandboxName} for project: ${projectName}`)
 
     const k8sProjectName = KubernetesUtils.toK8sProjectName(projectName)
-
-    // Load environment variables
-    const envVars = this.loadEnvVars()
 
     // Prepare container environment
     const containerEnv: Record<string, string> = {
@@ -412,12 +410,8 @@ export class SandboxManager {
         throw new Error(`StatefulSet not found: ${sandboxName}`)
       }
 
-      // Load base environment variables
-      const defaultEnvVars = this.loadEnvVars()
-
       // Merge all environment variables
       const allEnvVars: Record<string, string> = {
-        ...defaultEnvVars,
         ...envVars,
         PROJECT_NAME: projectName,
         NODE_ENV: 'development',
@@ -521,18 +515,6 @@ export class SandboxManager {
       }
       throw error
     }
-  }
-
-  /**
-   * Load environment variables
-   */
-  private loadEnvVars(): Record<string, string> {
-    const envVars: Record<string, string> = {
-      NODE_ENV: 'development',
-      TTYD_PORT: '7681',
-      TTYD_INTERFACE: '0.0.0.0',
-    }
-    return envVars
   }
 
   /**
