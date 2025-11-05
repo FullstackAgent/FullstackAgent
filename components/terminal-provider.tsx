@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import React, { createContext, useContext, useState, useCallback } from "react";
+import React, { createContext, useCallback, useContext, useState } from 'react';
 
 interface TerminalContextType {
   isTerminalVisible: boolean;
@@ -26,7 +26,7 @@ export function TerminalProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const toggleTerminal = useCallback(() => {
-    setIsTerminalVisible(prev => !prev);
+    setIsTerminalVisible((prev) => !prev);
   }, []);
 
   return (
@@ -47,7 +47,7 @@ export function TerminalProvider({ children }: { children: React.ReactNode }) {
 export function useTerminal() {
   const context = useContext(TerminalContext);
   if (context === undefined) {
-    throw new Error("useTerminal must be used within a TerminalProvider");
+    throw new Error('useTerminal must be used within a TerminalProvider');
   }
   return context;
 }

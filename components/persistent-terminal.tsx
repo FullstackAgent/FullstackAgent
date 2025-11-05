@@ -1,14 +1,14 @@
-"use client";
+'use client';
 
-import { useTerminal } from "./terminal-provider";
-import TerminalComponent from "./terminal";
+import TerminalComponent from './terminal';
+import { useTerminal } from './terminal-provider';
 
 interface PersistentTerminalProps {
   projectId: string;
   className?: string;
 }
 
-export default function PersistentTerminal({ projectId, className = "" }: PersistentTerminalProps) {
+export default function PersistentTerminal({ projectId }: PersistentTerminalProps) {
   const { isTerminalVisible, currentProjectId } = useTerminal();
 
   // Check if this terminal should be visible
@@ -21,7 +21,7 @@ export default function PersistentTerminal({ projectId, className = "" }: Persis
   // When terminal is visible, it should take up the full main content area
   return (
     <div className="flex-1 flex flex-col min-w-0">
-      <TerminalComponent projectId={projectId} />
+      <TerminalComponent />
     </div>
   );
 }

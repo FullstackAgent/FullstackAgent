@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useTerminal } from "./terminal-provider";
+import { useTerminal } from './terminal-provider';
 
 interface ContentWrapperProps {
   children: React.ReactNode;

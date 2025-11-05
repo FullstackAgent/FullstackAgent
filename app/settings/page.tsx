@@ -1,12 +1,6 @@
-import { Database, Save, Settings, Shield, Terminal } from 'lucide-react';
+import { Settings } from 'lucide-react';
 import { redirect } from 'next/navigation';
 
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Textarea } from '@/components/ui/textarea';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 
@@ -19,30 +13,22 @@ export default async function SettingsPage() {
     redirect('/login');
   }
 
-  // Find user by id
+  // Get user info
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
+    select: {
+      id: true,
+      name: true,
+    },
   });
 
   if (!user) {
     redirect('/login');
   }
 
-  // Get user's projects for system prompt context
-  const projects = await prisma.project.findMany({
+  // Get projects count for account info
+  const projectsCount = await prisma.project.count({
     where: { userId: user.id },
-    select: {
-      id: true,
-      name: true,
-      description: true,
-      environments: {
-        select: {
-          key: true,
-          value: true,
-          category: true,
-        },
-      },
-    },
   });
 
   return (
@@ -57,7 +43,7 @@ export default async function SettingsPage() {
         </p>
       </div>
 
-      <SettingsClient user={user} projects={projects} />
+      <SettingsClient user={user} projectsCount={projectsCount} />
     </div>
   );
 }

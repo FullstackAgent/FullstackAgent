@@ -25,15 +25,13 @@ export default function EnvironmentPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    fetchEnvironmentVariables();
-  }, [projectId]);
-
   const fetchEnvironmentVariables = async () => {
     try {
-      const data = await GET<{ general: EnvVariable[]; auth: EnvVariable[]; payment: EnvVariable[] }>(
-        `/api/projects/${projectId}/environment`
-      );
+      const data = await GET<{
+        general: EnvVariable[];
+        auth: EnvVariable[];
+        payment: EnvVariable[];
+      }>(`/api/projects/${projectId}/environment`);
 
       // Load all general environment variables
       const generalVars = data.general || [];
@@ -46,6 +44,11 @@ export default function EnvironmentPage() {
     }
   };
 
+  useEffect(() => {
+    fetchEnvironmentVariables();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
+
   const addEnvVar = () => {
     setEnvVars([...envVars, { key: '', value: '' }]);
   };
@@ -54,7 +57,7 @@ export default function EnvironmentPage() {
     setEnvVars(envVars.filter((_, i) => i !== index));
   };
 
-  const updateEnvVar = (index: number, field: keyof EnvVariable, value: any) => {
+  const updateEnvVar = (index: number, field: keyof EnvVariable, value: string) => {
     const updated = [...envVars];
     updated[index] = { ...updated[index], [field]: value };
     setEnvVars(updated);

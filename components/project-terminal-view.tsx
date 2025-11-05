@@ -1,10 +1,33 @@
 'use client';
 
 import { useState } from 'react';
-import { Sandbox } from '@prisma/client';
-import { Globe, Network, Plus, Server, Terminal as TerminalIcon, X } from 'lucide-react';
+import type { Database, Project, Sandbox } from '@prisma/client';
+import {
+  ChevronDown,
+  Globe,
+  Loader2,
+  Network,
+  Play,
+  Plus,
+  Server,
+  Square,
+  Terminal as TerminalIcon,
+  Trash2,
+  X,
+} from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 import TerminalWrapper from '@/components/terminal-wrapper';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   Dialog,
   DialogContent,
@@ -12,10 +35,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { POST } from '@/lib/fetch-client';
 import { cn } from '@/lib/utils';
+import { getAvailableProjectActions, type ProjectAction } from '@/lib/utils/action';
 
 interface ProjectTerminalViewProps {
   sandbox: Sandbox | undefined;
+  project: Project & {
+    databases: Pick<Database, 'status'>[];
+    sandboxes: Pick<Sandbox, 'status'>[];
+  };
 }
 
 interface Terminal {
@@ -30,12 +66,18 @@ interface NetworkEndpoint {
   protocol: string;
 }
 
-export default function ProjectTerminalView({ sandbox }: ProjectTerminalViewProps) {
+export default function ProjectTerminalView({ sandbox, project }: ProjectTerminalViewProps) {
+  const router = useRouter();
   const [terminals, setTerminals] = useState<Terminal[]>([
     { id: '1', name: 'Terminal 1', isActive: true },
   ]);
   const [activeTerminalId, setActiveTerminalId] = useState('1');
   const [showNetworkDialog, setShowNetworkDialog] = useState(false);
+  const [loading, setLoading] = useState<ProjectAction | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  // Get available actions based on current status
+  const availableActions = getAvailableProjectActions(project);
 
   // Network endpoints for this sandbox
   const networkEndpoints: NetworkEndpoint[] = [
@@ -63,6 +105,53 @@ export default function ProjectTerminalView({ sandbox }: ProjectTerminalViewProp
     if (activeTerminalId === id) {
       setActiveTerminalId(newTerminals[0].id);
     }
+  };
+
+  const handleOperation = async (action: ProjectAction) => {
+    setLoading(action);
+
+    try {
+      let endpoint = '';
+
+      switch (action) {
+        case 'START':
+          endpoint = `/api/projects/${project.id}/start`;
+          break;
+        case 'STOP':
+          endpoint = `/api/projects/${project.id}/stop`;
+          break;
+        case 'DELETE':
+          endpoint = `/api/projects/${project.id}/delete`;
+          break;
+        default:
+          throw new Error(`Unknown action: ${action}`);
+      }
+
+      await POST(endpoint);
+
+      // For delete, redirect to projects list
+      if (action === 'DELETE') {
+        router.push('/projects');
+        return;
+      }
+
+      // Refresh the page to show updated status
+      router.refresh();
+    } catch (err) {
+      console.error(`Failed to ${action.toLowerCase()} project:`, err);
+      // Error is logged to console, and router.refresh() will show updated status
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleDeleteClick = () => {
+    setShowDeleteDialog(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    setShowDeleteDialog(false);
+    handleOperation('DELETE');
   };
 
   return (
@@ -106,15 +195,99 @@ export default function ProjectTerminalView({ sandbox }: ProjectTerminalViewProp
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
+          {/* Status Badge */}
+          <div className="flex items-center gap-1.5 px-2 py-1 text-xs text-gray-300">
+            <div
+              className={cn(
+                'h-1.5 w-1.5 rounded-full',
+                project.status === 'RUNNING' && 'bg-green-500',
+                project.status === 'STOPPED' && 'bg-gray-500',
+                project.status === 'STARTING' && 'bg-yellow-500 animate-pulse',
+                project.status === 'STOPPING' && 'bg-yellow-500 animate-pulse',
+                project.status === 'CREATING' && 'bg-blue-500 animate-pulse',
+                project.status === 'TERMINATING' && 'bg-red-500 animate-pulse',
+                project.status === 'ERROR' && 'bg-red-500',
+                project.status === 'PARTIAL' && 'bg-orange-500'
+              )}
+            />
+            <span>{project.status}</span>
+          </div>
+
           {/* Network Button */}
           <button
             onClick={() => setShowNetworkDialog(true)}
             className="px-2 py-1 text-xs text-gray-300 hover:text-white hover:bg-[#37373d] rounded transition-colors flex items-center gap-1"
           >
             <Network className="h-3 w-3" />
-            Network
+            <span>Network</span>
           </button>
+
+          {/* Operations Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="px-2 py-1 text-xs text-gray-300 hover:text-white hover:bg-[#37373d] rounded transition-colors flex items-center gap-1">
+                <span>Operations</span>
+                <ChevronDown className="h-3 w-3" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="bg-[#252526] border-[#3e3e42] text-white min-w-[160px]"
+            >
+              {availableActions.includes('START') && (
+                <DropdownMenuItem
+                  onClick={() => handleOperation('START')}
+                  disabled={loading !== null}
+                  className="text-xs cursor-pointer focus:bg-[#37373d] focus:text-white"
+                >
+                  {loading === 'START' ? (
+                    <>
+                      <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                      Starting...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="mr-2 h-3 w-3" />
+                      Start Sandbox
+                    </>
+                  )}
+                </DropdownMenuItem>
+              )}
+              {availableActions.includes('STOP') && (
+                <DropdownMenuItem
+                  onClick={() => handleOperation('STOP')}
+                  disabled={loading !== null}
+                  className="text-xs cursor-pointer focus:bg-[#37373d] focus:text-white"
+                >
+                  {loading === 'STOP' ? (
+                    <>
+                      <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                      Stopping...
+                    </>
+                  ) : (
+                    <>
+                      <Square className="mr-2 h-3 w-3" />
+                      Stop Sandbox
+                    </>
+                  )}
+                </DropdownMenuItem>
+              )}
+              {availableActions.includes('DELETE') && (
+                <>
+                  <DropdownMenuSeparator className="bg-[#3e3e42]" />
+                  <DropdownMenuItem
+                    onClick={handleDeleteClick}
+                    disabled={loading !== null}
+                    className="text-xs cursor-pointer focus:bg-[#37373d] focus:text-white"
+                  >
+                    <Trash2 className="mr-2 h-3 w-3" />
+                    Delete Sandbox
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -182,6 +355,30 @@ export default function ProjectTerminalView({ sandbox }: ProjectTerminalViewProp
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent className="bg-[#252526] border-[#3e3e42] text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Project</AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-400">
+              Are you sure you want to delete this project? This will terminate all resources
+              (databases, sandboxes) and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-[#3e3e42] border-[#3e3e42] text-white hover:bg-[#4e4e52]">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

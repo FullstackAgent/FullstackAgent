@@ -1,4 +1,4 @@
-import { Check, Copy, CreditCard, DollarSign, ExternalLink, Key, Zap } from 'lucide-react';
+import { CreditCard, DollarSign, ExternalLink, Zap } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import { notFound } from 'next/navigation';
 

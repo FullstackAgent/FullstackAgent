@@ -1,22 +1,23 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { Project } from "@prisma/client";
+import { useEffect, useState } from 'react';
+import { Project } from '@prisma/client';
 import {
-  Shield,
-  Github as GithubIcon,
-  Chrome as ChromeIcon,
-  Key,
-  Copy,
+  AlertCircle,
   Check,
+  Chrome as ChromeIcon,
+  Copy,
+  ExternalLink,
   Eye,
   EyeOff,
+  Github as GithubIcon,
+  Key,
   RefreshCw,
-  AlertCircle,
-  ExternalLink,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
-import { POST, PUT } from "@/lib/fetch-client";
+  Shield,
+} from 'lucide-react';
+
+import { POST, PUT } from '@/lib/fetch-client';
+import { cn } from '@/lib/utils';
 
 interface EnvironmentVariable {
   id: string;
@@ -40,7 +41,7 @@ export default function AuthConfiguration({
   projectUrl,
   environmentVariables,
 }: AuthConfigurationProps) {
-  const [activeTab, setActiveTab] = useState("github");
+  const [activeTab, setActiveTab] = useState('github');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showSecrets, setShowSecrets] = useState<{ [key: string]: boolean }>({});
   const [savedFields, setSavedFields] = useState<Set<string>>(new Set());
@@ -58,9 +59,9 @@ export default function AuthConfiguration({
   }, [environmentVariables]);
 
   const tabs = [
-    { id: "github", label: "GitHub OAuth", icon: GithubIcon },
-    { id: "google", label: "Google OAuth", icon: ChromeIcon },
-    { id: "nextauth", label: "NextAuth Settings", icon: Key },
+    { id: 'github', label: 'GitHub OAuth', icon: GithubIcon },
+    { id: 'google', label: 'Google OAuth', icon: ChromeIcon },
+    { id: 'nextauth', label: 'NextAuth Settings', icon: Key },
   ];
 
   const copyToClipboard = async (text: string, id: string) => {
@@ -69,7 +70,7 @@ export default function AuthConfiguration({
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 2000);
     } catch (err) {
-      console.error("Failed to copy:", err);
+      console.error('Failed to copy:', err);
     }
   };
 
@@ -78,12 +79,13 @@ export default function AuthConfiguration({
   };
 
   const generateSecret = () => {
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;:,.<>?";
-    let secret = "";
+    const chars =
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;:,.<>?';
+    let secret = '';
     for (let i = 0; i < 32; i++) {
       secret += chars.charAt(Math.floor(Math.random() * chars.length));
     }
-    saveEnvVar("NEXTAUTH_SECRET", secret);
+    saveEnvVar('NEXTAUTH_SECRET', secret);
   };
 
   const saveEnvVar = async (key: string, value: string) => {
@@ -108,8 +110,8 @@ export default function AuthConfiguration({
         await POST(`/api/projects/${project.id}/environment`, {
           key,
           value,
-          category: "auth",
-          isSecret: key.includes("SECRET") || key.includes("CLIENT_SECRET"),
+          category: 'auth',
+          isSecret: key.includes('SECRET') || key.includes('CLIENT_SECRET'),
         });
 
         setEnvVars((prev) => ({ ...prev, [key]: value }));
@@ -125,7 +127,7 @@ export default function AuthConfiguration({
         window.location.reload();
       }
     } catch (error) {
-      console.error("Failed to save environment variable:", error);
+      console.error('Failed to save environment variable:', error);
     }
   };
 
@@ -148,9 +150,7 @@ export default function AuthConfiguration({
       <div className="flex items-center justify-between">
         <label className="text-sm font-medium text-gray-300">{label}</label>
         <div className="flex items-center gap-2">
-          <code className="text-xs bg-[#1e1e1e] px-2 py-1 rounded text-blue-400">
-            {envKey}
-          </code>
+          <code className="text-xs bg-[#1e1e1e] px-2 py-1 rounded text-blue-400">{envKey}</code>
           <button
             onClick={() => copyToClipboard(envKey, `env-${envKey}`)}
             className="p-1 text-gray-400 hover:text-gray-200"
@@ -161,15 +161,13 @@ export default function AuthConfiguration({
               <Copy className="h-3 w-3" />
             )}
           </button>
-          {savedFields.has(envKey) && (
-            <Check className="h-3 w-3 text-green-400" />
-          )}
+          {savedFields.has(envKey) && <Check className="h-3 w-3 text-green-400" />}
         </div>
       </div>
       <div className="flex items-center gap-2">
         <input
-          type={isSecret && !showSecrets[envKey] ? "password" : "text"}
-          value={envVars[envKey] || ""}
+          type={isSecret && !showSecrets[envKey] ? 'password' : 'text'}
+          value={envVars[envKey] || ''}
           onChange={(e) => saveEnvVar(envKey, e.target.value)}
           placeholder={placeholder}
           readOnly={readOnly}
@@ -180,30 +178,22 @@ export default function AuthConfiguration({
             onClick={() => toggleSecret(envKey)}
             className="p-2 text-gray-400 hover:text-gray-200"
           >
-            {showSecrets[envKey] ? (
-              <EyeOff className="h-4 w-4" />
-            ) : (
-              <Eye className="h-4 w-4" />
-            )}
+            {showSecrets[envKey] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
         )}
       </div>
-      {helpText && (
-        <p className="text-xs text-gray-400">{helpText}</p>
-      )}
+      {helpText && <p className="text-xs text-gray-400">{helpText}</p>}
     </div>
   );
 
   const CallbackUrlField = ({ provider }: { provider: string }) => {
     const callbackUrl = `${projectUrl}/api/auth/callback/${provider}`;
-    const envVarName = provider === "github" ? "GITHUB_CALLBACK_URL" : "GOOGLE_CALLBACK_URL";
+    const envVarName = provider === 'github' ? 'GITHUB_CALLBACK_URL' : 'GOOGLE_CALLBACK_URL';
 
     return (
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <label className="text-sm font-medium text-gray-300">
-            Authorization Callback URL
-          </label>
+          <label className="text-sm font-medium text-gray-300">Authorization Callback URL</label>
           <div className="flex items-center gap-2">
             <code className="text-xs bg-[#1e1e1e] px-2 py-1 rounded text-blue-400">
               {envVarName}
@@ -239,7 +229,7 @@ export default function AuthConfiguration({
           </button>
         </div>
         <p className="text-xs text-gray-400">
-          Copy this URL and add it to your OAuth app's callback URLs
+          Copy this URL and add it to your OAuth app&apos;s callback URLs
         </p>
       </div>
     );
@@ -268,10 +258,10 @@ export default function AuthConfiguration({
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  "px-4 py-3 flex items-center gap-2 text-sm border-b-2 transition-colors",
+                  'px-4 py-3 flex items-center gap-2 text-sm border-b-2 transition-colors',
                   activeTab === tab.id
-                    ? "text-white border-[#0e639c]"
-                    : "text-gray-400 border-transparent hover:text-gray-300"
+                    ? 'text-white border-[#0e639c]'
+                    : 'text-gray-400 border-transparent hover:text-gray-300'
                 )}
               >
                 <Icon className="h-4 w-4" />
@@ -285,7 +275,7 @@ export default function AuthConfiguration({
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">
         {/* GitHub OAuth */}
-        {activeTab === "github" && (
+        {activeTab === 'github' && (
           <div className="max-w-4xl space-y-6">
             <div className="bg-[#252526] rounded-lg border border-[#3e3e42] p-6">
               <div className="flex items-center justify-between mb-4">
@@ -322,18 +312,16 @@ export default function AuthConfiguration({
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-gray-300">
-                      Homepage URL
-                    </label>
+                    <label className="text-sm font-medium text-gray-300">Homepage URL</label>
                     <div className="flex items-center gap-2">
                       <code className="text-xs bg-[#1e1e1e] px-2 py-1 rounded text-blue-400">
                         NEXTAUTH_URL
                       </code>
                       <button
-                        onClick={() => copyToClipboard("NEXTAUTH_URL", "env-homepage-github")}
+                        onClick={() => copyToClipboard('NEXTAUTH_URL', 'env-homepage-github')}
                         className="p-1 text-gray-400 hover:text-gray-200"
                       >
-                        {copiedId === "env-homepage-github" ? (
+                        {copiedId === 'env-homepage-github' ? (
                           <Check className="h-3 w-3 text-green-400" />
                         ) : (
                           <Copy className="h-3 w-3" />
@@ -349,10 +337,10 @@ export default function AuthConfiguration({
                       className="flex-1 px-3 py-2 bg-[#252526] border border-[#3e3e42] rounded text-sm text-gray-400 font-mono"
                     />
                     <button
-                      onClick={() => copyToClipboard(projectUrl, "homepage-github")}
+                      onClick={() => copyToClipboard(projectUrl, 'homepage-github')}
                       className="p-2 text-gray-400 hover:text-gray-200"
                     >
-                      {copiedId === "homepage-github" ? (
+                      {copiedId === 'homepage-github' ? (
                         <Check className="h-4 w-4 text-green-400" />
                       ) : (
                         <Copy className="h-4 w-4" />
@@ -365,12 +353,10 @@ export default function AuthConfiguration({
               </div>
 
               <div className="mt-6 p-4 bg-[#1e1e1e] rounded border border-[#3e3e42]">
-                <h3 className="text-sm font-medium text-gray-300 mb-2">
-                  Setup Instructions:
-                </h3>
+                <h3 className="text-sm font-medium text-gray-300 mb-2">Setup Instructions:</h3>
                 <ol className="text-xs text-gray-400 space-y-1 list-decimal list-inside">
                   <li>Go to GitHub Settings → Developer settings → OAuth Apps</li>
-                  <li>Click "New OAuth App" or select an existing app</li>
+                  <li>Click &quot;New OAuth App&quot; or select an existing app</li>
                   <li>Set the Homepage URL and Authorization callback URL from above</li>
                   <li>Copy the Client ID and Client Secret to the fields above</li>
                   <li>Save your changes</li>
@@ -381,7 +367,7 @@ export default function AuthConfiguration({
         )}
 
         {/* Google OAuth */}
-        {activeTab === "google" && (
+        {activeTab === 'google' && (
           <div className="max-w-4xl space-y-6">
             <div className="bg-[#252526] rounded-lg border border-[#3e3e42] p-6">
               <div className="flex items-center justify-between mb-4">
@@ -426,10 +412,10 @@ export default function AuthConfiguration({
                         NEXTAUTH_URL
                       </code>
                       <button
-                        onClick={() => copyToClipboard("NEXTAUTH_URL", "env-origin-google")}
+                        onClick={() => copyToClipboard('NEXTAUTH_URL', 'env-origin-google')}
                         className="p-1 text-gray-400 hover:text-gray-200"
                       >
-                        {copiedId === "env-origin-google" ? (
+                        {copiedId === 'env-origin-google' ? (
                           <Check className="h-3 w-3 text-green-400" />
                         ) : (
                           <Copy className="h-3 w-3" />
@@ -445,10 +431,10 @@ export default function AuthConfiguration({
                       className="flex-1 px-3 py-2 bg-[#252526] border border-[#3e3e42] rounded text-sm text-gray-400 font-mono"
                     />
                     <button
-                      onClick={() => copyToClipboard(projectUrl, "origin-google")}
+                      onClick={() => copyToClipboard(projectUrl, 'origin-google')}
                       className="p-2 text-gray-400 hover:text-gray-200"
                     >
-                      {copiedId === "origin-google" ? (
+                      {copiedId === 'origin-google' ? (
                         <Check className="h-4 w-4 text-green-400" />
                       ) : (
                         <Copy className="h-4 w-4" />
@@ -461,13 +447,11 @@ export default function AuthConfiguration({
               </div>
 
               <div className="mt-6 p-4 bg-[#1e1e1e] rounded border border-[#3e3e42]">
-                <h3 className="text-sm font-medium text-gray-300 mb-2">
-                  Setup Instructions:
-                </h3>
+                <h3 className="text-sm font-medium text-gray-300 mb-2">Setup Instructions:</h3>
                 <ol className="text-xs text-gray-400 space-y-1 list-decimal list-inside">
                   <li>Go to Google Cloud Console → APIs & Services → Credentials</li>
-                  <li>Click "Create Credentials" → "OAuth client ID"</li>
-                  <li>Choose "Web application" as the application type</li>
+                  <li>Click &quot;Create Credentials&quot; → &quot;OAuth client ID&quot;</li>
+                  <li>Choose &quot;Web application&quot; as the application type</li>
                   <li>Add the Authorized JavaScript origins and redirect URIs from above</li>
                   <li>Copy the Client ID and Client Secret to the fields above</li>
                   <li>Enable the Google+ API in your project</li>
@@ -478,7 +462,7 @@ export default function AuthConfiguration({
         )}
 
         {/* NextAuth Settings */}
-        {activeTab === "nextauth" && (
+        {activeTab === 'nextauth' && (
           <div className="max-w-4xl space-y-6">
             <div className="bg-[#252526] rounded-lg border border-[#3e3e42] p-6">
               <div className="flex items-center justify-between mb-4">
@@ -491,24 +475,22 @@ export default function AuthConfiguration({
               <div className="space-y-4">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-gray-300">
-                      NextAuth URL
-                    </label>
+                    <label className="text-sm font-medium text-gray-300">NextAuth URL</label>
                     <div className="flex items-center gap-2">
                       <code className="text-xs bg-[#1e1e1e] px-2 py-1 rounded text-blue-400">
                         NEXTAUTH_URL
                       </code>
                       <button
-                        onClick={() => copyToClipboard("NEXTAUTH_URL", "env-NEXTAUTH_URL")}
+                        onClick={() => copyToClipboard('NEXTAUTH_URL', 'env-NEXTAUTH_URL')}
                         className="p-1 text-gray-400 hover:text-gray-200"
                       >
-                        {copiedId === "env-NEXTAUTH_URL" ? (
+                        {copiedId === 'env-NEXTAUTH_URL' ? (
                           <Check className="h-3 w-3 text-green-400" />
                         ) : (
                           <Copy className="h-3 w-3" />
                         )}
                       </button>
-                      {savedFields.has("NEXTAUTH_URL") && (
+                      {savedFields.has('NEXTAUTH_URL') && (
                         <Check className="h-3 w-3 text-green-400" />
                       )}
                     </div>
@@ -521,7 +503,7 @@ export default function AuthConfiguration({
                       className="flex-1 px-3 py-2 bg-[#252526] border border-[#3e3e42] rounded text-sm text-gray-400 font-mono"
                     />
                     <button
-                      onClick={() => saveEnvVar("NEXTAUTH_URL", projectUrl)}
+                      onClick={() => saveEnvVar('NEXTAUTH_URL', projectUrl)}
                       className="px-3 py-2 bg-[#0e639c] hover:bg-[#1177bb] text-white text-sm rounded transition-colors"
                     >
                       Set URL
@@ -534,41 +516,39 @@ export default function AuthConfiguration({
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-gray-300">
-                      NextAuth Secret
-                    </label>
+                    <label className="text-sm font-medium text-gray-300">NextAuth Secret</label>
                     <div className="flex items-center gap-2">
                       <code className="text-xs bg-[#1e1e1e] px-2 py-1 rounded text-blue-400">
                         NEXTAUTH_SECRET
                       </code>
                       <button
-                        onClick={() => copyToClipboard("NEXTAUTH_SECRET", "env-NEXTAUTH_SECRET")}
+                        onClick={() => copyToClipboard('NEXTAUTH_SECRET', 'env-NEXTAUTH_SECRET')}
                         className="p-1 text-gray-400 hover:text-gray-200"
                       >
-                        {copiedId === "env-NEXTAUTH_SECRET" ? (
+                        {copiedId === 'env-NEXTAUTH_SECRET' ? (
                           <Check className="h-3 w-3 text-green-400" />
                         ) : (
                           <Copy className="h-3 w-3" />
                         )}
                       </button>
-                      {savedFields.has("NEXTAUTH_SECRET") && (
+                      {savedFields.has('NEXTAUTH_SECRET') && (
                         <Check className="h-3 w-3 text-green-400" />
                       )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <input
-                      type={showSecrets["NEXTAUTH_SECRET"] ? "text" : "password"}
-                      value={envVars["NEXTAUTH_SECRET"] || ""}
-                      onChange={(e) => saveEnvVar("NEXTAUTH_SECRET", e.target.value)}
+                      type={showSecrets['NEXTAUTH_SECRET'] ? 'text' : 'password'}
+                      value={envVars['NEXTAUTH_SECRET'] || ''}
+                      onChange={(e) => saveEnvVar('NEXTAUTH_SECRET', e.target.value)}
                       placeholder="Click Generate to create a secure secret"
                       className="flex-1 px-3 py-2 bg-[#1e1e1e] border border-[#3e3e42] rounded text-sm text-gray-300 font-mono"
                     />
                     <button
-                      onClick={() => toggleSecret("NEXTAUTH_SECRET")}
+                      onClick={() => toggleSecret('NEXTAUTH_SECRET')}
                       className="p-2 text-gray-400 hover:text-gray-200"
                     >
-                      {showSecrets["NEXTAUTH_SECRET"] ? (
+                      {showSecrets['NEXTAUTH_SECRET'] ? (
                         <EyeOff className="h-4 w-4" />
                       ) : (
                         <Eye className="h-4 w-4" />
@@ -583,7 +563,8 @@ export default function AuthConfiguration({
                     </button>
                   </div>
                   <p className="text-xs text-gray-400">
-                    A random string used to hash tokens, sign cookies and generate cryptographic keys
+                    A random string used to hash tokens, sign cookies and generate cryptographic
+                    keys
                   </p>
                 </div>
               </div>
@@ -592,11 +573,9 @@ export default function AuthConfiguration({
                 <div className="flex items-start gap-2">
                   <AlertCircle className="h-4 w-4 text-yellow-400 mt-0.5" />
                   <div>
-                    <h3 className="text-sm font-medium text-gray-300 mb-1">
-                      Important Notes:
-                    </h3>
+                    <h3 className="text-sm font-medium text-gray-300 mb-1">Important Notes:</h3>
                     <ul className="text-xs text-gray-400 space-y-1 list-disc list-inside">
-                      <li>The NextAuth URL must match your application's URL exactly</li>
+                      <li>The NextAuth URL must match your application&apos;s URL exactly</li>
                       <li>The secret should be a random string at least 32 characters long</li>
                       <li>Never commit your NEXTAUTH_SECRET to version control</li>
                       <li>In production, use a strong, unique secret for security</li>

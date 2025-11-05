@@ -1,17 +1,17 @@
-import { Octokit } from '@octokit/rest';
+import { Octokit } from '@octokit/rest'
 
 export class GitHubService {
-  private octokit: Octokit;
+  private octokit: Octokit
 
   constructor(token: string) {
     this.octokit = new Octokit({
       auth: token,
-    });
+    })
   }
 
   async getUser() {
-    const { data } = await this.octokit.users.getAuthenticated();
-    return data;
+    const { data } = await this.octokit.users.getAuthenticated()
+    return data
   }
 
   async listRepos() {
@@ -19,15 +19,15 @@ export class GitHubService {
       sort: 'updated',
       per_page: 100,
       affiliation: 'owner,organization_member',
-    });
-    return data;
+    })
+    return data
   }
 
   async listOrganizations() {
     const { data } = await this.octokit.orgs.listForAuthenticatedUser({
       per_page: 100,
-    });
-    return data;
+    })
+    return data
   }
 
   async createRepo(name: string, description?: string, isPrivate: boolean = false) {
@@ -36,16 +36,16 @@ export class GitHubService {
       description,
       private: isPrivate,
       auto_init: true,
-    });
-    return data;
+    })
+    return data
   }
 
   async getRepo(owner: string, repo: string) {
     const { data } = await this.octokit.repos.get({
       owner,
       repo,
-    });
-    return data;
+    })
+    return data
   }
 
   async createOrUpdateFile(
@@ -56,22 +56,29 @@ export class GitHubService {
     message: string,
     sha?: string
   ) {
-    const contentBase64 = Buffer.from(content).toString('base64');
+    const contentBase64 = Buffer.from(content).toString('base64')
 
-    const params: any = {
+    const params: {
+      owner: string
+      repo: string
+      path: string
+      message: string
+      content: string
+      sha?: string
+    } = {
       owner,
       repo,
       path,
       message,
       content: contentBase64,
-    };
-
-    if (sha) {
-      params.sha = sha;
     }
 
-    const { data } = await this.octokit.repos.createOrUpdateFileContents(params);
-    return data;
+    if (sha) {
+      params.sha = sha
+    }
+
+    const { data } = await this.octokit.repos.createOrUpdateFileContents(params)
+    return data
   }
 
   async getFileContent(owner: string, repo: string, path: string) {
@@ -80,22 +87,27 @@ export class GitHubService {
         owner,
         repo,
         path,
-      });
+      })
 
       if ('content' in data && data.content) {
-        const content = Buffer.from(data.content, 'base64').toString('utf8');
+        const content = Buffer.from(data.content, 'base64').toString('utf8')
         return {
           content,
           sha: data.sha,
-        };
+        }
       }
 
-      return null;
-    } catch (error: any) {
-      if (error.status === 404) {
-        return null;
+      return null
+    } catch (error: unknown) {
+      if (
+        error &&
+        typeof error === 'object' &&
+        'status' in error &&
+        (error as { status: number }).status === 404
+      ) {
+        return null
       }
-      throw error;
+      throw error
     }
   }
 
@@ -105,18 +117,18 @@ export class GitHubService {
       owner,
       repo,
       ref: 'heads/main',
-    });
+    })
 
-    const latestCommitSha = ref.object.sha;
+    const latestCommitSha = ref.object.sha
 
     // Get the tree of the latest commit
     const { data: commit } = await this.octokit.git.getCommit({
       owner,
       repo,
       commit_sha: latestCommitSha,
-    });
+    })
 
-    const baseTreeSha = commit.tree.sha;
+    const baseTreeSha = commit.tree.sha
 
     // Create blobs for each file
     const tree = await Promise.all(
@@ -126,16 +138,16 @@ export class GitHubService {
           repo,
           content: Buffer.from(file.content).toString('base64'),
           encoding: 'base64',
-        });
+        })
 
         return {
           path: file.path,
           mode: '100644' as const,
           type: 'blob' as const,
           sha: blob.sha,
-        };
+        }
       })
-    );
+    )
 
     // Create new tree
     const { data: newTree } = await this.octokit.git.createTree({
@@ -143,9 +155,9 @@ export class GitHubService {
       repo,
       tree,
       base_tree: baseTreeSha,
-    });
+    })
 
-    return newTree;
+    return newTree
   }
 
   async createCommit(
@@ -161,9 +173,9 @@ export class GitHubService {
       message,
       tree: treeSha,
       parents: [parentSha],
-    });
+    })
 
-    return data;
+    return data
   }
 
   async updateRef(owner: string, repo: string, ref: string, sha: string) {
@@ -172,9 +184,9 @@ export class GitHubService {
       repo,
       ref: ref.replace('refs/', ''),
       sha,
-    });
+    })
 
-    return data;
+    return data
   }
 
   async pushFiles(
@@ -188,29 +200,23 @@ export class GitHubService {
       owner,
       repo,
       ref: 'heads/main',
-    });
+    })
 
-    const latestCommitSha = ref.object.sha;
+    const latestCommitSha = ref.object.sha
 
     // Create tree with all files
-    const tree = await this.createTree(owner, repo, files);
+    const tree = await this.createTree(owner, repo, files)
 
     // Create commit
-    const commit = await this.createCommit(
-      owner,
-      repo,
-      message,
-      tree.sha,
-      latestCommitSha
-    );
+    const commit = await this.createCommit(owner, repo, message, tree.sha, latestCommitSha)
 
     // Update ref
-    await this.updateRef(owner, repo, 'heads/main', commit.sha);
+    await this.updateRef(owner, repo, 'heads/main', commit.sha)
 
-    return commit;
+    return commit
   }
 }
 
 export function createGitHubClient(token: string) {
-  return new GitHubService(token);
+  return new GitHubService(token)
 }

@@ -1,35 +1,45 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AlertCircle, Loader2 } from 'lucide-react';
-import { useParams } from 'next/navigation';
+import type { Prisma } from '@prisma/client';
+import {
+  AlertCircle,
+  ChevronDown,
+  Loader2,
+  Play,
+  Square,
+  Trash2,
+} from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
 
-import ProjectOperations from '@/components/project-operations';
 import ProjectTerminalView from '@/components/project-terminal-view';
-import { GET } from '@/lib/fetch-client';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { GET, POST } from '@/lib/fetch-client';
+import { cn } from '@/lib/utils';
+import { getAvailableProjectActions, type ProjectAction } from '@/lib/utils/action';
 
-interface Sandbox {
-  id: string;
-  name: string;
-  status: string;
-  publicUrl: string | null;
-  ttydUrl: string | null;
-  sandboxName: string;
-}
-
-interface Database {
-  id: string;
-  status: string;
-}
-
-interface Project {
-  id: string;
-  name: string;
-  description: string | null;
-  status: string;
-  sandboxes: Sandbox[];
-  databases: Database[];
-}
+type Project = Prisma.ProjectGetPayload<{
+  include: {
+    sandboxes: true
+    databases: true
+  }
+}>
 
 export default function TerminalPage() {
   const params = useParams();
@@ -53,18 +63,18 @@ export default function TerminalPage() {
     }
   };
 
-  // Initial load
+  // Initial load and polling
   useEffect(() => {
+    // Initial fetch
     fetchProject();
-  }, [projectId]);
 
-  // Polling: refresh every 3 seconds
-  useEffect(() => {
+    // Polling: refresh every 3 seconds
     const interval = setInterval(() => {
       fetchProject();
     }, 3000);
 
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
   if (loading) {
@@ -93,23 +103,12 @@ export default function TerminalPage() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Project Operations Header */}
-      <div className="h-12 bg-[#2d2d30] border-b border-[#3e3e42] flex items-center justify-between px-4">
-        <div className="flex items-center gap-3">
-          <h1 className="text-sm font-medium text-white">{project.name}</h1>
-          {project.description && (
-            <span className="text-xs text-gray-400">{project.description}</span>
-          )}
-        </div>
-        <ProjectOperations project={project} />
-      </div>
-
       {/* Conditional Terminal View based on Project Status (aggregated) */}
       <div className="flex-1 min-h-0">
-        {project.status === 'RUNNING' ? (
-          <ProjectTerminalView sandbox={sandbox} />
+        {project.status === 'RUNNING' && sandbox ? (
+          <ProjectTerminalView sandbox={sandbox} project={project} />
         ) : (
-          <StatusTransitionView status={project.status} />
+          <StatusTransitionView status={project.status} project={project} />
         )}
       </div>
     </div>
@@ -118,99 +117,220 @@ export default function TerminalPage() {
 
 interface StatusTransitionViewProps {
   status: string;
+  project: Project;
 }
 
-function StatusTransitionView({ status }: StatusTransitionViewProps) {
+function StatusTransitionView({ status, project }: StatusTransitionViewProps) {
+  const router = useRouter();
+  const [loading, setLoading] = useState<ProjectAction | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  const availableActions = getAvailableProjectActions(project);
+
+  const handleOperation = async (action: ProjectAction) => {
+    setLoading(action);
+
+    try {
+      let endpoint = '';
+
+      switch (action) {
+        case 'START':
+          endpoint = `/api/projects/${project.id}/start`;
+          break;
+        case 'STOP':
+          endpoint = `/api/projects/${project.id}/stop`;
+          break;
+        case 'DELETE':
+          endpoint = `/api/projects/${project.id}/delete`;
+          break;
+        default:
+          throw new Error(`Unknown action: ${action}`);
+      }
+
+      await POST(endpoint);
+
+      if (action === 'DELETE') {
+        router.push('/projects');
+        return;
+      }
+
+      router.refresh();
+    } catch (err) {
+      console.error(`Failed to ${action.toLowerCase()} project:`, err);
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleDeleteClick = () => {
+    setShowDeleteDialog(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    setShowDeleteDialog(false);
+    handleOperation('DELETE');
+  };
+
+  // Get status message and icon
+  let message = '';
+  let showSpinner = false;
+
   switch (status) {
-    case 'NO_SANDBOX':
-      return (
-        <div className="flex flex-col items-center justify-center h-full bg-[#1e1e1e] text-white">
-          <AlertCircle className="h-12 w-12 text-gray-500 mb-3" />
-          <h2 className="text-lg font-medium text-gray-300 mb-1">No sandbox found</h2>
-          <p className="text-sm text-gray-400">Sandbox is being created. Please wait...</p>
-        </div>
-      );
-
     case 'CREATING':
-      return (
-        <div className="flex flex-col items-center justify-center h-full bg-[#1e1e1e] text-white">
-          <div className="relative">
-            <Loader2 className="h-12 w-12 text-yellow-500 animate-spin" />
-            <div className="absolute inset-0 h-12 w-12 border-4 border-yellow-500/20 rounded-full animate-ping" />
-          </div>
-          <h2 className="text-lg font-medium text-yellow-500 mt-6 mb-1">Creating Sandbox</h2>
-          <p className="text-sm text-gray-400">Setting up your development environment...</p>
-        </div>
-      );
-
+      message = 'Creating sandbox...';
+      showSpinner = true;
+      break;
     case 'STARTING':
-      return (
-        <div className="flex flex-col items-center justify-center h-full bg-[#1e1e1e] text-white">
-          <div className="relative">
-            <Loader2 className="h-12 w-12 text-blue-500 animate-spin" />
-            <div className="absolute inset-0 h-12 w-12 border-4 border-blue-500/20 rounded-full animate-ping" />
-          </div>
-          <h2 className="text-lg font-medium text-blue-500 mt-6 mb-1">Starting Sandbox</h2>
-          <p className="text-sm text-gray-400">Booting up containers and services...</p>
-        </div>
-      );
-
+      message = 'Starting sandbox...';
+      showSpinner = true;
+      break;
     case 'STOPPED':
-      return (
-        <div className="flex flex-col items-center justify-center h-full bg-[#1e1e1e] text-white">
-          <div className="h-12 w-12 rounded-full bg-gray-500/20 flex items-center justify-center mb-6">
-            <div className="h-6 w-6 rounded-full bg-gray-500" />
-          </div>
-          <h2 className="text-lg font-medium text-gray-300 mb-1">Sandbox Stopped</h2>
-          <p className="text-sm text-gray-400">
-            Click the Start button above to resume your sandbox
-          </p>
-        </div>
-      );
-
+      message = 'Sandbox stopped';
+      showSpinner = false;
+      break;
     case 'STOPPING':
-      return (
-        <div className="flex flex-col items-center justify-center h-full bg-[#1e1e1e] text-white">
-          <div className="relative">
-            <Loader2 className="h-12 w-12 text-orange-500 animate-spin" />
-            <div className="absolute inset-0 h-12 w-12 border-4 border-orange-500/20 rounded-full animate-ping" />
-          </div>
-          <h2 className="text-lg font-medium text-orange-500 mt-6 mb-1">Stopping Sandbox</h2>
-          <p className="text-sm text-gray-400">Shutting down containers gracefully...</p>
-        </div>
-      );
-
+      message = 'Stopping sandbox...';
+      showSpinner = true;
+      break;
     case 'TERMINATING':
-      return (
-        <div className="flex flex-col items-center justify-center h-full bg-[#1e1e1e] text-white">
-          <div className="relative">
-            <Loader2 className="h-12 w-12 text-red-400 animate-spin" />
-            <div className="absolute inset-0 h-12 w-12 border-4 border-red-400/20 rounded-full animate-ping" />
-          </div>
-          <h2 className="text-lg font-medium text-red-400 mt-6 mb-1">Terminating Sandbox</h2>
-          <p className="text-sm text-gray-400">Removing all resources...</p>
-        </div>
-      );
-
+      message = 'Terminating sandbox...';
+      showSpinner = true;
+      break;
     case 'ERROR':
-      return (
-        <div className="flex flex-col items-center justify-center h-full bg-[#1e1e1e] text-white">
-          <AlertCircle className="h-12 w-12 text-red-500 mb-6" />
-          <h2 className="text-lg font-medium text-red-500 mb-1">Sandbox Error</h2>
-          <p className="text-sm text-gray-400 mb-4">An error occurred with your sandbox</p>
-          <p className="text-xs text-gray-500">
-            Try restarting or contact support if the issue persists
-          </p>
-        </div>
-      );
-
+      message = 'Sandbox error';
+      showSpinner = false;
+      break;
     default:
-      return (
-        <div className="flex flex-col items-center justify-center h-full bg-[#1e1e1e] text-white">
-          <Loader2 className="h-12 w-12 text-gray-500 animate-spin mb-6" />
-          <h2 className="text-lg font-medium text-gray-300 mb-1">Loading...</h2>
-          <p className="text-sm text-gray-400">Status: {status}</p>
-        </div>
-      );
+      message = `Status: ${status}`;
+      showSpinner = true;
   }
+
+  return (
+    <div className="flex flex-col h-full bg-[#1e1e1e]">
+      {/* Header Bar with Operations */}
+      <div className="h-9 bg-[#2d2d30] border-b border-[#3e3e42] flex items-center justify-end px-2">
+        <div className="flex items-center gap-2">
+          {/* Status Badge */}
+          <div className="flex items-center gap-1.5 px-2 py-1 text-xs text-gray-300">
+            <div
+              className={cn(
+                'h-1.5 w-1.5 rounded-full',
+                project.status === 'RUNNING' && 'bg-green-500',
+                project.status === 'STOPPED' && 'bg-gray-500',
+                project.status === 'STARTING' && 'bg-yellow-500 animate-pulse',
+                project.status === 'STOPPING' && 'bg-yellow-500 animate-pulse',
+                project.status === 'CREATING' && 'bg-blue-500 animate-pulse',
+                project.status === 'TERMINATING' && 'bg-red-500 animate-pulse',
+                project.status === 'ERROR' && 'bg-red-500',
+                project.status === 'PARTIAL' && 'bg-orange-500'
+              )}
+            />
+            <span>{project.status}</span>
+          </div>
+
+          {/* Operations Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="px-2 py-1 text-xs text-gray-300 hover:text-white hover:bg-[#37373d] rounded transition-colors flex items-center gap-1">
+                <span>Operations</span>
+                <ChevronDown className="h-3 w-3" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="bg-[#252526] border-[#3e3e42] text-white min-w-[160px]"
+            >
+              {availableActions.includes('START') && (
+                <DropdownMenuItem
+                  onClick={() => handleOperation('START')}
+                  disabled={loading !== null}
+                  className="text-xs cursor-pointer focus:bg-[#37373d] focus:text-white"
+                >
+                  {loading === 'START' ? (
+                    <>
+                      <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                      Starting...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="mr-2 h-3 w-3" />
+                      Start Sandbox
+                    </>
+                  )}
+                </DropdownMenuItem>
+              )}
+              {availableActions.includes('STOP') && (
+                <DropdownMenuItem
+                  onClick={() => handleOperation('STOP')}
+                  disabled={loading !== null}
+                  className="text-xs cursor-pointer focus:bg-[#37373d] focus:text-white"
+                >
+                  {loading === 'STOP' ? (
+                    <>
+                      <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                      Stopping...
+                    </>
+                  ) : (
+                    <>
+                      <Square className="mr-2 h-3 w-3" />
+                      Stop Sandbox
+                    </>
+                  )}
+                </DropdownMenuItem>
+              )}
+              {availableActions.includes('DELETE') && (
+                <>
+                  <DropdownMenuSeparator className="bg-[#3e3e42]" />
+                  <DropdownMenuItem
+                    onClick={handleDeleteClick}
+                    disabled={loading !== null}
+                    className="text-xs cursor-pointer focus:bg-[#37373d] focus:text-white"
+                  >
+                    <Trash2 className="mr-2 h-3 w-3" />
+                    Delete Sandbox
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      {/* Status Content */}
+      <div className="flex-1 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          {showSpinner ? (
+            <Loader2 className="h-8 w-8 text-gray-400 animate-spin" />
+          ) : status === 'ERROR' ? (
+            <AlertCircle className="h-8 w-8 text-gray-400" />
+          ) : null}
+          <p className="text-sm text-gray-400">{message}</p>
+        </div>
+      </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent className="bg-[#252526] border-[#3e3e42] text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Project</AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-400">
+              Are you sure you want to delete this project? This will terminate all resources
+              (databases, sandboxes) and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-[#3e3e42] border-[#3e3e42] text-white hover:bg-[#4e4e52]">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
 }

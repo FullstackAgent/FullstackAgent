@@ -39,8 +39,10 @@
         "kbcli",
         "kubeblocks",
         "Kubeconfig",
+        "NEXTAUTH",
         "nsid",
         "openebs",
-        "sealos"
+        "sealos",
+        "whatwg"
     ]
 }

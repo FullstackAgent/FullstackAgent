@@ -1,8 +1,9 @@
-import { auth } from "@/lib/auth";
-import { redirect } from "next/navigation";
-import { prisma } from "@/lib/db";
-import { notFound } from "next/navigation";
-import DatabaseConfiguration from "@/components/database-configuration";
+import { redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
+
+import DatabaseConfiguration from '@/components/database-configuration';
+import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/db';
 
 export default async function DatabaseConfigurationPage({
   params,
@@ -12,7 +13,7 @@ export default async function DatabaseConfigurationPage({
   const session = await auth();
 
   if (!session) {
-    redirect("/login");
+    redirect('/login');
   }
 
   const { id } = await params;
@@ -35,8 +36,8 @@ export default async function DatabaseConfigurationPage({
 
   // Get database from project (new architecture uses databases array)
   const database = project.databases[0];
-  let dbUrlEnvVar = project.environments.find(env => env.key === "DATABASE_URL");
-  let enrichedEnvVars = [...project.environments];
+  const dbUrlEnvVar = project.environments.find((env) => env.key === 'DATABASE_URL');
+  const enrichedEnvVars = [...project.environments];
 
   if (!dbUrlEnvVar && database) {
     // Construct DATABASE_URL from database connection info
@@ -63,10 +64,5 @@ export default async function DatabaseConfigurationPage({
     }
   }
 
-  return (
-    <DatabaseConfiguration
-      project={project}
-      environmentVariables={enrichedEnvVars}
-    />
-  );
+  return <DatabaseConfiguration project={project} environmentVariables={enrichedEnvVars} />;
 }

@@ -1,17 +1,27 @@
-import { NextRequest, NextResponse } from 'next/server'
+import type { Environment } from '@prisma/client'
+import { NextResponse } from 'next/server'
 
 import { verifyProjectAccess, withAuth } from '@/lib/api-auth'
 import { prisma } from '@/lib/db'
 
-export const GET = withAuth(async (req, context, session) => {
-  const { id } = await context.params
+type GroupedEnvironments = {
+  general: Environment[]
+  auth: Environment[]
+  payment: Environment[]
+}
+
+type GetEnvironmentsResponse = { error: string } | GroupedEnvironments
+
+export const GET = withAuth<GetEnvironmentsResponse>(async (_req, context, session) => {
+  const resolvedParams = await context.params
+  const projectId = Array.isArray(resolvedParams.id) ? resolvedParams.id[0] : resolvedParams.id
 
   try {
-    const project = await verifyProjectAccess(id, session.user.id)
+    await verifyProjectAccess(projectId, session.user.id)
 
     // Fetch environment variables
     const environments = await prisma.environment.findMany({
-      where: { projectId: id },
+      where: { projectId },
       orderBy: { createdAt: 'asc' },
     })
 
@@ -29,11 +39,24 @@ export const GET = withAuth(async (req, context, session) => {
   }
 })
 
-export const POST = withAuth(async (req, context, session) => {
-  const { id } = await context.params
+interface EnvironmentVariableInput {
+  key: string
+  value: string
+  category?: string
+  isSecret?: boolean
+}
+
+type PostEnvironmentResponse =
+  | { error: string }
+  | Environment
+  | { success: true; count: number }
+
+export const POST = withAuth<PostEnvironmentResponse>(async (req, context, session) => {
+  const resolvedParams = await context.params
+  const projectId = Array.isArray(resolvedParams.id) ? resolvedParams.id[0] : resolvedParams.id
 
   try {
-    const project = await verifyProjectAccess(id, session.user.id)
+    await verifyProjectAccess(projectId, session.user.id)
     const body = await req.json()
 
     // Check if this is a single variable creation or batch update
@@ -41,7 +64,7 @@ export const POST = withAuth(async (req, context, session) => {
       // Single variable creation
       const newVar = await prisma.environment.create({
         data: {
-          projectId: id,
+          projectId,
           key: body.key,
           value: body.value,
           category: body.category || 'general',
@@ -56,16 +79,16 @@ export const POST = withAuth(async (req, context, session) => {
 
       // Delete existing environment variables
       await prisma.environment.deleteMany({
-        where: { projectId: id },
+        where: { projectId },
       })
 
       // Create new environment variables
-      const envPromises = variables
-        .filter((v: any) => v.key && v.value !== undefined)
-        .map((v: any) =>
+      const envPromises = (variables as EnvironmentVariableInput[])
+        .filter((v) => v.key && v.value !== undefined)
+        .map((v) =>
           prisma.environment.create({
             data: {
-              projectId: id,
+              projectId,
               key: v.key,
               value: v.value,
               category: v.category || 'general',

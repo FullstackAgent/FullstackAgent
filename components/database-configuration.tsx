@@ -1,17 +1,8 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { Project } from "@prisma/client";
-import {
-  Database,
-  Server,
-  Key,
-  Copy,
-  Check,
-  Eye,
-  EyeOff,
-  Info,
-} from "lucide-react";
+import { useEffect, useState } from 'react';
+import { Project } from '@prisma/client';
+import { Check, Copy, Database, Eye, EyeOff, Info, Server } from 'lucide-react';
 
 interface EnvironmentVariable {
   id: string;
@@ -30,7 +21,6 @@ interface DatabaseConfigurationProps {
 }
 
 export default function DatabaseConfiguration({
-  project,
   environmentVariables,
 }: DatabaseConfigurationProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -43,14 +33,14 @@ export default function DatabaseConfiguration({
   }, []);
 
   // Get database connection info from environment variables
-  const dbUrl = environmentVariables.find(env => env.key === "DATABASE_URL");
+  const dbUrl = environmentVariables.find((env) => env.key === 'DATABASE_URL');
 
   // Parse database URL to extract components
-  let dbHost = "";
-  let dbPort = "";
-  let dbName = "";
-  let dbUser = "";
-  let dbPassword = "";
+  let dbHost = '';
+  let dbPort = '';
+  let dbName = '';
+  let dbUser = '';
+  let dbPassword = '';
 
   if (dbUrl && dbUrl.value) {
     try {
@@ -65,16 +55,16 @@ export default function DatabaseConfiguration({
         dbName = match[5]?.split('?')[0]; // Remove query parameters
       }
     } catch (error) {
-      console.error("Failed to parse database URL:", error);
+      console.error('Failed to parse database URL:', error);
     }
   }
 
   // Debug logging
   useEffect(() => {
-    console.log("DatabaseConfiguration - Environment Variables:", environmentVariables);
-    console.log("DatabaseConfiguration - DATABASE_URL found:", dbUrl);
-    console.log("DatabaseConfiguration - Parsed values:", { dbHost, dbPort, dbName, dbUser });
-  }, [environmentVariables]);
+    console.log('DatabaseConfiguration - Environment Variables:', environmentVariables);
+    console.log('DatabaseConfiguration - DATABASE_URL found:', dbUrl);
+    console.log('DatabaseConfiguration - Parsed values:', { dbHost, dbPort, dbName, dbUser });
+  }, [environmentVariables, dbUrl, dbHost, dbPort, dbName, dbUser]);
 
   const copyToClipboard = async (text: string, id: string) => {
     try {
@@ -82,7 +72,7 @@ export default function DatabaseConfiguration({
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 2000);
     } catch (err) {
-      console.error("Failed to copy:", err);
+      console.error('Failed to copy:', err);
     }
   };
 
@@ -104,9 +94,7 @@ export default function DatabaseConfiguration({
         <label className="text-sm font-medium text-gray-300">{label}</label>
         {envVar && (
           <div className="flex items-center gap-2">
-            <code className="text-xs bg-[#1e1e1e] px-2 py-1 rounded text-blue-400">
-              {envVar}
-            </code>
+            <code className="text-xs bg-[#1e1e1e] px-2 py-1 rounded text-blue-400">{envVar}</code>
             <button
               onClick={() => copyToClipboard(envVar, `env-${id}`)}
               className="p-1 text-gray-400 hover:text-gray-200"
@@ -122,7 +110,7 @@ export default function DatabaseConfiguration({
       </div>
       <div className="flex items-center gap-2">
         <input
-          type={isSecret && !showPassword ? "password" : "text"}
+          type={isSecret && !showPassword ? 'password' : 'text'}
           value={value}
           readOnly
           className="flex-1 px-3 py-2 bg-[#1e1e1e] border border-[#3e3e42] rounded text-sm text-gray-300 font-mono"
@@ -132,11 +120,7 @@ export default function DatabaseConfiguration({
             onClick={() => setShowPassword(!showPassword)}
             className="p-2 text-gray-400 hover:text-gray-200"
           >
-            {showPassword ? (
-              <EyeOff className="h-4 w-4" />
-            ) : (
-              <Eye className="h-4 w-4" />
-            )}
+            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
         )}
         <button
@@ -163,7 +147,7 @@ export default function DatabaseConfiguration({
             Database Configuration
           </h1>
           <p className="text-sm text-gray-400 mt-1">
-            Manage your project's database connection and settings
+            Manage your project&apos;s database connection and settings
           </p>
         </div>
       </div>
@@ -191,23 +175,18 @@ export default function DatabaseConfiguration({
                 {/* Host */}
                 <ConnectionField
                   label="Host"
-                  value={dbHost || "Loading..."}
+                  value={dbHost || 'Loading...'}
                   envVar="PGHOST"
                   id="host"
                 />
 
                 {/* Port */}
-                <ConnectionField
-                  label="Port"
-                  value={dbPort || "5432"}
-                  envVar="PGPORT"
-                  id="port"
-                />
+                <ConnectionField label="Port" value={dbPort || '5432'} envVar="PGPORT" id="port" />
 
                 {/* Database Name */}
                 <ConnectionField
                   label="Database Name"
-                  value={dbName || "Loading..."}
+                  value={dbName || 'Loading...'}
                   envVar="PGDATABASE"
                   id="database"
                 />
@@ -215,7 +194,7 @@ export default function DatabaseConfiguration({
                 {/* Username */}
                 <ConnectionField
                   label="Username"
-                  value={dbUser || "Loading..."}
+                  value={dbUser || 'Loading...'}
                   envVar="PGUSER"
                   id="username"
                 />
@@ -223,7 +202,7 @@ export default function DatabaseConfiguration({
                 {/* Password */}
                 <ConnectionField
                   label="Password"
-                  value={dbPassword || "Loading..."}
+                  value={dbPassword || 'Loading...'}
                   envVar="PGPASSWORD"
                   id="password"
                   isSecret
@@ -269,7 +248,6 @@ export default function DatabaseConfiguration({
               </div>
             )}
           </div>
-
 
           {/* Database Info */}
           <div className="bg-[#252526] rounded-lg border border-[#3e3e42] p-6">

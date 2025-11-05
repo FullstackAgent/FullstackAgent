@@ -1,12 +1,13 @@
-"use client";
+'use client';
 
-import { useState, useRef, useEffect } from "react";
-import { Eye, EyeOff, Copy, Check, Shield, Key, Settings, ChevronRight } from "lucide-react";
+import { useEffect, useRef, useState } from 'react';
+import { Check, ChevronRight, Copy, Eye, EyeOff, Key, Settings, Shield } from 'lucide-react';
 
 interface SystemSecret {
   key: string;
   value: string;
   category?: string | null;
+  description?: string;
 }
 
 interface SecretsListProps {
@@ -38,7 +39,7 @@ export function SystemSecretsList({ systemSecrets }: SecretsListProps) {
   }, [systemSecrets, isExpanded]);
 
   const toggleVisibility = (key: string) => {
-    setVisibleSecrets(prev => {
+    setVisibleSecrets((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(key)) {
         newSet.delete(key);
@@ -52,16 +53,16 @@ export function SystemSecretsList({ systemSecrets }: SecretsListProps) {
   const copyToClipboard = async (key: string, value: string) => {
     try {
       await navigator.clipboard.writeText(value);
-      setCopiedSecrets(prev => new Set(prev).add(key));
+      setCopiedSecrets((prev) => new Set(prev).add(key));
       setTimeout(() => {
-        setCopiedSecrets(prev => {
+        setCopiedSecrets((prev) => {
           const newSet = new Set(prev);
           newSet.delete(key);
           return newSet;
         });
       }, 2000);
     } catch (error) {
-      console.error("Failed to copy:", error);
+      console.error('Failed to copy:', error);
     }
   };
 
@@ -77,16 +78,18 @@ export function SystemSecretsList({ systemSecrets }: SecretsListProps) {
         className="w-full px-6 py-4 flex items-center justify-between hover:bg-[#2a2d2e] transition-colors"
       >
         <div className="flex items-center gap-3">
-          <div className="transition-transform duration-300 ease-in-out" style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+          <div
+            className="transition-transform duration-300 ease-in-out"
+            style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}
+          >
             <ChevronRight className="h-5 w-5 text-gray-400" />
           </div>
           <Settings className="h-5 w-5 text-blue-400" />
           <div className="text-left">
-            <h2 className="text-lg font-medium text-white">
-              Claude Code Secrets
-            </h2>
+            <h2 className="text-lg font-medium text-white">Claude Code Secrets</h2>
             <p className="text-xs text-gray-400 mt-0.5">
-              System-wide secrets ({systemSecrets.length} variable{systemSecrets.length !== 1 ? 's' : ''})
+              System-wide secrets ({systemSecrets.length} variable
+              {systemSecrets.length !== 1 ? 's' : ''})
             </p>
           </div>
         </div>
@@ -121,7 +124,7 @@ export function SystemSecretsList({ systemSecrets }: SecretsListProps) {
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <Shield className="h-4 w-4 text-blue-400 flex-shrink-0" />
+                      <Shield className="h-4 w-4 text-blue-400 shrink-0" />
                       <code className="text-sm font-mono text-gray-300 font-medium">
                         {secret.key}
                       </code>
@@ -131,9 +134,7 @@ export function SystemSecretsList({ systemSecrets }: SecretsListProps) {
                     </div>
 
                     {secret.description && (
-                      <p className="text-xs text-gray-400 ml-6 mb-2">
-                        {secret.description}
-                      </p>
+                      <p className="text-xs text-gray-400 ml-6 mb-2">{secret.description}</p>
                     )}
 
                     <div className="ml-6">
@@ -155,13 +156,9 @@ export function SystemSecretsList({ systemSecrets }: SecretsListProps) {
                         <button
                           onClick={() => toggleVisibility(secret.key)}
                           className="p-1.5 text-gray-400 hover:text-gray-200 transition-colors hover:bg-[#2a2d2e] rounded"
-                          title={isVisible ? "Hide value" : "Show value"}
+                          title={isVisible ? 'Hide value' : 'Show value'}
                         >
-                          {isVisible ? (
-                            <EyeOff className="h-4 w-4" />
-                          ) : (
-                            <Eye className="h-4 w-4" />
-                          )}
+                          {isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                         <button
                           onClick={() => copyToClipboard(secret.key, secret.value)}
@@ -186,7 +183,11 @@ export function SystemSecretsList({ systemSecrets }: SecretsListProps) {
             <p className="flex items-center gap-2">
               <Key className="h-3.5 w-3.5 text-blue-400" />
               <span>
-                To modify these values, edit <code className="text-blue-300 bg-blue-500/20 px-1 py-0.5 rounded">.secret/.env</code> file in the project root
+                To modify these values, edit{' '}
+                <code className="text-blue-300 bg-blue-500/20 px-1 py-0.5 rounded">
+                  .secret/.env
+                </code>{' '}
+                file in the project root
               </span>
             </p>
           </div>

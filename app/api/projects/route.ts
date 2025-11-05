@@ -1,3 +1,4 @@
+import type { Database, Project, Sandbox } from '@prisma/client'
 import { NextResponse } from 'next/server'
 
 import { withAuth } from '@/lib/api-auth'
@@ -9,7 +10,14 @@ import { logger as baseLogger } from '@/lib/logger'
 
 const logger = baseLogger.child({ module: 'api/projects' })
 
-export const GET = withAuth(async (_req, _context, session) => {
+type ProjectWithRelations = Project & {
+  databases: Database[]
+  sandboxes: Sandbox[]
+}
+
+type GetProjectsResponse = ProjectWithRelations[]
+
+export const GET = withAuth<GetProjectsResponse>(async (_req, _context, session) => {
   const projects = await prisma.project.findMany({
     where: {
       userId: session.user.id,
@@ -26,7 +34,9 @@ export const GET = withAuth(async (_req, _context, session) => {
   return NextResponse.json(projects)
 })
 
-export const POST = withAuth(async (req, _context, session) => {
+type PostProjectResponse = { error: string; errorCode?: string; message?: string } | Project
+
+export const POST = withAuth<PostProjectResponse>(async (req, _context, session) => {
   const body = await req.json()
   const { name, description } = body
 
@@ -36,9 +46,28 @@ export const POST = withAuth(async (req, _context, session) => {
 
   logger.info(`Creating project: ${name} for user: ${session.user.id}`)
 
-  // Get K8s service for user
-  const k8sService = await getK8sServiceForUser(session.user.id)
-  const namespace = k8sService.getDefaultNamespace()
+  // Get K8s service for user - will throw if KUBECONFIG is missing
+  let k8sService
+  let namespace
+  try {
+    k8sService = await getK8sServiceForUser(session.user.id)
+    namespace = k8sService.getDefaultNamespace()
+  } catch (error) {
+    // Check if error is due to missing kubeconfig
+    if (error instanceof Error && error.message.includes('does not have KUBECONFIG configured')) {
+      logger.warn(`Project creation failed - missing kubeconfig for user: ${session.user.id}`)
+      return NextResponse.json(
+        {
+          error: 'Kubeconfig not configured',
+          errorCode: 'KUBECONFIG_MISSING',
+          message: 'Please configure your kubeconfig before creating a project',
+        },
+        { status: 400 }
+      )
+    }
+    // Re-throw other errors
+    throw error
+  }
 
   // Generate K8s compatible names
   const k8sProjectName = KubernetesUtils.toK8sProjectName(name)
@@ -62,7 +91,7 @@ export const POST = withAuth(async (req, _context, session) => {
     const database = await tx.database.create({
       data: {
         projectId: project.id,
-        name: 'main',
+        name: databaseName,
         k8sNamespace: namespace,
         databaseName: databaseName,
         status: 'CREATING',
@@ -80,7 +109,7 @@ export const POST = withAuth(async (req, _context, session) => {
     const sandbox = await tx.sandbox.create({
       data: {
         projectId: project.id,
-        name: 'dev',
+        name: sandboxName,
         k8sNamespace: namespace,
         sandboxName: sandboxName,
         status: 'CREATING',

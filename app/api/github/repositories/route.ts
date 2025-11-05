@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { createGitHubClient } from '@/lib/github'
 
 // Get user's GitHub repositories
-export async function GET(request: NextRequest) {
+export async function GET() {
   const session = await auth()
 
   if (!session) {
@@ -79,11 +79,11 @@ export async function GET(request: NextRequest) {
       repositories: formattedRepos,
       count: formattedRepos.length,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error fetching GitHub repositories:', error)
 
     // Handle GitHub API rate limiting
-    if (error.status === 403) {
+    if (error instanceof Error && 'status' in error && error.status === 403) {
       return NextResponse.json(
         { error: 'GitHub API rate limit exceeded. Please try again later.' },
         { status: 429 }
@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Handle invalid or expired token
-    if (error.status === 401) {
+    if (error instanceof Error && 'status' in error && error.status === 401) {
       return NextResponse.json(
         { error: 'GitHub token is invalid or expired. Please reconnect your GitHub account.' },
         { status: 401 }

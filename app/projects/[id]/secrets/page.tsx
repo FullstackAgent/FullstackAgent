@@ -1,4 +1,4 @@
-import { Check, Copy, Eye, EyeOff, Key, Lock, Plus, Shield, Trash2 } from 'lucide-react';
+import { Copy, Eye, Key, Lock, Plus, Shield, Trash2 } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import { notFound } from 'next/navigation';
 

@@ -1,11 +1,15 @@
+import type { Environment } from '@prisma/client'
 import { NextResponse } from 'next/server'
 
 import { verifyProjectAccess, withAuth } from '@/lib/api-auth'
 import { prisma } from '@/lib/db'
 
-export const PUT = withAuth(async (req, context, session) => {
+type PutEnvironmentResponse = { error: string } | Environment
+
+export const PUT = withAuth<PutEnvironmentResponse>(async (req, context, session) => {
   const params = await context.params
-  const { id: projectId, envId } = params
+  const projectId = Array.isArray(params.id) ? params.id[0] : params.id
+  const envId = Array.isArray(params.envId) ? params.envId[0] : params.envId
 
   try {
     // Verify project access
@@ -43,9 +47,12 @@ export const PUT = withAuth(async (req, context, session) => {
   }
 })
 
-export const DELETE = withAuth(async (req, context, session) => {
+type DeleteEnvironmentResponse = { error: string } | { success: true }
+
+export const DELETE = withAuth<DeleteEnvironmentResponse>(async (_req, context, session) => {
   const params = await context.params
-  const { id: projectId, envId } = params
+  const projectId = Array.isArray(params.id) ? params.id[0] : params.id
+  const envId = Array.isArray(params.envId) ? params.envId[0] : params.envId
 
   try {
     // Verify project access
