@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   compress: true,
   // Exclude server-side packages from bundling
-  // Next.js 15 automatically handles @prisma/client, but we explicitly list it for clarity
+  // @prisma/client must be external to work properly with binary engines
   serverExternalPackages: ['pino', '@prisma/client'],
 }
 

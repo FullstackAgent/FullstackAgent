@@ -8,8 +8,7 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml* ./
 COPY prisma ./prisma
 
-# Install dependencies
-# Skip prepare script during install, we'll run it in the builder stage
+# Install dependencies (skip prepare script, we'll generate Prisma in builder stage)
 RUN \
   if [ -f pnpm-lock.yaml ]; then \
     pnpm install --frozen-lockfile --ignore-scripts; \
@@ -25,14 +24,11 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/prisma ./prisma
 COPY . .
 
-# Next.js collects completely anonymous telemetry data about general usage.
-# Learn more here: https://nextjs.org/telemetry
-# Uncomment the following line in case you want to disable telemetry during the build.
+# Disable Next.js telemetry
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NEXT_PUBLIC_MOCK_USER=''
 
 # Install pnpm and generate Prisma client before build
-# Note: pnpm uses a different directory structure (.pnpm), so .prisma path differs
 RUN npm install -g pnpm && \
     npx prisma generate && \
     pnpm run build
@@ -42,7 +38,6 @@ FROM node:current-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
-# Uncomment the following line in case you want to disable telemetry during runtime.
 ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN addgroup --system --gid 1001 nodejs
@@ -56,27 +51,18 @@ RUN apk add --no-cache \
     openssl \
   && update-ca-certificates
 
-# Automatically leverage output traces to reduce image size
-# https://nextjs.org/docs/advanced-features/output-file-tracing
+# Copy Next.js standalone output and static files
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
-# Standalone mode doesn't include public files by default, must copy separately
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
-# Copy Prisma schema and generated client (required for API routes using Prisma)
-# pnpm uses .pnpm directory, but symlinks exist in node_modules/@prisma
+# Copy Prisma schema (required for Prisma Client at runtime)
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
-# Copy pnpm's prisma packages (where actual files are stored)
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.pnpm/*prisma* ./node_modules/.pnpm/
 
-# Copy necessary config files
+# Copy config files
 COPY --from=builder --chown=nextjs:nodejs /app/next.config.ts ./
-COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
+COPY --from=builder --chown=nextjs:nodejs /app/package.json ./
 
 USER nextjs
-
 EXPOSE 3000
-
 CMD ["node", "server.js"]
