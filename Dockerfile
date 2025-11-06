@@ -33,7 +33,9 @@ ENV NEXT_PUBLIC_MOCK_USER=''
 
 # Install pnpm and generate Prisma client before build
 RUN npm install -g pnpm && \
-    pnpm prisma generate && \
+    npx prisma generate && \
+    echo "✅ Prisma Client generated successfully" && \
+    ls -la node_modules/.prisma/client/ && \
     pnpm run build
 
 # Production image, copy all the files and run next
@@ -63,9 +65,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Standalone mode doesn't include public files by default, must copy separately
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
-# Copy Prisma Client (required for API routes using Prisma)
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
+# Copy Prisma schema and generated client (required for API routes using Prisma)
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma/client ./node_modules/.prisma/client
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma/client ./node_modules/@prisma/client
 
 # Copy necessary config files
 COPY --from=builder --chown=nextjs:nodejs /app/next.config.ts ./
