@@ -67,19 +67,19 @@ jobs:
             org.opencontainers.image.description=Full Stack Development Agent
             org.opencontainers.image.vendor=${{ github.repository_owner }}
 
-      - name: Build and push multi-platform image
+      - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
-          platforms: linux/amd64,linux/arm64
+          # Currently building only AMD64 platform
+          # ARM64 support can be added later when needed
+          platforms: linux/amd64
           push: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.push_to_registry) }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: |
-            type=gha,scope=build-amd64
-            type=gha,scope=build-arm64
-          cache-to: type=gha,mode=max,scope=build-multiplatform
+          cache-from: type=gha,scope=build-amd64
+          cache-to: type=gha,mode=max,scope=build-amd64
           provenance: true
           sbom: true
 
@@ -90,8 +90,8 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Build Status" >> $GITHUB_STEP_SUMMARY
           if [ "${{ job.status }}" = "success" ]; then
-            echo "- ✅ Multi-platform build successful" >> $GITHUB_STEP_SUMMARY
-            echo "- ✅ Platforms: \`linux/amd64\`, \`linux/arm64\`" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ Docker build successful" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ Platform: \`linux/amd64\`" >> $GITHUB_STEP_SUMMARY
             if [ "${{ github.event_name }}" = "push" ] || [ "${{ inputs.push_to_registry }}" = "true" ]; then
               echo "- ✅ Pushed to Docker Hub: \`${{ env.DOCKER_IMAGE }}\`" >> $GITHUB_STEP_SUMMARY
               echo "- ✅ Pushed to GHCR: \`${{ env.REGISTRY_GHCR }}/${{ github.repository }}\`" >> $GITHUB_STEP_SUMMARY

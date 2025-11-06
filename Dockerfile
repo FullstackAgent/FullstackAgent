@@ -32,7 +32,6 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV NEXT_PUBLIC_MOCK_USER=''
 
 # Install pnpm and generate Prisma client before build
-# Prisma will use binaryTargets from schema.prisma to generate engines for all platforms
 RUN npm install -g pnpm && \
     pnpm prisma generate && \
     pnpm run build
