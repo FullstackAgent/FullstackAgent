@@ -63,6 +63,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Standalone mode doesn't include public files by default, must copy separately
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
+# Copy Prisma Client (required for API routes using Prisma)
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
+
 # Copy necessary config files
 COPY --from=builder --chown=nextjs:nodejs /app/next.config.ts ./
 COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json

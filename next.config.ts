@@ -4,8 +4,9 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   output: 'standalone',
   compress: true,
-  /* config options here */
-  serverExternalPackages: ['pino'],
+  // Exclude server-side packages from bundling
+  // Next.js 15 automatically handles @prisma/client, but we explicitly list it for clarity
+  serverExternalPackages: ['pino', '@prisma/client', 'prisma'],
 }
 
 export default nextConfig
