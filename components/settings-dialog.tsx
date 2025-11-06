@@ -109,7 +109,7 @@ export default function SettingsDialog({
   const loadKubeconfig = async () => {
     try {
       const data = await fetchClient.GET<{ kubeconfig: string; namespace?: string | null }>(
-        '/api/user/config/kubeconfig'
+        '/api/user/config/kc'
       );
       setKubeconfig(data.kubeconfig);
       setKubeconfigNamespace(data.namespace || null);
@@ -167,7 +167,7 @@ export default function SettingsDialog({
         namespace?: string;
         error?: string;
         valid?: boolean;
-      }>('/api/user/config/kubeconfig', {
+      }>('/api/user/config/kc', {
         kubeconfig,
       });
 

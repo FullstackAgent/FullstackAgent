@@ -94,7 +94,7 @@ export default function SettingsClient({ user, projectsCount }: SettingsClientPr
     const loadKubeconfig = async () => {
       try {
         const data = await fetchClient.GET<{ kubeconfig: string; namespace?: string | null }>(
-          '/api/user/config/kubeconfig'
+          '/api/user/config/kc'
         );
         setKubeconfig(data.kubeconfig);
         setKubeconfigNamespace(data.namespace || null);
@@ -163,7 +163,7 @@ export default function SettingsClient({ user, projectsCount }: SettingsClientPr
         namespace?: string;
         error?: string;
         valid?: boolean;
-      }>('/api/user/config/kubeconfig', {
+      }>('/api/user/config/kc', {
         kubeconfig,
       });
 

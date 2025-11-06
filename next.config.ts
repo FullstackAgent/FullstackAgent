@@ -5,8 +5,7 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   compress: true,
   // Exclude server-side packages from bundling
-  // @prisma/client must be external to work properly with binary engines
-  serverExternalPackages: ['pino', '@prisma/client'],
+  serverExternalPackages: ['pino'],
 }
 
 export default nextConfig

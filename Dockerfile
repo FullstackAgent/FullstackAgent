@@ -8,7 +8,8 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml* ./
 COPY prisma ./prisma
 
-# Install dependencies (skip prepare script, we'll generate Prisma in builder stage)
+# Install dependencies
+# Skip prepare script during install, we'll run it in the builder stage
 RUN \
   if [ -f pnpm-lock.yaml ]; then \
     pnpm install --frozen-lockfile --ignore-scripts; \
@@ -24,13 +25,15 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/prisma ./prisma
 COPY . .
 
-# Disable Next.js telemetry
+# Next.js collects completely anonymous telemetry data about general usage.
+# Learn more here: https://nextjs.org/telemetry
+# Uncomment the following line in case you want to disable telemetry during the build.
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NEXT_PUBLIC_MOCK_USER=''
 
 # Install pnpm and generate Prisma client before build
 RUN npm install -g pnpm && \
-    npx prisma generate && \
+    pnpm prisma generate && \
     pnpm run build
 
 # Production image, copy all the files and run next
@@ -38,6 +41,7 @@ FROM node:current-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
+# Uncomment the following line in case you want to disable telemetry during runtime.
 ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN addgroup --system --gid 1001 nodejs
@@ -51,18 +55,20 @@ RUN apk add --no-cache \
     openssl \
   && update-ca-certificates
 
-# Copy Next.js standalone output and static files
+# Automatically leverage output traces to reduce image size
+# https://nextjs.org/docs/advanced-features/output-file-tracing
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Standalone mode doesn't include public files by default, must copy separately
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
-# Copy Prisma schema (required for Prisma Client at runtime)
-COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
-
-# Copy config files
+# Copy necessary config files
 COPY --from=builder --chown=nextjs:nodejs /app/next.config.ts ./
-COPY --from=builder --chown=nextjs:nodejs /app/package.json ./
+COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
 
 USER nextjs
+
 EXPOSE 3000
+
 CMD ["node", "server.js"]
