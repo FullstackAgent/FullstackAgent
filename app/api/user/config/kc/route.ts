@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { type RouteContext, withAuth } from '@/lib/api-auth'
 import { prisma } from '@/lib/db'
+import { updateUserKubeconfig } from '@/lib/k8s/k8s-service-helper'
 import { KubernetesUtils } from '@/lib/k8s/kubernetes-utils'
 import { logger as baseLogger } from '@/lib/logger'
 
@@ -98,25 +99,8 @@ export const POST = withAuth<PostKubeconfigResponse>(
         `Kubeconfig validation successful for user ${session.user.id}, namespace: ${validation.namespace}`
       )
 
-      // Step 2: Save validated kubeconfig
-      await prisma.userConfig.upsert({
-        where: {
-          userId_key: {
-            userId: session.user.id,
-            key: 'KUBECONFIG',
-          },
-        },
-        create: {
-          userId: session.user.id,
-          key: 'KUBECONFIG',
-          value: body.kubeconfig,
-          category: 'kc',
-          isSecret: true,
-        },
-        update: {
-          value: body.kubeconfig,
-        },
-      })
+      // Step 2: Save validated kubeconfig and clear factory cache
+      await updateUserKubeconfig(session.user.id, body.kubeconfig)
 
       logger.info(`Kubeconfig saved successfully for user ${session.user.id}`)
 
