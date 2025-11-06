@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { GET } from '@/lib/fetch-client';
 import { cn } from '@/lib/utils';
+import NoProject from '@/components/features/projectList/NoProject';
 
 interface Project {
   id: string;
@@ -81,22 +82,7 @@ export default function ProjectsPage() {
       {/* Content */}
       <div className="p-6">
         {projects.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16">
-            <Folder className="h-12 w-12 text-gray-600 mb-4" />
-            <h2 className="text-sm font-medium text-gray-300 mb-1">No projects yet</h2>
-            <p className="text-xs text-gray-500 mb-4">
-              Create your first project to get started
-            </p>
-            <Link href="/projects/new">
-              <Button
-                size="sm"
-                className="h-7 bg-[#0e639c] hover:bg-[#1177bb] text-white text-xs px-3"
-              >
-                <Plus className="mr-1 h-3 w-3" />
-                Create Project
-              </Button>
-            </Link>
-          </div>
+          <NoProject />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
             {projects.map((project) => (
