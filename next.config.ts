@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
   compress: true,
   // Exclude server-side packages from bundling
   // Next.js 15 automatically handles @prisma/client, but we explicitly list it for clarity
-  serverExternalPackages: ['pino', '@prisma/client', 'prisma'],
+  serverExternalPackages: ['pino', '@prisma/client'],
 }
 
 export default nextConfig
