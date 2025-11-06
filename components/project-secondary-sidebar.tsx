@@ -93,18 +93,18 @@ export default function ProjectSecondarySidebar({ project }: ProjectSecondarySid
   return (
     <div
       className={cn(
-        'bg-[#181818] border-r border-[#3e3e42] flex flex-col transition-all duration-200',
+        'bg-background border-r border-border flex flex-col transition-all duration-200',
         isCollapsed ? 'w-10' : 'w-72'
       )}
     >
       {/* Header */}
-      <div className="h-12 flex items-center justify-between px-3 border-b border-[#3e3e42]">
+      <div className="h-12 flex items-center justify-between px-3 border-b border-border">
         {!isCollapsed && (
-          <span className="text-sm font-medium text-gray-300">Project {project.name}</span>
+          <span className="text-sm font-medium text-foreground">Project {project.name}</span>
         )}
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="text-gray-400 hover:text-gray-200 transition-colors"
+          className="text-muted-foreground hover:text-foreground transition-colors"
         >
           {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </button>
@@ -125,11 +125,11 @@ export default function ProjectSecondarySidebar({ project }: ProjectSecondarySid
                 onClick={(e) => handleSectionClick(e, section.id, section.href)}
                 className={cn(
                   'w-full flex items-center px-3 py-2 text-sm transition-colors min-h-[32px]',
-                  isActive ? 'bg-[#2a2d2e]' : 'hover:bg-[#2a2d2e]'
+                  isActive ? 'bg-sidebar-accent' : 'hover:bg-accent'
                 )}
               >
-                <Icon className="h-4 w-4 mr-2 text-gray-400 flex-shrink-0" />
-                <span className="text-gray-300 truncate flex-1">{section.label}</span>
+                <Icon className="h-4 w-4 mr-2 text-muted-foreground flex-shrink-0" />
+                <span className="text-foreground truncate flex-1">{section.label}</span>
               </a>
             );
           })}
@@ -140,21 +140,21 @@ export default function ProjectSecondarySidebar({ project }: ProjectSecondarySid
               onClick={() => setIsConfigExpanded(!isConfigExpanded)}
               className={cn(
                 'w-full flex items-center px-3 py-2 text-sm transition-colors min-h-[32px]',
-                isConfigActive ? 'bg-[#2a2d2e]' : 'hover:bg-[#2a2d2e]'
+                isConfigActive ? 'bg-sidebar-accent' : 'hover:bg-accent'
               )}
             >
-              <Settings className="h-4 w-4 mr-2 text-gray-400 flex-shrink-0" />
-              <span className="text-gray-300 flex-1 text-left truncate">Configuration</span>
+              <Settings className="h-4 w-4 mr-2 text-muted-foreground flex-shrink-0" />
+              <span className="text-foreground flex-1 text-left truncate">Configuration</span>
               <ChevronDown
                 className={cn(
-                  'h-4 w-4 text-gray-400 transition-transform flex-shrink-0',
+                  'h-4 w-4 text-muted-foreground transition-transform flex-shrink-0',
                   !isConfigExpanded && '-rotate-90'
                 )}
               />
             </button>
 
             {isConfigExpanded && (
-              <div className="bg-[#1e1e1e]">
+              <div className="bg-muted/30">
                 {configSections.map((section) => {
                   const Icon = section.icon;
                   const isActive = pathname === section.href;
@@ -166,11 +166,11 @@ export default function ProjectSecondarySidebar({ project }: ProjectSecondarySid
                       onClick={(e) => handleSectionClick(e, section.id, section.href)}
                       className={cn(
                         'w-full flex items-center pl-9 pr-3 py-2 text-sm transition-colors min-h-[32px]',
-                        isActive ? 'bg-[#2a2d2e]' : 'hover:bg-[#2a2d2e]'
+                        isActive ? 'bg-sidebar-accent' : 'hover:bg-accent'
                       )}
                     >
-                      <Icon className="h-4 w-4 mr-2 text-gray-400 flex-shrink-0" />
-                      <span className="text-gray-300 truncate flex-1">{section.label}</span>
+                      <Icon className="h-4 w-4 mr-2 text-muted-foreground flex-shrink-0" />
+                      <span className="text-foreground truncate flex-1">{section.label}</span>
                     </a>
                   );
                 })}
@@ -190,11 +190,11 @@ export default function ProjectSecondarySidebar({ project }: ProjectSecondarySid
                 onClick={(e) => handleSectionClick(e, section.id, section.href)}
                 className={cn(
                   'w-full flex items-center px-3 py-2 text-sm transition-colors min-h-[32px]',
-                  isActive ? 'bg-[#2a2d2e]' : 'hover:bg-[#2a2d2e]'
+                  isActive ? 'bg-sidebar-accent' : 'hover:bg-accent'
                 )}
               >
-                <Icon className="h-4 w-4 mr-2 text-gray-400 flex-shrink-0" />
-                <span className="text-gray-300 truncate flex-1">{section.label}</span>
+                <Icon className="h-4 w-4 mr-2 text-muted-foreground flex-shrink-0" />
+                <span className="text-foreground truncate flex-1">{section.label}</span>
               </a>
             );
           })}

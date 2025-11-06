@@ -49,15 +49,15 @@ export default async function SecretsConfigurationPage({
   });
 
   return (
-    <div className="h-full flex flex-col bg-[#1e1e1e]">
+    <div className="h-full flex flex-col bg-background">
       {/* Header */}
-      <div className="border-b border-[#3e3e42] bg-[#252526]">
+      <div className="border-b border-border bg-card">
         <div className="px-6 py-4">
-          <h1 className="text-xl font-semibold text-white flex items-center gap-2">
-            <Key className="h-5 w-5 text-blue-400" />
+          <h1 className="text-xl font-semibold text-foreground flex items-center gap-2">
+            <Key className="h-5 w-5 text-blue-600 dark:text-blue-500" />
             Secret Configuration
           </h1>
-          <p className="text-sm text-gray-400 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Manage sensitive environment variables and API keys
           </p>
         </div>
@@ -67,18 +67,18 @@ export default async function SecretsConfigurationPage({
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-4xl space-y-6">
           {/* Project Secrets */}
-          <div className="bg-[#252526] rounded-lg border border-[#3e3e42] p-6">
+          <div className="bg-card rounded-lg border border-border p-6">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-lg font-medium text-white flex items-center gap-2">
-                  <Lock className="h-5 w-5 text-yellow-400" />
+                <h2 className="text-lg font-medium text-foreground flex items-center gap-2">
+                  <Lock className="h-5 w-5 text-yellow-600 dark:text-yellow-500" />
                   Project Secrets
                 </h2>
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   Project-specific secrets (can be edited)
                 </p>
               </div>
-              <button className="px-3 py-1.5 bg-[#0e639c] hover:bg-[#1177bb] text-white text-sm rounded flex items-center gap-1.5 transition-colors">
+              <button className="px-3 py-1.5 bg-primary hover:bg-primary/90 text-primary-foreground text-sm rounded flex items-center gap-1.5 transition-colors">
                 <Plus className="h-4 w-4" />
                 Add Secret
               </button>
@@ -89,25 +89,25 @@ export default async function SecretsConfigurationPage({
                 {project.environments.map((secret) => (
                   <div
                     key={secret.id}
-                    className="flex items-center justify-between p-3 bg-[#1e1e1e] rounded border border-[#3e3e42]"
+                    className="flex items-center justify-between p-3 bg-accent rounded border border-border"
                   >
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <Shield className="h-4 w-4 text-yellow-400" />
-                        <code className="text-sm font-mono text-gray-300">{secret.key}</code>
+                        <Shield className="h-4 w-4 text-yellow-600 dark:text-yellow-500" />
+                        <code className="text-sm font-mono text-foreground">{secret.key}</code>
                       </div>
-                      <div className="text-xs text-gray-400 mt-1">
+                      <div className="text-xs text-muted-foreground mt-1">
                         Last updated: {new Date(secret.updatedAt).toLocaleDateString()}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button className="p-1.5 text-gray-400 hover:text-gray-200 transition-colors">
+                      <button className="p-1.5 text-muted-foreground hover:text-foreground transition-colors">
                         <Eye className="h-4 w-4" />
                       </button>
-                      <button className="p-1.5 text-gray-400 hover:text-gray-200 transition-colors">
+                      <button className="p-1.5 text-muted-foreground hover:text-foreground transition-colors">
                         <Copy className="h-4 w-4" />
                       </button>
-                      <button className="p-1.5 text-gray-400 hover:text-red-400 transition-colors">
+                      <button className="p-1.5 text-muted-foreground hover:text-destructive transition-colors">
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
@@ -115,7 +115,7 @@ export default async function SecretsConfigurationPage({
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8 text-gray-400">
+              <div className="text-center py-8 text-muted-foreground">
                 <Key className="h-12 w-12 mx-auto mb-3 opacity-50" />
                 <p className="text-sm">No secrets configured yet</p>
                 <p className="text-xs mt-1">Add secrets to securely store sensitive data</p>
@@ -127,31 +127,31 @@ export default async function SecretsConfigurationPage({
           <SystemSecretsList systemSecrets={userConfigs} />
 
           {/* Security Best Practices */}
-          <div className="bg-[#252526] rounded-lg border border-[#3e3e42] p-6">
-            <h2 className="text-lg font-medium text-white mb-4 flex items-center gap-2">
+          <div className="bg-card rounded-lg border border-border p-6">
+            <h2 className="text-lg font-medium text-foreground mb-4 flex items-center gap-2">
               <Shield className="h-5 w-5" />
               Security Best Practices
             </h2>
 
-            <ul className="text-sm text-gray-300 space-y-2">
+            <ul className="text-sm text-foreground space-y-2">
               <li className="flex items-start gap-2">
-                <span className="text-green-400 mt-0.5">✓</span>
+                <span className="text-green-600 dark:text-green-500 mt-0.5">✓</span>
                 <span>Never commit secrets to version control</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-green-400 mt-0.5">✓</span>
+                <span className="text-green-600 dark:text-green-500 mt-0.5">✓</span>
                 <span>Use environment-specific secrets for different stages</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-green-400 mt-0.5">✓</span>
+                <span className="text-green-600 dark:text-green-500 mt-0.5">✓</span>
                 <span>Rotate secrets regularly to maintain security</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-green-400 mt-0.5">✓</span>
+                <span className="text-green-600 dark:text-green-500 mt-0.5">✓</span>
                 <span>Limit access to secrets on a need-to-know basis</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-green-400 mt-0.5">✓</span>
+                <span className="text-green-600 dark:text-green-500 mt-0.5">✓</span>
                 <span>Use strong, randomly generated values for API keys</span>
               </li>
             </ul>

@@ -84,29 +84,29 @@ export default function EnvironmentPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
         <p>Loading...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-background text-foreground">
       <div className="container mx-auto py-8 px-4">
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Environment Variables</h1>
-          <p className="text-gray-400">
+          <p className="text-muted-foreground">
             Configure custom environment variables for your application
           </p>
         </div>
 
-        <Card className="bg-gray-900 border-gray-800">
+        <Card className="bg-card border-border">
           <CardHeader>
-            <CardTitle className="text-white flex items-center gap-2">
+            <CardTitle className="text-foreground flex items-center gap-2">
               <Key className="h-5 w-5" />
               Custom Environment Variables
             </CardTitle>
-            <CardDescription className="text-gray-400">
+            <CardDescription className="text-muted-foreground">
               Add your application-specific environment variables. For authentication and payment
               configurations, use their dedicated pages.
             </CardDescription>
@@ -124,33 +124,33 @@ export default function EnvironmentPage() {
                       e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, '_')
                     )
                   }
-                  className="bg-gray-800 border-gray-700 text-white font-mono col-span-4"
+                  className="bg-background border-input text-foreground font-mono col-span-4"
                 />
                 <Input
                   placeholder="Value"
                   value={env.value}
                   onChange={(e) => updateEnvVar(index, 'value', e.target.value)}
-                  className="bg-gray-800 border-gray-700 text-white col-span-7"
+                  className="bg-background border-input text-foreground col-span-7"
                 />
                 <Button
                   variant="outline"
                   size="icon"
                   onClick={() => removeEnvVar(index)}
-                  className="border-gray-700 text-white hover:bg-gray-800 col-span-1"
+                  className="border-border text-foreground hover:bg-accent col-span-1"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
             ))}
             {envVars.length === 0 && (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-8 text-muted-foreground">
                 No custom environment variables configured yet
               </div>
             )}
             <Button
               onClick={addEnvVar}
               variant="outline"
-              className="border-gray-700 text-white hover:bg-gray-800"
+              className="border-border text-foreground hover:bg-accent"
             >
               <Plus className="mr-2 h-4 w-4" />
               Add Variable
@@ -162,7 +162,7 @@ export default function EnvironmentPage() {
           <Button
             onClick={saveEnvironment}
             disabled={saving}
-            className="bg-white text-black hover:bg-gray-200"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground"
           >
             <Save className="mr-2 h-4 w-4" />
             {saving ? 'Saving...' : 'Save Environment'}
@@ -170,7 +170,7 @@ export default function EnvironmentPage() {
           <Button
             onClick={() => router.back()}
             variant="outline"
-            className="border-gray-700 text-white hover:bg-gray-800"
+            className="border-border text-foreground hover:bg-accent"
           >
             Cancel
           </Button>

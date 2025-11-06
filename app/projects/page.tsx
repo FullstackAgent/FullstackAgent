@@ -50,28 +50,28 @@ export default function ProjectsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#1e1e1e] flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-2">
-          <Loader2 className="h-6 w-6 text-gray-400 animate-spin" />
-          <p className="text-xs text-gray-500">Loading projects...</p>
+          <Loader2 className="h-6 w-6 text-muted-foreground animate-spin" />
+          <p className="text-xs text-muted-foreground">Loading projects...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#1e1e1e]">
+    <div className="min-h-screen bg-background">
       {/* Header Bar */}
-      <div className="h-12 bg-[#2d2d30] border-b border-[#3e3e42] flex items-center justify-between px-4">
+      <div className="h-12 bg-card border-b border-border flex items-center justify-between px-4">
         <div className="flex items-center gap-3">
-          <Folder className="h-4 w-4 text-gray-400" />
-          <h1 className="text-sm font-medium text-white">Projects</h1>
-          <span className="text-xs text-gray-500">({projects.length})</span>
+          <Folder className="h-4 w-4 text-muted-foreground" />
+          <h1 className="text-sm font-medium text-foreground">Projects</h1>
+          <span className="text-xs text-muted-foreground">({projects.length})</span>
         </div>
         <Link href="/projects/new">
           <Button
             size="sm"
-            className="h-7 bg-[#0e639c] hover:bg-[#1177bb] text-white text-xs px-3"
+            className="h-7 bg-primary hover:bg-primary/90 text-primary-foreground text-xs px-3"
           >
             <Plus className="mr-1 h-3 w-3" />
             New Project
@@ -87,38 +87,38 @@ export default function ProjectsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
             {projects.map((project) => (
               <Link key={project.id} href={`/projects/${project.id}/terminal`}>
-                <div className="group bg-[#252526] border border-[#3e3e42] hover:border-[#007acc] rounded transition-all cursor-pointer p-3">
+                <div className="group bg-card border border-border hover:border-primary rounded-lg transition-all cursor-pointer p-3">
                   {/* Header */}
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-medium text-white truncate">
+                      <h3 className="text-sm font-medium text-foreground truncate">
                         {project.name}
                       </h3>
                     </div>
                     <div
                       className={cn(
                         'h-2 w-2 rounded-full shrink-0 ml-2 mt-1',
-                        project.status === 'RUNNING' && 'bg-green-500',
-                        project.status === 'STOPPED' && 'bg-gray-500',
-                        project.status === 'STARTING' && 'bg-yellow-500 animate-pulse',
-                        project.status === 'STOPPING' && 'bg-yellow-500 animate-pulse',
-                        project.status === 'CREATING' && 'bg-blue-500 animate-pulse',
-                        project.status === 'TERMINATING' && 'bg-red-500 animate-pulse',
-                        project.status === 'ERROR' && 'bg-red-500',
-                        project.status === 'PARTIAL' && 'bg-orange-500'
+                        project.status === 'RUNNING' && 'bg-green-600 dark:bg-green-500',
+                        project.status === 'STOPPED' && 'bg-muted-foreground',
+                        project.status === 'STARTING' && 'bg-yellow-600 dark:bg-yellow-500 animate-pulse',
+                        project.status === 'STOPPING' && 'bg-yellow-600 dark:bg-yellow-500 animate-pulse',
+                        project.status === 'CREATING' && 'bg-blue-600 dark:bg-blue-500 animate-pulse',
+                        project.status === 'TERMINATING' && 'bg-red-600 dark:bg-red-500 animate-pulse',
+                        project.status === 'ERROR' && 'bg-destructive',
+                        project.status === 'PARTIAL' && 'bg-orange-600 dark:bg-orange-500'
                       )}
                     />
                   </div>
 
                   {/* Description */}
-                  <p className="text-xs text-gray-500 line-clamp-2 mb-3 min-h-[2.5rem]">
+                  <p className="text-xs text-muted-foreground line-clamp-2 mb-3 min-h-[2.5rem]">
                     {project.description || 'No description'}
                   </p>
 
                   {/* Footer */}
-                  <div className="flex items-center justify-between pt-2 border-t border-[#3e3e42]">
-                    <span className="text-xs text-gray-500">{project.status}</span>
-                    <div className="flex items-center gap-1 text-xs text-gray-600">
+                  <div className="flex items-center justify-between pt-2 border-t border-border">
+                    <span className="text-xs text-muted-foreground">{project.status}</span>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Clock className="h-3 w-3" />
                       <span>
                         {new Date(project.updatedAt).toLocaleDateString('en-US', {

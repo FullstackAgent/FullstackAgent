@@ -80,9 +80,9 @@ export default function TerminalPage() {
   if (loading) {
     return (
       <div className="flex flex-col h-full">
-        <div className="h-12 bg-[#2d2d30] border-b border-[#3e3e42] flex items-center justify-center">
-          <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-          <span className="ml-2 text-sm text-gray-400">Loading project...</span>
+        <div className="h-12 bg-card border-b border-border flex items-center justify-center">
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          <span className="ml-2 text-sm text-muted-foreground">Loading project...</span>
         </div>
       </div>
     );
@@ -91,9 +91,9 @@ export default function TerminalPage() {
   if (error || !project) {
     return (
       <div className="flex flex-col h-full">
-        <div className="h-12 bg-[#2d2d30] border-b border-[#3e3e42] flex items-center justify-center">
-          <AlertCircle className="h-4 w-4 text-red-400" />
-          <span className="ml-2 text-sm text-red-400">{error || 'Project not found'}</span>
+        <div className="h-12 bg-card border-b border-border flex items-center justify-center">
+          <AlertCircle className="h-4 w-4 text-destructive" />
+          <span className="ml-2 text-sm text-destructive">{error || 'Project not found'}</span>
         </div>
       </div>
     );
@@ -206,23 +206,23 @@ function StatusTransitionView({ status, project }: StatusTransitionViewProps) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-[#1e1e1e]">
+    <div className="flex flex-col h-full bg-background">
       {/* Header Bar with Operations */}
-      <div className="h-9 bg-[#2d2d30] border-b border-[#3e3e42] flex items-center justify-end px-2">
+      <div className="h-9 bg-card border-b border-border flex items-center justify-end px-2">
         <div className="flex items-center gap-2">
           {/* Status Badge */}
-          <div className="flex items-center gap-1.5 px-2 py-1 text-xs text-gray-300">
+          <div className="flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground">
             <div
               className={cn(
                 'h-1.5 w-1.5 rounded-full',
-                project.status === 'RUNNING' && 'bg-green-500',
-                project.status === 'STOPPED' && 'bg-gray-500',
-                project.status === 'STARTING' && 'bg-yellow-500 animate-pulse',
-                project.status === 'STOPPING' && 'bg-yellow-500 animate-pulse',
-                project.status === 'CREATING' && 'bg-blue-500 animate-pulse',
-                project.status === 'TERMINATING' && 'bg-red-500 animate-pulse',
-                project.status === 'ERROR' && 'bg-red-500',
-                project.status === 'PARTIAL' && 'bg-orange-500'
+                project.status === 'RUNNING' && 'bg-green-600 dark:bg-green-500',
+                project.status === 'STOPPED' && 'bg-muted',
+                project.status === 'STARTING' && 'bg-yellow-600 dark:bg-yellow-500 animate-pulse',
+                project.status === 'STOPPING' && 'bg-yellow-600 dark:bg-yellow-500 animate-pulse',
+                project.status === 'CREATING' && 'bg-blue-600 dark:bg-blue-500 animate-pulse',
+                project.status === 'TERMINATING' && 'bg-red-600 dark:bg-red-500 animate-pulse',
+                project.status === 'ERROR' && 'bg-red-600 dark:bg-red-500',
+                project.status === 'PARTIAL' && 'bg-orange-600 dark:bg-orange-500'
               )}
             />
             <span>{project.status}</span>
@@ -231,20 +231,20 @@ function StatusTransitionView({ status, project }: StatusTransitionViewProps) {
           {/* Operations Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="px-2 py-1 text-xs text-gray-300 hover:text-white hover:bg-[#37373d] rounded transition-colors flex items-center gap-1">
+              <button className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent rounded transition-colors flex items-center gap-1">
                 <span>Operations</span>
                 <ChevronDown className="h-3 w-3" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="bg-[#252526] border-[#3e3e42] text-white min-w-[160px]"
+              className="bg-card border-border text-foreground min-w-[160px]"
             >
               {availableActions.includes('START') && (
                 <DropdownMenuItem
                   onClick={() => handleOperation('START')}
                   disabled={loading !== null}
-                  className="text-xs cursor-pointer focus:bg-[#37373d] focus:text-white"
+                  className="text-xs cursor-pointer focus:bg-accent focus:text-foreground"
                 >
                   {loading === 'START' ? (
                     <>
@@ -263,7 +263,7 @@ function StatusTransitionView({ status, project }: StatusTransitionViewProps) {
                 <DropdownMenuItem
                   onClick={() => handleOperation('STOP')}
                   disabled={loading !== null}
-                  className="text-xs cursor-pointer focus:bg-[#37373d] focus:text-white"
+                  className="text-xs cursor-pointer focus:bg-accent focus:text-foreground"
                 >
                   {loading === 'STOP' ? (
                     <>
@@ -280,11 +280,11 @@ function StatusTransitionView({ status, project }: StatusTransitionViewProps) {
               )}
               {availableActions.includes('DELETE') && (
                 <>
-                  <DropdownMenuSeparator className="bg-[#3e3e42]" />
+                  <DropdownMenuSeparator className="bg-border" />
                   <DropdownMenuItem
                     onClick={handleDeleteClick}
                     disabled={loading !== null}
-                    className="text-xs cursor-pointer focus:bg-[#37373d] focus:text-white"
+                    className="text-xs cursor-pointer focus:bg-accent focus:text-foreground"
                   >
                     <Trash2 className="mr-2 h-3 w-3" />
                     Delete Sandbox
@@ -300,31 +300,31 @@ function StatusTransitionView({ status, project }: StatusTransitionViewProps) {
       <div className="flex-1 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           {showSpinner ? (
-            <Loader2 className="h-8 w-8 text-gray-400 animate-spin" />
+            <Loader2 className="h-8 w-8 text-muted-foreground animate-spin" />
           ) : status === 'ERROR' ? (
-            <AlertCircle className="h-8 w-8 text-gray-400" />
+            <AlertCircle className="h-8 w-8 text-destructive" />
           ) : null}
-          <p className="text-sm text-gray-400">{message}</p>
+          <p className="text-sm text-muted-foreground">{message}</p>
         </div>
       </div>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent className="bg-[#252526] border-[#3e3e42] text-white">
+        <AlertDialogContent className="bg-card border-border text-foreground">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Project</AlertDialogTitle>
-            <AlertDialogDescription className="text-gray-400">
+            <AlertDialogDescription className="text-muted-foreground">
               Are you sure you want to delete this project? This will terminate all resources
               (databases, sandboxes) and cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-[#3e3e42] border-[#3e3e42] text-white hover:bg-[#4e4e52]">
+            <AlertDialogCancel className="bg-muted border-border text-foreground hover:bg-accent">
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteConfirm}
-              className="bg-red-600 hover:bg-red-700 text-white"
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
             >
               Delete
             </AlertDialogAction>

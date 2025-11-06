@@ -70,18 +70,18 @@ export default function NewProjectPage() {
         onOpenChange={setShowSettingsDialog}
         defaultTab="kubeconfig"
       />
-      <div className="min-h-screen bg-[#1e1e1e] text-white flex items-center justify-center">
-        <Card className="w-full max-w-2xl bg-[#252526] border-[#3e3e42] rounded">
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
+        <Card className="w-full max-w-2xl bg-card border-border rounded-lg">
           <CardHeader>
-            <CardTitle className="text-2xl text-white">Create New Project</CardTitle>
-            <CardDescription className="text-gray-400">
+            <CardTitle className="text-2xl text-foreground">Create New Project</CardTitle>
+            <CardDescription className="text-muted-foreground">
               Start building your AI-powered application
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleCreateProject} className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="name" className="text-white text-sm">
+                <Label htmlFor="name" className="text-foreground text-sm">
                   Project Name
                 </Label>
                 <Input
@@ -90,12 +90,12 @@ export default function NewProjectPage() {
                   value={projectName}
                   onChange={(e) => setProjectName(e.target.value)}
                   disabled={isCreating}
-                  className="bg-[#1e1e1e] border-[#3e3e42] text-white placeholder:text-gray-500"
+                  className="bg-background border-input text-foreground placeholder:text-muted-foreground"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="description" className="text-white text-sm">
+                <Label htmlFor="description" className="text-foreground text-sm">
                   Description (Optional)
                 </Label>
                 <Input
@@ -104,7 +104,7 @@ export default function NewProjectPage() {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   disabled={isCreating}
-                  className="bg-[#1e1e1e] border-[#3e3e42] text-white placeholder:text-gray-500"
+                  className="bg-background border-input text-foreground placeholder:text-muted-foreground"
                 />
               </div>
 
@@ -112,7 +112,7 @@ export default function NewProjectPage() {
                 <Button
                   type="submit"
                   disabled={isCreating}
-                  className="bg-[#0e639c] hover:bg-[#1177bb] text-white"
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground"
                 >
                   {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {isCreating ? 'Creating...' : 'Create Project'}
@@ -122,7 +122,7 @@ export default function NewProjectPage() {
                   variant="outline"
                   onClick={() => router.back()}
                   disabled={isCreating}
-                  className="border-[#3e3e42] text-gray-400 hover:text-white hover:bg-[#3e3e42]"
+                  className="border-border text-muted-foreground hover:text-foreground hover:bg-accent"
                 >
                   Cancel
                 </Button>

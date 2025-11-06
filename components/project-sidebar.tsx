@@ -24,21 +24,21 @@ export default function ProjectSidebar({
     switch (status) {
       case 'READY':
       case 'DEPLOYED':
-        return 'text-green-500';
+        return 'text-green-600 dark:text-green-500';
       case 'INITIALIZING':
       case 'DEPLOYING':
-        return 'text-yellow-500';
+        return 'text-yellow-600 dark:text-yellow-500';
       case 'ERROR':
-        return 'text-red-500';
+        return 'text-destructive';
       default:
-        return 'text-gray-500';
+        return 'text-muted-foreground';
     }
   };
 
   return (
     <div
       className={cn(
-        'bg-[#252526] border-r border-[#3e3e42] flex flex-col transition-all duration-200',
+        'bg-background border-r border-sidebar-border flex flex-col transition-all duration-200',
         isExpanded ? 'w-52' : 'w-12'
       )}
       onMouseEnter={() => setIsExpanded(true)}
@@ -46,9 +46,9 @@ export default function ProjectSidebar({
     >
       <TooltipProvider>
         {/* Header */}
-        <div className="h-12 flex items-center justify-center border-b border-[#3e3e42]">
-          <FolderOpen className="h-5 w-5 text-gray-400" />
-          {isExpanded && <span className="ml-2 text-sm font-medium">Projects</span>}
+        <div className="h-12 flex items-center justify-center border-b border-sidebar-border">
+          <FolderOpen className="h-5 w-5 text-muted-foreground" />
+          {isExpanded && <span className="ml-2 text-sm font-medium text-foreground">Projects</span>}
         </div>
 
         {/* Navigation Items */}
@@ -58,11 +58,11 @@ export default function ProjectSidebar({
             <TooltipTrigger asChild>
               <Link
                 href="/projects"
-                className="flex items-center h-8 px-3 hover:bg-[#2a2d2e] transition-colors"
+                className="flex items-center h-8 px-3 hover:bg-accent transition-colors"
               >
-                <Home className="h-4 w-4 text-gray-400 shrink-0" />
+                <Home className="h-4 w-4 text-muted-foreground shrink-0" />
                 {isExpanded && (
-                  <span className="ml-3 text-sm text-gray-300 truncate">All Projects</span>
+                  <span className="ml-3 text-sm text-foreground truncate">All Projects</span>
                 )}
               </Link>
             </TooltipTrigger>
@@ -78,11 +78,11 @@ export default function ProjectSidebar({
             <TooltipTrigger asChild>
               <Link
                 href="/projects/new"
-                className="flex items-center h-8 px-3 hover:bg-[#2a2d2e] transition-colors mb-2"
+                className="flex items-center h-8 px-3 hover:bg-accent transition-colors mb-2"
               >
-                <Plus className="h-4 w-4 text-gray-400 shrink-0" />
+                <Plus className="h-4 w-4 text-muted-foreground shrink-0" />
                 {isExpanded && (
-                  <span className="ml-3 text-sm text-gray-300 truncate">New Project</span>
+                  <span className="ml-3 text-sm text-foreground truncate">New Project</span>
                 )}
               </Link>
             </TooltipTrigger>
@@ -93,7 +93,7 @@ export default function ProjectSidebar({
             )}
           </Tooltip>
 
-          <div className="border-t border-[#3e3e42] my-2" />
+          <div className="border-t border-border my-2" />
 
           {/* Project List */}
           <div className="space-y-1">
@@ -103,8 +103,8 @@ export default function ProjectSidebar({
                   <Link
                     href={`/projects/${project.id}`}
                     className={cn(
-                      'flex items-center h-8 px-3 hover:bg-[#2a2d2e] transition-colors',
-                      currentProjectId === project.id && 'bg-[#37373d]'
+                      'flex items-center h-8 px-3 hover:bg-accent transition-colors',
+                      currentProjectId === project.id && 'bg-sidebar-accent'
                     )}
                   >
                     <div className="flex items-center shrink-0">
@@ -112,10 +112,10 @@ export default function ProjectSidebar({
                         className={cn('h-2 w-2 mr-2', getStatusColor(project.status))}
                         fill="currentColor"
                       />
-                      <GitBranch className="h-4 w-4 text-gray-400" />
+                      <GitBranch className="h-4 w-4 text-muted-foreground" />
                     </div>
                     {isExpanded && (
-                      <span className="ml-3 text-sm text-gray-300 truncate">{project.name}</span>
+                      <span className="ml-3 text-sm text-foreground truncate">{project.name}</span>
                     )}
                   </Link>
                 </TooltipTrigger>
@@ -130,15 +130,15 @@ export default function ProjectSidebar({
         </div>
 
         {/* Settings */}
-        <div className="border-t border-[#3e3e42] p-2">
+        <div className="border-t border-border p-2">
           <Tooltip>
             <TooltipTrigger asChild>
               <Link
                 href="/settings"
-                className="flex items-center h-8 px-2 hover:bg-[#2a2d2e] rounded transition-colors"
+                className="flex items-center h-8 px-2 hover:bg-accent rounded transition-colors"
               >
-                <Settings className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                {isExpanded && <span className="ml-3 text-sm text-gray-300">Settings</span>}
+                <Settings className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                {isExpanded && <span className="ml-3 text-sm text-foreground">Settings</span>}
               </Link>
             </TooltipTrigger>
             {!isExpanded && (
