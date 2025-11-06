@@ -32,10 +32,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV NEXT_PUBLIC_MOCK_USER=''
 
 # Install pnpm and generate Prisma client before build
+# Note: pnpm uses a different directory structure (.pnpm), so .prisma path differs
 RUN npm install -g pnpm && \
     npx prisma generate && \
-    echo "✅ Prisma Client generated successfully" && \
-    ls -la node_modules/.prisma/client/ && \
     pnpm run build
 
 # Production image, copy all the files and run next
@@ -66,9 +65,11 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
 # Copy Prisma schema and generated client (required for API routes using Prisma)
+# pnpm uses .pnpm directory, but symlinks exist in node_modules/@prisma
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma/client ./node_modules/.prisma/client
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma/client ./node_modules/@prisma/client
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
+# Copy pnpm's prisma packages (where actual files are stored)
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.pnpm/*prisma* ./node_modules/.pnpm/
 
 # Copy necessary config files
 COPY --from=builder --chown=nextjs:nodejs /app/next.config.ts ./
