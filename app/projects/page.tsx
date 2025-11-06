@@ -4,10 +4,10 @@ import { useEffect, useState } from 'react';
 import { Clock, Folder, Loader2, Plus } from 'lucide-react';
 import Link from 'next/link';
 
+import NoProject from '@/components/features/projectList/NoProject';
 import { Button } from '@/components/ui/button';
 import { GET } from '@/lib/fetch-client';
 import { cn } from '@/lib/utils';
-import NoProject from '@/components/features/projectList/NoProject';
 
 interface Project {
   id: string;
