@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   output: 'standalone',
   compress: true,
-  /* config options here */
+  // Exclude server-side packages from bundling
   serverExternalPackages: ['pino'],
 }
 

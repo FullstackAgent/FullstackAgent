@@ -7,7 +7,7 @@ const logger = baseLogger.child({ module: 'lib/k8s/kubernetes-utils' })
 
 // Create nanoid generator with lowercase letters only for k8s resource name compatibility
 // nanoid uses cryptographically secure random source
-const nanoidLowercase = customAlphabet('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ')
+const nanoidLowercase = customAlphabet('abcdefghijklmnopqrstuvwxyz')
 
 export class KubernetesUtils {
   /**
@@ -56,7 +56,7 @@ export class KubernetesUtils {
    * @param length - Length of the random string (default: 8)
    * @returns Random string containing only lowercase letters
    */
-  static generateRandomString(length: number = 12): string {
+  static generateRandomString(length: number = 8): string {
     return nanoidLowercase(length)
   }
 
