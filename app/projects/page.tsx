@@ -1,52 +1,54 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Clock, Folder, Loader2, Plus } from 'lucide-react';
-import Link from 'next/link';
+import { useCallback, useEffect, useState } from 'react';
+import { Loader2 } from 'lucide-react';
 
 import NoProject from '@/components/features/projectList/NoProject';
-import { Button } from '@/components/ui/button';
+import PageHeader from '@/components/features/projectList/PageHeader';
+import ProjectCard from '@/components/features/projectList/ProjectCard';
 import { GET } from '@/lib/fetch-client';
-import { cn } from '@/lib/utils';
+import { Project } from '@/types/project';
 
-interface Project {
-  id: string;
-  name: string;
-  description: string | null;
-  status: string;
-  updatedAt: string;
-  githubRepo: string | null;
-}
+// TODO: convert this page to ssr, add loading and error status, add a ProjectGrid UI, and handle data fetching there
 
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch projects list
-  const fetchProjects = async () => {
+  // Fetch projects list with AbortController support
+  const fetchProjects = useCallback(async (signal?: AbortSignal) => {
     try {
-      const data = await GET<Project[]>('/api/projects');
+      const data = await GET<Project[]>('/api/projects', { signal });
       setProjects(data);
     } catch (error) {
+      // Ignore AbortError (component was unmounted)
+      if (error instanceof Error && error.name === 'AbortError') {
+        return;
+      }
       console.error('Failed to fetch projects:', error);
     } finally {
       setLoading(false);
     }
-  };
-
-  // Initial load
-  useEffect(() => {
-    fetchProjects();
   }, []);
 
-  // Polling: refresh project status every 3 seconds
+  // Initial load and polling with proper cleanup
   useEffect(() => {
+    const abortController = new AbortController();
+
+    // Initial fetch
+    fetchProjects(abortController.signal);
+
+    // Set up polling
     const interval = setInterval(() => {
-      fetchProjects();
+      fetchProjects(abortController.signal);
     }, 3000);
 
-    return () => clearInterval(interval);
-  }, []);
+    // Cleanup function
+    return () => {
+      abortController.abort(); // Cancel all ongoing requests
+      clearInterval(interval); // Clear polling interval
+    };
+  }, [fetchProjects]);
 
   if (loading) {
     return (
@@ -62,22 +64,7 @@ export default function ProjectsPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header Bar */}
-      <div className="h-12 bg-card border-b border-border flex items-center justify-between px-4">
-        <div className="flex items-center gap-3">
-          <Folder className="h-4 w-4 text-muted-foreground" />
-          <h1 className="text-sm font-medium text-foreground">Projects</h1>
-          <span className="text-xs text-muted-foreground">({projects.length})</span>
-        </div>
-        <Link href="/projects/new">
-          <Button
-            size="sm"
-            className="h-7 bg-primary hover:bg-primary/90 text-primary-foreground text-xs px-3"
-          >
-            <Plus className="mr-1 h-3 w-3" />
-            New Project
-          </Button>
-        </Link>
-      </div>
+      <PageHeader projectsCount={projects.length} />
 
       {/* Content */}
       <div className="p-6">
@@ -86,50 +73,7 @@ export default function ProjectsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
             {projects.map((project) => (
-              <Link key={project.id} href={`/projects/${project.id}/terminal`}>
-                <div className="group bg-card border border-border hover:border-primary rounded-lg transition-all cursor-pointer p-3">
-                  {/* Header */}
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-medium text-foreground truncate">
-                        {project.name}
-                      </h3>
-                    </div>
-                    <div
-                      className={cn(
-                        'h-2 w-2 rounded-full shrink-0 ml-2 mt-1',
-                        project.status === 'RUNNING' && 'bg-green-600 dark:bg-green-500',
-                        project.status === 'STOPPED' && 'bg-muted-foreground',
-                        project.status === 'STARTING' && 'bg-yellow-600 dark:bg-yellow-500 animate-pulse',
-                        project.status === 'STOPPING' && 'bg-yellow-600 dark:bg-yellow-500 animate-pulse',
-                        project.status === 'CREATING' && 'bg-blue-600 dark:bg-blue-500 animate-pulse',
-                        project.status === 'TERMINATING' && 'bg-red-600 dark:bg-red-500 animate-pulse',
-                        project.status === 'ERROR' && 'bg-destructive',
-                        project.status === 'PARTIAL' && 'bg-orange-600 dark:bg-orange-500'
-                      )}
-                    />
-                  </div>
-
-                  {/* Description */}
-                  <p className="text-xs text-muted-foreground line-clamp-2 mb-3 min-h-[2.5rem]">
-                    {project.description || 'No description'}
-                  </p>
-
-                  {/* Footer */}
-                  <div className="flex items-center justify-between pt-2 border-t border-border">
-                    <span className="text-xs text-muted-foreground">{project.status}</span>
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Clock className="h-3 w-3" />
-                      <span>
-                        {new Date(project.updatedAt).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                        })}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </Link>
+              <ProjectCard key={project.id} project={project} />
             ))}
           </div>
         )}
