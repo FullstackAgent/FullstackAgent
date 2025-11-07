@@ -93,7 +93,7 @@ export default function ProjectSecondarySidebar({ project }: ProjectSecondarySid
   return (
     <div
       className={cn(
-        'bg-background border-r border-border flex flex-col transition-all duration-200',
+        'bg-sidebar-project-background border-r border-border flex flex-col transition-all duration-200',
         isCollapsed ? 'w-10' : 'w-72'
       )}
     >
@@ -124,11 +124,11 @@ export default function ProjectSecondarySidebar({ project }: ProjectSecondarySid
                 href={section.href}
                 onClick={(e) => handleSectionClick(e, section.id, section.href)}
                 className={cn(
-                  'w-full flex items-center px-3 py-2 text-sm transition-colors min-h-[32px]',
-                  isActive ? 'bg-sidebar-accent' : 'hover:bg-accent'
+                  'group w-full flex items-center px-3 py-2 text-sm transition-colors min-h-[32px]',
+                  isActive ? 'bg-sidebar-accent' : 'hover:bg-sidebar-accent'
                 )}
               >
-                <Icon className="h-4 w-4 mr-2 text-muted-foreground flex-shrink-0" />
+                <Icon className="h-4 w-4 mr-2 text-muted-foreground group-hover:text-sidebar-foreground flex-shrink-0 transition-colors" />
                 <span className="text-foreground truncate flex-1">{section.label}</span>
               </a>
             );
@@ -139,15 +139,15 @@ export default function ProjectSecondarySidebar({ project }: ProjectSecondarySid
             <button
               onClick={() => setIsConfigExpanded(!isConfigExpanded)}
               className={cn(
-                'w-full flex items-center px-3 py-2 text-sm transition-colors min-h-[32px]',
-                isConfigActive ? 'bg-sidebar-accent' : 'hover:bg-accent'
+                'group w-full flex items-center px-3 py-2 text-sm transition-colors min-h-[32px]',
+                isConfigActive ? 'bg-sidebar-accent' : 'hover:bg-sidebar-accent'
               )}
             >
-              <Settings className="h-4 w-4 mr-2 text-muted-foreground flex-shrink-0" />
+              <Settings className="h-4 w-4 mr-2 text-muted-foreground group-hover:text-sidebar-foreground flex-shrink-0 transition-colors" />
               <span className="text-foreground flex-1 text-left truncate">Configuration</span>
               <ChevronDown
                 className={cn(
-                  'h-4 w-4 text-muted-foreground transition-transform flex-shrink-0',
+                  'h-4 w-4 text-muted-foreground group-hover:text-sidebar-foreground transition-transform flex-shrink-0 transition-colors',
                   !isConfigExpanded && '-rotate-90'
                 )}
               />
@@ -165,11 +165,11 @@ export default function ProjectSecondarySidebar({ project }: ProjectSecondarySid
                       href={section.href}
                       onClick={(e) => handleSectionClick(e, section.id, section.href)}
                       className={cn(
-                        'w-full flex items-center pl-9 pr-3 py-2 text-sm transition-colors min-h-[32px]',
-                        isActive ? 'bg-sidebar-accent' : 'hover:bg-accent'
+                        'group w-full flex items-center pl-9 pr-3 py-2 text-sm transition-colors min-h-[32px]',
+                        isActive ? 'bg-sidebar-accent' : 'hover:bg-sidebar-accent'
                       )}
                     >
-                      <Icon className="h-4 w-4 mr-2 text-muted-foreground flex-shrink-0" />
+                      <Icon className="h-4 w-4 mr-2 text-muted-foreground group-hover:text-sidebar-foreground flex-shrink-0 transition-colors" />
                       <span className="text-foreground truncate flex-1">{section.label}</span>
                     </a>
                   );
@@ -189,11 +189,11 @@ export default function ProjectSecondarySidebar({ project }: ProjectSecondarySid
                 href={section.href}
                 onClick={(e) => handleSectionClick(e, section.id, section.href)}
                 className={cn(
-                  'w-full flex items-center px-3 py-2 text-sm transition-colors min-h-[32px]',
-                  isActive ? 'bg-sidebar-accent' : 'hover:bg-accent'
+                  'group w-full flex items-center px-3 py-2 text-sm transition-colors min-h-[32px]',
+                  isActive ? 'bg-sidebar-accent' : 'hover:bg-sidebar-accent'
                 )}
               >
-                <Icon className="h-4 w-4 mr-2 text-muted-foreground flex-shrink-0" />
+                <Icon className="h-4 w-4 mr-2 text-muted-foreground group-hover:text-sidebar-foreground flex-shrink-0 transition-colors" />
                 <span className="text-foreground truncate flex-1">{section.label}</span>
               </a>
             );

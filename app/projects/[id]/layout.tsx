@@ -52,7 +52,7 @@ export default async function ProjectLayout({
 
   return (
     <TerminalProvider>
-      <div className="h-screen flex bg-background text-foreground overflow-hidden">
+      <div className="h-screen flex text-foreground overflow-hidden">
         {/* Primary Sidebar - VSCode style */}
         <ProjectSidebar projects={projects} currentProjectId={id} userId={session.user.id} />
 
