@@ -201,17 +201,18 @@ COPY --chmod=644 .bashrc /etc/skel/.bashrc
 # Stage 2: Next.js project template preparation
 # =============================================================================
 
-# Switch to non-root user for security and proper file ownership
-USER agent
+# Create Next.js template directly in /opt/next-template as root, then chown to agent
+# This is simpler and faster than creating in /tmp and moving
+# Root can safely run npm commands during image build (not runtime)
 
 # -----------------------------------------------------------------------------
-# Step 1: Create Next.js project in temporary directory (agent has full permissions here)
+# Step 1: Create Next.js project directly in final location
 # -----------------------------------------------------------------------------
 RUN set -eux; \
-    TEMP_BUILD_DIR="/tmp/next-template-build"; \
-    mkdir -p "$TEMP_BUILD_DIR"; \
-    cd "$TEMP_BUILD_DIR"; \
-    echo "=== Creating Next.js project in $TEMP_BUILD_DIR ==="; \
+    TEMPLATE_DIR="/opt/next-template"; \
+    mkdir -p "$TEMPLATE_DIR"; \
+    cd "$TEMPLATE_DIR"; \
+    echo "=== Creating Next.js project in $TEMPLATE_DIR ==="; \
     npx --yes create-next-app@latest . \
         --typescript \
         --tailwind \
@@ -223,8 +224,8 @@ RUN set -eux; \
         --disable-git \
         --yes; \
     echo "=== Verifying Next.js project ==="; \
-    ls -la "$TEMP_BUILD_DIR"; \
-    if [ ! -f "$TEMP_BUILD_DIR/package.json" ]; then \
+    ls -la "$TEMPLATE_DIR"; \
+    if [ ! -f "$TEMPLATE_DIR/package.json" ]; then \
         echo "ERROR: package.json not found"; \
         exit 1; \
     fi; \
@@ -234,8 +235,8 @@ RUN set -eux; \
 # Step 2: Install shadcn/ui components
 # -----------------------------------------------------------------------------
 RUN set -eux; \
-    TEMP_BUILD_DIR="/tmp/next-template-build"; \
-    cd "$TEMP_BUILD_DIR"; \
+    TEMPLATE_DIR="/opt/next-template"; \
+    cd "$TEMPLATE_DIR"; \
     echo "=== Initializing shadcn/ui ==="; \
     pnpm dlx shadcn@latest init -d -y; \
     echo "=== Installing shadcn/ui components ==="; \
@@ -243,34 +244,22 @@ RUN set -eux; \
     echo "✓ shadcn/ui installed"
 
 # -----------------------------------------------------------------------------
-# Step 3: Clean up pnpm cache
+# Step 3: Clean up and set ownership
 # -----------------------------------------------------------------------------
 RUN set -eux; \
-    TEMP_BUILD_DIR="/tmp/next-template-build"; \
-    cd "$TEMP_BUILD_DIR"; \
+    TEMPLATE_DIR="/opt/next-template"; \
+    cd "$TEMPLATE_DIR"; \
+    echo "=== Cleaning up pnpm cache ==="; \
     pnpm store prune; \
-    echo "=== Build complete ==="
-
-# Switch back to root to move template to final location
-USER root
-
-# -----------------------------------------------------------------------------
-# Step 4: Move template to final location with proper permissions
-# -----------------------------------------------------------------------------
-RUN set -eux; \
-    TEMP_BUILD_DIR="/tmp/next-template-build"; \
-    mkdir -p /opt/next-template; \
-    echo "=== Moving template to /opt/next-template ==="; \
-    mv "$TEMP_BUILD_DIR"/* "$TEMP_BUILD_DIR"/.[!.]* /opt/next-template/ 2>/dev/null || true; \
-    chown -R agent:agent /opt/next-template; \
-    rm -rf "$TEMP_BUILD_DIR"; \
+    echo "=== Setting ownership to agent user (1001:1001) ==="; \
+    chown -R agent:agent "$TEMPLATE_DIR"; \
     echo "=== Final verification ==="; \
-    ls -la /opt/next-template; \
-    if [ ! -f /opt/next-template/package.json ]; then \
-        echo "ERROR: Template move failed"; \
+    ls -la "$TEMPLATE_DIR"; \
+    if [ ! -f "$TEMPLATE_DIR/package.json" ]; then \
+        echo "ERROR: Template verification failed"; \
         exit 1; \
     fi; \
-    echo "✓ Template ready at /opt/next-template"
+    echo "✓ Template ready at $TEMPLATE_DIR (owned by agent:agent)"
 
 # =============================================================================
 # Container Runtime Configuration

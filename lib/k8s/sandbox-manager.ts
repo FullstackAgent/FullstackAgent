@@ -738,29 +738,37 @@ fi
 
 # Copy Next.js project template
 echo "→ Copying Next.js project template from /opt/next-template..."
-echo "  Source: /opt/next-template"
+echo "  Source: /opt/next-template (agent:agent)"
 echo "  Target: /home/agent/next"
-echo "  This may take 30-60 seconds (copying ~200-300MB)..."
+echo "  This may take 10-30 seconds..."
 mkdir -p /home/agent/next
-cp -r /opt/next-template/. /home/agent/next
+
+# Copy with progress indicator and preserve timestamps
+# Using cp instead of rsync for simplicity (rsync is available but cp is sufficient)
+cp -rp /opt/next-template/. /home/agent/next 2>&1 || {
+  echo "✗ ERROR: Failed to copy template"
+  exit 1
+}
 
 # Verify copy was successful
-if [ ! -d /home/agent/next ]; then
-  echo "✗ ERROR: Project copy failed - target directory not created"
-  exit 1
-fi
-
 if [ ! -f /home/agent/next/package.json ]; then
   echo "✗ ERROR: Project copy incomplete - package.json not found"
+  ls -la /home/agent/next 2>&1 || true
   exit 1
 fi
 
 echo "✓ Next.js project template copied successfully"
 
 # Set ownership and permissions for copied files
+# Note: Even though source files are agent:agent in the image,
+# cp creates new files owned by the current user (root in init container)
 echo "→ Setting ownership (agent:1001) and permissions..."
-chown -R 1001:1001 /home/agent/next
-chmod -R u+rwX,g+rX,o+rX /home/agent/next
+chown -R 1001:1001 /home/agent/next 2>&1 || {
+  echo "⚠ Warning: Failed to set ownership, but continuing..."
+}
+chmod -R u+rwX,g+rX,o+rX /home/agent/next 2>&1 || {
+  echo "⚠ Warning: Failed to set permissions, but continuing..."
+}
 
 # Count files for verification
 FILE_COUNT=$(find /home/agent/next -type f | wc -l)
