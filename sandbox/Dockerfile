@@ -212,16 +212,12 @@ RUN mkdir -p /opt/next-template \
 USER agent
 
 # -----------------------------------------------------------------------------
-# Create Next.js project template at /opt/next-template
-# This template will be copied to /home/agent/next by InitContainer on first run
-# Reason: /home/agent will be mounted by PVC, so we need to store template elsewhere
+# Step 1: Create Next.js project template
 # -----------------------------------------------------------------------------
 RUN set -eux; \
-    # Create template directory (accessible by agent user)
     mkdir -p /opt/next-template; \
     cd /opt/next-template; \
-    # Initialize Next.js with all recommended settings
-    # IMPORTANT: --yes flag is required for non-interactive build (skips React Compiler, Turbopack prompts)
+    echo "=== Creating Next.js project ==="; \
     npx --yes create-next-app@latest . \
         --typescript \
         --tailwind \
@@ -232,24 +228,34 @@ RUN set -eux; \
         --use-pnpm \
         --disable-git \
         --yes; \
-    # Verify Next.js project was created successfully
+    echo "=== Verifying Next.js project ==="; \
+    ls -la /opt/next-template; \
     if [ ! -f /opt/next-template/package.json ]; then \
-        echo "ERROR: Next.js creation failed - package.json not found"; \
-        ls -la /opt/next-template; \
+        echo "ERROR: package.json not found"; \
         exit 1; \
     fi; \
-    echo "✓ Next.js project created successfully"; \
-    # Initialize shadcn/ui with default configuration
+    echo "✓ Next.js project created successfully"
+
+# -----------------------------------------------------------------------------
+# Step 2: Install shadcn/ui components
+# -----------------------------------------------------------------------------
+RUN set -eux; \
+    cd /opt/next-template; \
+    echo "=== Initializing shadcn/ui ==="; \
     pnpm dlx shadcn@latest init -d -y; \
-    # Install all available shadcn/ui components
+    echo "=== Installing shadcn/ui components ==="; \
     pnpm dlx shadcn@latest add --all --yes; \
-    echo "✓ shadcn/ui components installed"; \
-    # Clean pnpm cache to reduce layer size
+    echo "✓ shadcn/ui installed"
+
+# -----------------------------------------------------------------------------
+# Step 3: Clean up and verify
+# -----------------------------------------------------------------------------
+RUN set -eux; \
+    cd /opt/next-template; \
     pnpm store prune; \
-    # Final verification
-    echo "Verifying template contents:"; \
+    echo "=== Final verification ==="; \
     ls -la /opt/next-template; \
-    echo "✓ Next.js template created at /opt/next-template"
+    echo "✓ Template ready at /opt/next-template"
 
 # =============================================================================
 # Container Runtime Configuration
