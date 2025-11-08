@@ -652,18 +652,119 @@ export class SandboxManager {
 
   /**
    * Generate init container script
+   *
+   * Purpose: Initialize /home/agent PVC with necessary files on first run
+   *
+   * What gets initialized:
+   * 1. .bashrc - Shell configuration (only if doesn't exist, never overwrite user changes)
+   * 2. next/ - Next.js project template (only if directory is empty)
+   *
+   * Safety strategy:
+   * - .bashrc: Copy only if missing (user may have customized it)
+   * - next/: Copy only if directory doesn't exist or is completely empty
+   * - Never overwrites existing user files
    */
   private generateInitContainerScript(): string {
-    const commands = [
-      'mkdir -p /home/agent/.kube /home/agent/.config',
-      'cp /etc/skel/.bashrc /home/agent/.bashrc',
-      'chmod 644 /home/agent/.bashrc',
-      'chown -R 1001:1001 /home/agent',
-      'chmod 755 /home/agent',
-      'echo "Home directory initialization completed"',
-    ]
+    return `
+set -e
 
-    return commands.join(' && ')
+echo "=== Init Container: Home Directory Initialization ==="
+
+# -----------------------------------------------------------------------------
+# Step 1: Initialize .bashrc (if not exists)
+# Rationale: User may customize .bashrc, so we never overwrite existing file
+# -----------------------------------------------------------------------------
+if [ -f /home/agent/.bashrc ]; then
+  echo "✓ .bashrc already exists (preserving user configuration)"
+else
+  if [ -f /etc/skel/.bashrc ]; then
+    echo "→ Copying default .bashrc configuration..."
+    cp /etc/skel/.bashrc /home/agent/.bashrc
+    chown 1001:1001 /home/agent/.bashrc
+    chmod 644 /home/agent/.bashrc
+    echo "✓ .bashrc initialized"
+  else
+    echo "⚠ Warning: /etc/skel/.bashrc not found in image"
+  fi
+fi
+
+# -----------------------------------------------------------------------------
+# Step 2: Initialize Next.js project (if not exists or empty)
+# Rationale: ANY file in next/ indicates user work - must not overwrite
+# -----------------------------------------------------------------------------
+if [ -d /home/agent/next ]; then
+  # Directory exists, check if it contains any files (including hidden files)
+  if [ -n "$(ls -A /home/agent/next 2>/dev/null)" ]; then
+    echo "✓ Next.js project already exists (preserving user project)"
+    echo "  Location: /home/agent/next"
+    
+    # Skip to end - all initialization done
+    echo ""
+    echo "=== Initialization Summary ==="
+    echo "✓ .bashrc: $([ -f /home/agent/.bashrc ] && echo 'ready' || echo 'missing')"
+    echo "✓ Next.js project: ready (existing)"
+    echo "✓ All user data preserved"
+    echo ""
+    echo "=== Init Container: Completed successfully ==="
+    exit 0
+  else
+    echo "→ /home/agent/next exists but is empty"
+    echo "→ Removing empty directory and proceeding with initialization"
+    rmdir /home/agent/next
+  fi
+fi
+
+# If we reach here, next/ doesn't exist or was empty
+echo "→ No existing Next.js project detected"
+echo "→ Proceeding with project template initialization..."
+
+# Verify template exists in image
+if [ ! -d /opt/next-template ]; then
+  echo "✗ ERROR: Next.js template not found at /opt/next-template"
+  echo "  This is likely a build issue - template should be in the image"
+  exit 1
+fi
+
+# Copy Next.js project template
+echo "→ Copying Next.js project template from /opt/next-template..."
+echo "  Source: /opt/next-template"
+echo "  Target: /home/agent/next"
+echo "  This may take 30-60 seconds (copying ~200-300MB)..."
+cp -r /opt/next-template /home/agent/next
+
+# Verify copy was successful
+if [ ! -d /home/agent/next ]; then
+  echo "✗ ERROR: Project copy failed - target directory not created"
+  exit 1
+fi
+
+if [ ! -f /home/agent/next/package.json ]; then
+  echo "✗ ERROR: Project copy incomplete - package.json not found"
+  exit 1
+fi
+
+echo "✓ Next.js project template copied successfully"
+
+# Set ownership and permissions for copied files
+echo "→ Setting ownership (agent:1001) and permissions..."
+chown -R 1001:1001 /home/agent/next
+chmod -R u+rwX,g+rX,o+rX /home/agent/next
+
+# Count files for verification
+FILE_COUNT=$(find /home/agent/next -type f | wc -l)
+echo "✓ Copied $FILE_COUNT files"
+
+echo ""
+echo "=== Initialization Summary ==="
+echo "✓ .bashrc: $([ -f /home/agent/.bashrc ] && echo 'ready' || echo 'missing')"
+echo "✓ Next.js project: ready (newly created)"
+echo "✓ Location: /home/agent/next"
+echo "✓ Ownership: agent (1001:1001)"
+echo "✓ Files copied: $FILE_COUNT"
+echo "✓ Project can be accessed via: cd ~/next && pnpm dev"
+echo ""
+echo "=== Init Container: Completed successfully ==="
+    `.trim()
   }
 
   /**
