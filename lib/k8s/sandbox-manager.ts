@@ -730,7 +730,8 @@ echo "→ Copying Next.js project template from /opt/next-template..."
 echo "  Source: /opt/next-template"
 echo "  Target: /home/agent/next"
 echo "  This may take 30-60 seconds (copying ~200-300MB)..."
-cp -r /opt/next-template /home/agent/next
+mkdir -p /home/agent/next
+cp -r /opt/next-template/. /home/agent/next
 
 # Verify copy was successful
 if [ ! -d /home/agent/next ]; then
