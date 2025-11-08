@@ -14,6 +14,9 @@ LABEL maintainer="FullstackAgent" \
 # DEBIAN_FRONTEND: Prevents interactive prompts during apt-get operations
 # NODE_VERSION: Target Node.js version for installation
 # PATH: Extends PATH to include user-local binaries
+# NOTE: Sensitive variables below are declared as empty strings for documentation.
+#       Actual values will be securely injected at runtime via Kubernetes Secrets.
+#       This is safe - no actual secrets are hardcoded in the Dockerfile.
 ENV DEBIAN_FRONTEND=noninteractive \
     NODE_VERSION=22.x \
     CLAUDE_CODE_VERSION=latest \
