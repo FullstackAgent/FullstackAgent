@@ -1,8 +1,8 @@
 #!/bin/bash
 # Custom prompt: user@project-name:relative-path
 
-# Enable true color (24-bit) support for terminal
-export TERM="${TERM:-xterm-direct}"
+# Enable 256 color support for terminal
+export TERM="${TERM:-xterm-256color}"
 export COLORTERM="${COLORTERM:-truecolor}"
 
 PROJECT_NAME="${PROJECT_NAME:-sandbox}"
