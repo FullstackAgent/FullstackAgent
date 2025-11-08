@@ -171,4 +171,13 @@
   span {
     @apply text-muted-foreground;
   }
+  h1 {
+    @apply scroll-m-20 text-4xl tracking-tight text-balance;
+  }
+  h2 {
+    @apply scroll-m-20 text-3xl tracking-tight first:mt-0;
+  }
+  p {
+    @apply leading-7 [&:not(:first-child)]:mt-6 text-muted-foreground;
+  }
 }
