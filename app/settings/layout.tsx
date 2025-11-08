@@ -1,9 +1,8 @@
 import { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 
-import ProjectSidebar from '@/components/project-sidebar';
+import PrimarySidebar from '@/components/primary-sidebar';
 import { auth } from '@/lib/auth';
-import { prisma } from '@/lib/db';
 
 export default async function SettingsLayout({
   children,
@@ -16,21 +15,10 @@ export default async function SettingsLayout({
     redirect('/login');
   }
 
-  // Get user's projects for sidebar
-  const projects = await prisma.project.findMany({
-    where: {
-      userId: session.user.id,
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
-  });
-
   return (
     <div className="h-screen flex bg-[#1e1e1e] text-white overflow-hidden">
       {/* Primary Sidebar - VSCode style */}
-      <ProjectSidebar
-        projects={projects}
+      <PrimarySidebar
         currentProjectId="" // No current project in settings
         userId={session.user.id}
       />
