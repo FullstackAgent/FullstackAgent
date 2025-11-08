@@ -33,24 +33,13 @@ jobs:
     name: Build Runtime Docker Images
     permissions:
       packages: write
-    strategy:
-      matrix:
-        include:
-          - arch: amd64
-            runs-on: ubuntu-24.04
-          - arch: arm64
-            runs-on: ubuntu-24.04-arm
-    runs-on: ${{ matrix.runs-on }}
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Set up QEMU
-        if: ${{ matrix.arch != runner.arch }}
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -77,44 +66,36 @@ jobs:
           images: |
             ghcr.io/${{ github.repository_owner }}/fullstack-web-runtime
             ${{ env.DOCKERHUB_USERNAME && format('docker.io/{0}/fullstack-web-runtime', env.DOCKERHUB_USERNAME) || '' }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') || github.ref == format('refs/heads/{0}', 'master') }}
           labels: |
             org.opencontainers.image.title=FullStack Web Runtime
             org.opencontainers.image.description=Full-stack web development runtime with Next.js, shadcn/ui, Claude Code CLI, and container tools
             org.opencontainers.image.vendor=${{ github.repository_owner }}
 
-      - name: Build for ${{ matrix.arch }}
+      - name: Build and Push Docker Image
         id: docker-build
         uses: docker/build-push-action@v6
         with:
           context: ./sandbox
           file: ./sandbox/Dockerfile
           labels: ${{ steps.meta.outputs.labels }}
-          platforms: linux/${{ matrix.arch }}
-          # PR builds: load locally for validation, Push builds: push by digest
-          push: false
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          # PR builds: load locally for validation, Push builds: push to registry
+          push: ${{ github.event_name != 'pull_request' && github.actor != 'dependabot[bot]' }}
           load: ${{ github.event_name == 'pull_request' }}
-          outputs: ${{ github.event_name != 'pull_request' && github.actor != 'dependabot[bot]' && format('type=image,"name=ghcr.io/{0}/fullstack-web-runtime{1}",name-canonical=true,push-by-digest=true,push=true', github.repository_owner, env.DOCKERHUB_USERNAME && format(',docker.io/{0}/fullstack-web-runtime', env.DOCKERHUB_USERNAME) || '') || '' }}
-          cache-from: type=gha,scope=runtime-${{ matrix.arch }}
-          cache-to: type=gha,mode=max,scope=runtime-${{ matrix.arch }}
-
-      - name: Export digest
-        if: ${{ github.event_name != 'pull_request' && github.actor != 'dependabot[bot]' }}
-        run: |
-          mkdir -p ${{ runner.temp }}/digests
-          digest="${{ steps.docker-build.outputs.digest }}"
-          touch "${{ runner.temp }}/digests/${digest#sha256:}"
-
-      - name: Upload digest
-        if: ${{ github.event_name != 'pull_request' && github.actor != 'dependabot[bot]' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: digests-runtime-${{ matrix.arch }}
-          path: ${{ runner.temp }}/digests/*
-          if-no-files-found: error
-          retention-days: 1
+          cache-from: type=gha,scope=runtime-amd64
+          cache-to: type=gha,mode=max,scope=runtime-amd64
 
       - name: Comment on PR
-        if: github.event_name == 'pull_request' && matrix.arch == 'amd64' && always()
+        if: github.event_name == 'pull_request' && always()
         uses: actions/github-script@v7
         continue-on-error: true
         with:
@@ -135,9 +116,9 @@ jobs:
             body += `| Components | Claude Code CLI, ttyd, Next.js, Prisma, PostgreSQL client, Buildah |\n\n`;
 
             if (buildSuccess) {
-              body += `### 📦 Multi-arch runtime images will be published after merge\n\n`;
-              body += `**Note**: PR builds only verify the Docker build process for linux/amd64. `;
-              body += `Multi-platform images (amd64 + arm64) are built and pushed to registries only when merged to main.\n\n`;
+              body += `### 📦 Runtime image will be published after merge\n\n`;
+              body += `**Note**: PR builds only verify the Docker build process. `;
+              body += `Images are pushed to registries only when merged to main.\n\n`;
               body += `**Registries**:\n`;
               body += `- GitHub Container Registry: \`ghcr.io/${{ github.repository_owner }}/fullstack-web-runtime\`\n`;
               if ('${{ env.DOCKERHUB_USERNAME }}') {
@@ -192,77 +173,15 @@ jobs:
               console.log('This might be expected for PRs from forks');
             }
 
-  release-runtime-images:
-    name: Push Multi-Arch Runtime Images
-    permissions:
-      packages: write
-    needs: build-runtime-images
-    runs-on: ubuntu-24.04
-    if: ${{ github.event_name != 'pull_request' && github.actor != 'dependabot[bot]' }}
-
-    steps:
-      - name: Login to Docker Hub
-        if: ${{ env.DOCKERHUB_USERNAME != '' }}
-        uses: docker/login-action@v3
-        with:
-          username: ${{ vars.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Download digests
-        uses: actions/download-artifact@v4
-        with:
-          path: ${{ runner.temp }}/digests
-          pattern: digests-runtime-*
-          merge-multiple: true
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            ghcr.io/${{ github.repository_owner }}/fullstack-web-runtime
-            ${{ env.DOCKERHUB_USERNAME && format('docker.io/{0}/fullstack-web-runtime', env.DOCKERHUB_USERNAME) || '' }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=tag
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=sha,prefix=sha-
-            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') || github.ref == format('refs/heads/{0}', 'master') }}
-
-      - name: Create manifest list and push
-        working-directory: ${{ runner.temp }}/digests
-        run: |
-          for TAG in $DOCKER_METADATA_OUTPUT_TAGS; do
-            docker buildx imagetools create -t $TAG \
-              $(printf 'ghcr.io/${{ github.repository_owner }}/fullstack-web-runtime@sha256:%s ' *)
-            sleep 3
-          done
-
-      - name: Inspect image
-        run: |
-          docker buildx imagetools inspect ghcr.io/${{ github.repository_owner }}/fullstack-web-runtime:${{ steps.meta.outputs.version }}
-
       - name: Generate build summary
-        if: always()
+        if: ${{ github.event_name != 'pull_request' && github.actor != 'dependabot[bot]' && always() }}
         run: |
-          echo "## 🚀 Multi-Architecture Runtime Image Build & Push Report" >> $GITHUB_STEP_SUMMARY
+          echo "## 🚀 Runtime Image Build & Push Report" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Build Status" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ job.status }}" = "success" ]; then
-            echo "- ✅ Multi-architecture runtime build successful" >> $GITHUB_STEP_SUMMARY
-            echo "- ✅ Platforms: \`linux/amd64\`, \`linux/arm64\`" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.docker-build.outcome }}" = "success" ]; then
+            echo "- ✅ Runtime build successful" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ Platform: \`linux/amd64\`" >> $GITHUB_STEP_SUMMARY
             echo "- ✅ Pushed to GitHub Container Registry: \`ghcr.io/${{ github.repository_owner }}/fullstack-web-runtime\`" >> $GITHUB_STEP_SUMMARY
             if [ -n "${{ env.DOCKERHUB_USERNAME }}" ]; then
               echo "- ✅ Pushed to Docker Hub: \`docker.io/${{ env.DOCKERHUB_USERNAME }}/fullstack-web-runtime\`" >> $GITHUB_STEP_SUMMARY
@@ -294,7 +213,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Usage Example" >> $GITHUB_STEP_SUMMARY
           echo '```bash' >> $GITHUB_STEP_SUMMARY
-          echo "# Pull the latest multi-arch image" >> $GITHUB_STEP_SUMMARY
+          echo "# Pull the latest image" >> $GITHUB_STEP_SUMMARY
           echo "docker pull ghcr.io/${{ github.repository_owner }}/fullstack-web-runtime:latest" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "# Run with environment variables" >> $GITHUB_STEP_SUMMARY

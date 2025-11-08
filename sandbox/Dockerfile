@@ -194,6 +194,13 @@ WORKDIR /home/agent
 COPY --chmod=755 entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY --chmod=644 .bashrc /etc/skel/.bashrc
 
+# -----------------------------------------------------------------------------
+# Create and configure /opt/next-template directory with proper permissions
+# Must be done as root before switching to agent user
+# -----------------------------------------------------------------------------
+RUN mkdir -p /opt/next-template \
+    && chown -R agent:agent /opt/next-template
+
 # =============================================================================
 # Stage 2: Next.js project template preparation
 # =============================================================================
