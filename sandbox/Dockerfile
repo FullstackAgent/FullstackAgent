@@ -197,13 +197,6 @@ WORKDIR /home/agent
 COPY --chmod=755 entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY --chmod=644 .bashrc /etc/skel/.bashrc
 
-# -----------------------------------------------------------------------------
-# Create and configure /opt/next-template directory with proper permissions
-# Must be done as root before switching to agent user
-# -----------------------------------------------------------------------------
-RUN mkdir -p /opt/next-template \
-    && chown -R agent:agent /opt/next-template
-
 # =============================================================================
 # Stage 2: Next.js project template preparation
 # =============================================================================
@@ -212,12 +205,13 @@ RUN mkdir -p /opt/next-template \
 USER agent
 
 # -----------------------------------------------------------------------------
-# Step 1: Create Next.js project template
+# Step 1: Create Next.js project in temporary directory (agent has full permissions here)
 # -----------------------------------------------------------------------------
 RUN set -eux; \
-    mkdir -p /opt/next-template; \
-    cd /opt/next-template; \
-    echo "=== Creating Next.js project ==="; \
+    TEMP_BUILD_DIR="/tmp/next-template-build"; \
+    mkdir -p "$TEMP_BUILD_DIR"; \
+    cd "$TEMP_BUILD_DIR"; \
+    echo "=== Creating Next.js project in $TEMP_BUILD_DIR ==="; \
     npx --yes create-next-app@latest . \
         --typescript \
         --tailwind \
@@ -229,8 +223,8 @@ RUN set -eux; \
         --disable-git \
         --yes; \
     echo "=== Verifying Next.js project ==="; \
-    ls -la /opt/next-template; \
-    if [ ! -f /opt/next-template/package.json ]; then \
+    ls -la "$TEMP_BUILD_DIR"; \
+    if [ ! -f "$TEMP_BUILD_DIR/package.json" ]; then \
         echo "ERROR: package.json not found"; \
         exit 1; \
     fi; \
@@ -240,7 +234,8 @@ RUN set -eux; \
 # Step 2: Install shadcn/ui components
 # -----------------------------------------------------------------------------
 RUN set -eux; \
-    cd /opt/next-template; \
+    TEMP_BUILD_DIR="/tmp/next-template-build"; \
+    cd "$TEMP_BUILD_DIR"; \
     echo "=== Initializing shadcn/ui ==="; \
     pnpm dlx shadcn@latest init -d -y; \
     echo "=== Installing shadcn/ui components ==="; \
@@ -248,13 +243,33 @@ RUN set -eux; \
     echo "✓ shadcn/ui installed"
 
 # -----------------------------------------------------------------------------
-# Step 3: Clean up and verify
+# Step 3: Clean up pnpm cache
 # -----------------------------------------------------------------------------
 RUN set -eux; \
-    cd /opt/next-template; \
+    TEMP_BUILD_DIR="/tmp/next-template-build"; \
+    cd "$TEMP_BUILD_DIR"; \
     pnpm store prune; \
+    echo "=== Build complete ==="
+
+# Switch back to root to move template to final location
+USER root
+
+# -----------------------------------------------------------------------------
+# Step 4: Move template to final location with proper permissions
+# -----------------------------------------------------------------------------
+RUN set -eux; \
+    TEMP_BUILD_DIR="/tmp/next-template-build"; \
+    mkdir -p /opt/next-template; \
+    echo "=== Moving template to /opt/next-template ==="; \
+    mv "$TEMP_BUILD_DIR"/* "$TEMP_BUILD_DIR"/.[!.]* /opt/next-template/ 2>/dev/null || true; \
+    chown -R agent:agent /opt/next-template; \
+    rm -rf "$TEMP_BUILD_DIR"; \
     echo "=== Final verification ==="; \
     ls -la /opt/next-template; \
+    if [ ! -f /opt/next-template/package.json ]; then \
+        echo "ERROR: Template move failed"; \
+        exit 1; \
+    fi; \
     echo "✓ Template ready at /opt/next-template"
 
 # =============================================================================
