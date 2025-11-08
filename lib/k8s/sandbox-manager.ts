@@ -598,8 +598,8 @@ export class SandboxManager {
                     memory: '512Mi',
                   },
                   limits: {
-                    cpu: '1000m',
-                    memory: '1024Mi',
+                    cpu: '2000m',
+                    memory: '4096Mi',
                   },
                 },
               },
