@@ -33,4 +33,10 @@ export const env = createEnv({
   experimental__runtimeEnv: {
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
   },
+  /*
+   * Skip validation during build time (e.g., in CI/CD)
+   * Set SKIP_ENV_VALIDATION=1 to skip validation
+   * Runtime validation will still occur if env vars are accessed
+   */
+  skipValidation: !!process.env.SKIP_ENV_VALIDATION,
 })

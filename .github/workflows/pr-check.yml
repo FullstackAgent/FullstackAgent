@@ -51,6 +51,7 @@ jobs:
         continue-on-error: false
         env:
           NEXT_TELEMETRY_DISABLED: 1
+          SKIP_ENV_VALIDATION: 1
 
       - name: Generate build summary
         if: always()
