@@ -62,6 +62,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Convert repository owner to lowercase
+        id: repo-owner
+        run: |
+          echo "lowercase=${GITHUB_REPOSITORY_OWNER@L}" >> $GITHUB_OUTPUT
+
       - name: Set up QEMU
         if: ${{ matrix.arch != runner.arch }}
         uses: docker/setup-qemu-action@v3
@@ -81,7 +86,7 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.repository_owner }}
+          username: ${{ steps.repo-owner.outputs.lowercase }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata (tags, labels) for Docker
@@ -89,7 +94,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ghcr.io/${{ github.repository_owner }}/fullstack-agent
+            ghcr.io/${{ steps.repo-owner.outputs.lowercase }}/fullstack-agent
             ${{ env.DOCKERHUB_USERNAME && format('docker.io/{0}/fullstack-agent', env.DOCKERHUB_USERNAME) || '' }}
 
       - name: Build for ${{ matrix.arch }}
@@ -103,7 +108,7 @@ jobs:
           # PR builds: load locally for validation, Push builds: push by digest
           push: false
           load: ${{ github.event_name == 'pull_request' }}
-          outputs: ${{ github.event_name != 'pull_request' && github.actor != 'dependabot[bot]' && format('type=image,"name=ghcr.io/{0}/fullstack-agent{1}",name-canonical=true,push-by-digest=true,push=true', github.repository_owner, env.DOCKERHUB_USERNAME && format(',docker.io/{0}/fullstack-agent', env.DOCKERHUB_USERNAME) || '') || '' }}
+          outputs: ${{ github.event_name != 'pull_request' && github.actor != 'dependabot[bot]' && format('type=image,"name=ghcr.io/{0}/fullstack-agent{1}",name-canonical=true,push-by-digest=true,push=true', steps.repo-owner.outputs.lowercase, env.DOCKERHUB_USERNAME && format(',docker.io/{0}/fullstack-agent', env.DOCKERHUB_USERNAME) || '') || '' }}
           cache-from: type=gha,scope=build-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=build-${{ matrix.arch }}
 
@@ -148,7 +153,7 @@ jobs:
               body += `**Note**: PR builds only verify the Docker build process for linux/amd64. `;
               body += `Multi-platform images (amd64 + arm64) are built and pushed to registries only when merged to main.\n\n`;
               body += `**Registries**:\n`;
-              body += `- GitHub Container Registry: \`ghcr.io/${{ github.repository_owner }}/fullstack-agent\`\n`;
+              body += `- GitHub Container Registry: \`ghcr.io/${{ steps.repo-owner.outputs.lowercase }}/fullstack-agent\`\n`;
               if ('${{ env.DOCKERHUB_USERNAME }}') {
                 body += `- Docker Hub: \`docker.io/${{ env.DOCKERHUB_USERNAME }}/fullstack-agent\`\n`;
               }
@@ -202,6 +207,11 @@ jobs:
     if: ${{ github.event_name != 'pull_request' && github.actor != 'dependabot[bot]' }}
 
     steps:
+      - name: Convert repository owner to lowercase
+        id: repo-owner
+        run: |
+          echo "lowercase=${GITHUB_REPOSITORY_OWNER@L}" >> $GITHUB_OUTPUT
+
       - name: Login to Docker Hub
         if: ${{ env.DOCKERHUB_USERNAME != '' }}
         uses: docker/login-action@v3
@@ -213,7 +223,7 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.repository_owner }}
+          username: ${{ steps.repo-owner.outputs.lowercase }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download digests
@@ -231,7 +241,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ghcr.io/${{ github.repository_owner }}/fullstack-agent
+            ghcr.io/${{ steps.repo-owner.outputs.lowercase }}/fullstack-agent
             ${{ env.DOCKERHUB_USERNAME && format('docker.io/{0}/fullstack-agent', env.DOCKERHUB_USERNAME) || '' }}
           tags: |
             type=ref,event=branch
@@ -247,13 +257,13 @@ jobs:
         run: |
           for TAG in $DOCKER_METADATA_OUTPUT_TAGS; do
             docker buildx imagetools create -t $TAG \
-              $(printf 'ghcr.io/${{ github.repository_owner }}/fullstack-agent@sha256:%s ' *)
+              $(printf 'ghcr.io/${{ steps.repo-owner.outputs.lowercase }}/fullstack-agent@sha256:%s ' *)
             sleep 3
           done
 
       - name: Inspect image
         run: |
-          docker buildx imagetools inspect ghcr.io/${{ github.repository_owner }}/fullstack-agent:${{ steps.meta.outputs.version }}
+          docker buildx imagetools inspect ghcr.io/${{ steps.repo-owner.outputs.lowercase }}/fullstack-agent:${{ steps.meta.outputs.version }}
 
       - name: Generate build summary
         if: always()
@@ -264,7 +274,7 @@ jobs:
           if [ "${{ job.status }}" = "success" ]; then
             echo "- ✅ Multi-architecture build successful" >> $GITHUB_STEP_SUMMARY
             echo "- ✅ Platforms: \`linux/amd64\`, \`linux/arm64\`" >> $GITHUB_STEP_SUMMARY
-            echo "- ✅ Pushed to GitHub Container Registry: \`ghcr.io/${{ github.repository_owner }}/fullstack-agent\`" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ Pushed to GitHub Container Registry: \`ghcr.io/${{ steps.repo-owner.outputs.lowercase }}/fullstack-agent\`" >> $GITHUB_STEP_SUMMARY
             if [ -n "${{ env.DOCKERHUB_USERNAME }}" ]; then
               echo "- ✅ Pushed to Docker Hub: \`docker.io/${{ env.DOCKERHUB_USERNAME }}/fullstack-agent\`" >> $GITHUB_STEP_SUMMARY
             fi
