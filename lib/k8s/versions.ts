@@ -1,3 +1,4 @@
+import { env } from '@/lib/env'
 /**
  * Version configuration for container images and dependencies
  * IMPORTANT: Always use specific version tags to ensure consistency
@@ -5,8 +6,7 @@
 
 export const VERSIONS = {
   // Runtime container image version - now using centralized version
-  RUNTIME_IMAGE:
-    process.env.RUNTIME_IMAGE || 'fullstackagent/fullstack-web-runtime:v0.0.1-alpha.12',
+  RUNTIME_IMAGE: env.RUNTIME_IMAGE || 'fullstackagent/fullstack-web-runtime:v0.0.1-alpha.12',
 
   // PostgreSQL version for KubeBlocks
   POSTGRESQL_VERSION: 'postgresql-14.8.0',
@@ -20,8 +20,8 @@ export const VERSIONS = {
         memory: '25Mi',
       },
       limits: {
-        cpu: '200m',
-        memory: '256Mi',
+        cpu: '2000m',
+        memory: '4096Mi',
       },
     },
     DATABASE: {

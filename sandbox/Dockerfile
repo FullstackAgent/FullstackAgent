@@ -221,6 +221,7 @@ RUN set -eux; \
     mkdir -p /opt/next-template; \
     cd /opt/next-template; \
     # Initialize Next.js with all recommended settings
+    # IMPORTANT: --yes flag is required for non-interactive build (skips React Compiler, Turbopack prompts)
     npx --yes create-next-app@latest . \
         --typescript \
         --tailwind \
@@ -229,15 +230,26 @@ RUN set -eux; \
         --src-dir \
         --import-alias "@/*" \
         --use-pnpm \
-        --no-git; \
+        --disable-git \
+        --yes; \
+    # Verify Next.js project was created successfully
+    if [ ! -f /opt/next-template/package.json ]; then \
+        echo "ERROR: Next.js creation failed - package.json not found"; \
+        ls -la /opt/next-template; \
+        exit 1; \
+    fi; \
+    echo "✓ Next.js project created successfully"; \
     # Initialize shadcn/ui with default configuration
     pnpm dlx shadcn@latest init -d -y; \
     # Install all available shadcn/ui components
     pnpm dlx shadcn@latest add --all --yes; \
+    echo "✓ shadcn/ui components installed"; \
     # Clean pnpm cache to reduce layer size
     pnpm store prune; \
-    # Verify template was created
-    echo "Next.js template created at /opt/next-template"
+    # Final verification
+    echo "Verifying template contents:"; \
+    ls -la /opt/next-template; \
+    echo "✓ Next.js template created at /opt/next-template"
 
 # =============================================================================
 # Container Runtime Configuration

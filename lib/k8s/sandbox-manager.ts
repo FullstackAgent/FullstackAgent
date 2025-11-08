@@ -591,6 +591,17 @@ export class SandboxManager {
                   runAsUser: 0,
                   runAsNonRoot: false,
                 },
+                // Resource limits for init container: needs more memory to copy Next.js template (200-300MB)
+                resources: {
+                  requests: {
+                    cpu: '200m',
+                    memory: '512Mi',
+                  },
+                  limits: {
+                    cpu: '1000m',
+                    memory: '1024Mi',
+                  },
+                },
               },
             ],
             automountServiceAccountToken: false,
