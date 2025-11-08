@@ -1,6 +1,10 @@
 #!/bin/bash
 # Custom prompt: user@project-name:relative-path
 
+# Enable true color (24-bit) support for terminal
+export TERM="${TERM:-xterm-direct}"
+export COLORTERM="${COLORTERM:-truecolor}"
+
 PROJECT_NAME="${PROJECT_NAME:-sandbox}"
 
 # Function to show path relative to /home/agent
