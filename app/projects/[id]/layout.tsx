@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 
 import ContentWrapper from '@/components/content-wrapper';
 import PersistentTerminal from '@/components/persistent-terminal';
-import ProjectSecondarySidebar from '@/components/project-secondary-sidebar';
+import PrimarySidebar from '@/components/primary-sidebar';
 import ProjectSidebar from '@/components/project-sidebar';
 import { TerminalProvider } from '@/components/terminal-provider';
 import { auth } from '@/lib/auth';
@@ -40,24 +40,15 @@ export default async function ProjectLayout({
     notFound();
   }
 
-  // Get all user projects for sidebar
-  const projects = await prisma.project.findMany({
-    where: {
-      userId: session.user.id,
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
-  });
-
+  
   return (
     <TerminalProvider>
       <div className="h-screen flex text-foreground overflow-hidden">
         {/* Primary Sidebar - VSCode style */}
-        <ProjectSidebar projects={projects} currentProjectId={id} userId={session.user.id} />
+        <PrimarySidebar currentProjectId={id} userId={session.user.id} />
 
         {/* Secondary Sidebar - Project Settings */}
-        <ProjectSecondarySidebar
+        <ProjectSidebar
           project={project}
           sandboxes={project.sandboxes}
           envVars={project.environments}
