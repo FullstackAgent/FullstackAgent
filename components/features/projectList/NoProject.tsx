@@ -12,7 +12,7 @@ export default function NoProject() {
     <>
       <div className="flex items-center justify-center py-20">
         <button
-          className="flex h-100 w-full max-w-2xl items-center justify-center cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-lg transition-all"
+          className="flex h-96 w-full max-w-2xl items-center justify-center cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-lg transition-all"
           onClick={() => setCreateModalOpen(true)}
           aria-label="Create your first project"
         >
