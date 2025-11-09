@@ -2,14 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { Prisma } from '@prisma/client';
-import {
-  AlertCircle,
-  ChevronDown,
-  Loader2,
-  Play,
-  Square,
-  Trash2,
-} from 'lucide-react';
+import { AlertCircle, ChevronDown, Loader2, Play, Square, Trash2 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 
 import ProjectTerminalView from '@/components/project-terminal-view';
@@ -31,15 +24,15 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { GET, POST } from '@/lib/fetch-client';
+import { getAvailableProjectActions, type ProjectAction } from '@/lib/util/action';
 import { cn } from '@/lib/utils';
-import { getAvailableProjectActions, type ProjectAction } from '@/lib/utils/action';
 
 type Project = Prisma.ProjectGetPayload<{
   include: {
-    sandboxes: true
-    databases: true
-  }
-}>
+    sandboxes: true;
+    databases: true;
+  };
+}>;
 
 export default function TerminalPage() {
   const params = useParams();

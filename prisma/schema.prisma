@@ -93,7 +93,7 @@ model Environment {
   projectId String
   key       String
   value     String
-  category  String? // auth/payment/general for UI organization
+  category  String? // auth/payment/ttyd/secret/general for UI organization
   isSecret  Boolean  @default(false) // Mark sensitive values (masked in UI)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -173,9 +173,9 @@ model Sandbox {
   // Runtime configuration
   runtimeImage  String? // Docker image tag
   cpuRequest    String? @default("100m")
-  cpuLimit      String? @default("1000m")
+  cpuLimit      String? @default("2000m")
   memoryRequest String? @default("200Mi")
-  memoryLimit   String? @default("2048Mi")
+  memoryLimit   String? @default("4096Mi")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -2,7 +2,7 @@ import type { Project, ProjectStatus, ResourceStatus } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import { logger as baseLogger } from '@/lib/logger'
-import { aggregateProjectStatus } from '@/lib/utils/projectStatus'
+import { aggregateProjectStatus } from '@/lib/util/projectStatus'
 
 const logger = baseLogger.child({ module: 'lib/repo/project' })
 

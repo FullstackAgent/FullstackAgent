@@ -194,9 +194,11 @@ WORKDIR /home/agent
 # -----------------------------------------------------------------------------
 # Copy configuration files (placed before user switch for better caching)
 # entrypoint.sh: Container startup script
+# ttyd-auth.sh: Authentication script for ttyd terminal access
 # .bashrc: Shell configuration with custom prompt and Claude CLI auto-start
 # -----------------------------------------------------------------------------
 COPY --chmod=755 entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY --chmod=755 ttyd-auth.sh /usr/local/bin/ttyd-auth.sh
 COPY --chmod=644 .bashrc /etc/skel/.bashrc
 
 # =============================================================================

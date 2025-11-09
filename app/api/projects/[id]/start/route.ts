@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server'
 import { withAuth } from '@/lib/api-auth'
 import { prisma } from '@/lib/db'
 import { updateProjectStatus } from '@/lib/repo/project'
-import { canStartProject } from '@/lib/utils/action'
+import { canStartProject } from '@/lib/util/action'
 
 type StartProjectResponse =
   | { error: string }

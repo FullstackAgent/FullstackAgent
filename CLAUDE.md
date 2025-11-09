@@ -8,14 +8,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Core Value**: Users describe their app idea in natural language, and the platform + Claude Code CLI builds, configures, and deploys a production-ready Next.js application in minutes.
 
+**v0.4.1+ Features**: Sealos users benefit from automatic Anthropic API key provisioning via Aiproxy integration - zero configuration required.
+
 ## Development Commands
 
 ### Main Application
 ```bash
-npm run dev          # Start dev server on 0.0.0.0:3000 (Sealos deployment)
-npm run build        # Build for production
-npm start            # Start production server on 0.0.0.0:3000
-npm run lint         # Run ESLint
+pnpm dev             # Start dev server on 0.0.0.0:3000 (Sealos deployment)
+pnpm build           # Build for production
+pnpm start           # Start production server on 0.0.0.0:3000
+pnpm lint            # Run ESLint
+pnpm lint:fix        # Auto-fix ESLint issues
 ```
 
 ### Database
@@ -115,6 +118,7 @@ lib/
 ├── repo/              # Repository layer with locking (v0.4.0+)
 │   ├── sandbox.ts     # Sandbox queries with optimistic locking
 │   ├── database.ts    # Database queries with optimistic locking
+│   ├── environment.ts # Environment variable queries (v0.4.1+)
 │   └── project.ts     # Project status aggregation
 ├── k8s/               # Kubernetes managers (v0.4.0+)
 │   ├── sandbox-manager.ts      # StatefulSet operations
@@ -122,10 +126,15 @@ lib/
 │   ├── k8s-service-helper.ts   # User-specific K8s service
 │   ├── kubernetes.ts           # Main K8s service class
 │   └── versions.ts             # Runtime image version
+├── services/          # Business services (v0.4.1+)
+│   └── aiproxy.ts     # Aiproxy token management and env var loading
 ├── startup/           # Application initialization (v0.4.0+)
 │   └── index.ts       # Register listeners, start jobs
-├── utils/
-│   └── projectStatus.ts        # Status aggregation logic
+├── util/              # Utility functions
+│   ├── projectStatus.ts        # Status aggregation logic
+│   ├── common.ts               # Common utilities (random string generation)
+│   └── action.ts               # Action utilities
+├── const.ts           # Constants (EnvironmentCategory enum)
 components/            # React components (Shadcn/UI)
 prisma/
 └── schema.prisma      # Database schema (v0.4.0+)
@@ -202,6 +211,38 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 4. Creates/updates `UserIdentity` with `provider=SEALOS`
 5. Stores kubeconfig in `UserConfig` table
 6. Returns user session
+
+### Aiproxy Integration (v0.4.1+)
+
+**Automatic API Key Provisioning for Sealos Users**:
+
+```typescript
+import { createAiproxyToken, loadEnvVarsForSandbox } from '@/lib/services/aiproxy'
+
+// During Sealos OAuth login (lib/auth.ts)
+const tokenInfo = await createAiproxyToken(
+  `fullstackagent-${sealosUserId}`,
+  sealosKubeconfig
+)
+
+// Store in UserConfig
+await prisma.userConfig.upsert({
+  where: { userId_key: { userId: user.id, key: 'ANTHROPIC_API_KEY' } },
+  create: { /* ... */ value: tokenInfo.token.key },
+  update: { value: tokenInfo.token.key }
+})
+
+// Load for sandbox injection (in event listeners)
+const anthropicEnvVars = await loadEnvVarsForSandbox(user.id)
+// Returns: { ANTHROPIC_AUTH_TOKEN: "sk-ant-...", ANTHROPIC_BASE_URL: "..." }
+```
+
+**Key Points**:
+- Only works in Sealos environment with `AIPROXY_ENDPOINT` configured
+- Graceful degradation: Authentication succeeds even if token creation fails
+- Credentials automatically injected into sandboxes during creation
+- Stored in UserConfig table with `category='anthropic'`
+- API key mapping: `ANTHROPIC_API_KEY` (DB) → `ANTHROPIC_AUTH_TOKEN` (sandbox)
 
 ### Resource Lifecycle States
 
@@ -407,21 +448,25 @@ Users can manually expose additional ports via custom ingress if needed.
 ### Testing Locally
 
 ```bash
-# 1. Set up secrets
+# 1. Install dependencies
+pnpm install
+
+# 2. Set up secrets
 mkdir -p .secret
 # Add .env with ANTHROPIC_AUTH_TOKEN (will be injected into sandboxes)
 # Users provide their own kubeconfig via Sealos OAuth
 
-# 2. Set DATABASE_URL in .env.local for main app
+# 3. Set DATABASE_URL in .env.local for main app
 echo 'DATABASE_URL="postgresql://user:password@localhost:5432/fullstackagent"' >> .env.local
 
-# 3. Push Prisma schema
-npx prisma db push
+# 4. Push Prisma schema
+pnpm prisma:generate
+pnpm prisma:push
 
-# 4. Start dev server
-npm run dev
+# 5. Start dev server
+pnpm dev
 
-# 5. Create project via UI
+# 6. Create project via UI
 # Open http://localhost:3000 and login
 ```
 
@@ -583,14 +628,17 @@ const k8sProjectName = KubernetesUtils.toK8sProjectName(projectName)
 
 ```typescript
 export const VERSIONS = {
-  RUNTIME_IMAGE: 'fullstackagent/fullstack-web-runtime:v0.0.1-alpha.12',
+  RUNTIME_IMAGE: env.RUNTIME_IMAGE || 'fullstackagent/fullstack-web-runtime:v0.0.1-alpha.12',
   POSTGRESQL_VERSION: 'postgresql-14.8.0',
   POSTGRESQL_DEFINITION: 'postgresql',
   // ...
 }
 ```
 
-Never hardcode versions elsewhere. Always import from this file.
+**Important**:
+- Never hardcode versions elsewhere. Always import from this file.
+- Runtime image can be overridden via `RUNTIME_IMAGE` environment variable
+- Useful for testing new runtime versions without code changes
 
 ### Error Handling in Event Listeners
 
@@ -625,13 +673,178 @@ try {
 4. `lib/jobs/sandbox/sandboxReconcile.ts` - Sandbox reconciliation job
 5. `lib/events/sandbox/sandboxListener.ts` - Sandbox lifecycle handlers
 6. `lib/repo/sandbox.ts` - Sandbox queries with optimistic locking
-7. `lib/utils/projectStatus.ts` - Status aggregation logic
-8. `instrumentation.ts` - Application startup (registers listeners, starts jobs)
+7. `lib/services/aiproxy.ts` - Aiproxy token management (v0.4.1+)
+8. `lib/util/projectStatus.ts` - Status aggregation logic
+9. `instrumentation.ts` - Application startup (registers listeners, starts jobs)
 
 **Data Models**:
-9. `prisma/schema.prisma` - Database schema (UserIdentity, UserConfig, Project, Sandbox, Database)
+10. `prisma/schema.prisma` - Database schema (UserIdentity, UserConfig, Project, Sandbox, Database)
 
 **Documentation**:
-10. `docs/changelogs/v0.4-reconciliation-architecture.md` - Complete v0.4.0 changelog
-11. `docs/technical-notes/TECHNICAL_DOCUMENTATION.md` - Detailed architecture
-12. `docs/technical-notes/RUNTIME_WORKFLOW.md` - Complete workflow documentation
+11. `docs/changelogs/v0.4-reconciliation-architecture.md` - Complete v0.4.0 changelog
+12. `docs/changelogs/v0.4.1-aiproxy-integration.md` - Aiproxy integration details (v0.4.1+)
+13. `docs/technical-notes/TECHNICAL_DOCUMENTATION.md` - Detailed architecture
+14. `docs/technical-notes/RUNTIME_WORKFLOW.md` - Complete workflow documentation
+- 1. 创建认证脚本
+cat > /tmp/ttyd-auth.sh << 'EOF'
+#!/bin/bash
+SECRET_TOKEN="my-super-secret-token-2025"
+
+if [ "$#" -lt 1 ] || [ "$1" != "$SECRET_TOKEN" ]; then
+    echo "🚫 认证失败"
+    sleep infinity
+fi
+
+echo "✅ 欢迎使用终端"
+exec /bin/bash
+EOF
+
+chmod +x /tmp/ttyd-auth.sh
+
+# 2. 启动 ttyd
+ttyd -W -a -T xterm-256color /tmp/ttyd-auth.sh
+
+
+<!-- 3. 前端 HTML -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Web 终端</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+    }
+    #terminal {
+      border: 2px solid #333;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+  <h1>🖥️ Web 终端 - 无感登录</h1>
+  
+  <iframe 
+    id="terminal"
+    src="http://localhost:7681/?arg=my-super-secret-token-2025"
+    width="100%" 
+    height="600"
+    frameborder="0">
+  </iframe>
+  
+  <script>
+    // 可选:检测 iframe 加载状态
+    const iframe = document.getElementById('terminal');
+    iframe.onload = () => {
+      console.log('✅ 终端加载成功');
+    };
+    
+    iframe.onerror = () => {
+      console.error('❌ 终端加载失败');
+    };
+  </script>
+</body>
+</html>
+
+上面是一套 认证方案调研
+
+我已经改造了这���文件
+lib/const.ts
+export enum EnvironmentCategory {
+  AUTH = 'auth',
+  PAYMENT = 'payment',
+  TTYD = 'ttyd',
+  GENERAL = 'general',
+  SECRET = 'secret',
+}
+
+app/api/projects/route.ts
+    const environment = await tx.environment.create({
+      data: {
+        projectId: project.id,
+        key: 'TTYD_ACCESS_TOKEN',
+        value: ttydAuthToken,
+        category: EnvironmentCategory.TTYD,
+        isSecret: true, // Mark as secret since it's an access token
+      },
+    })
+
+async function handleCreateSandbox(payload: SandboxEventPayload): Promise<void> {
+  const { user, project, sandbox } = payload
+
+  // Only process CREATING sandboxes
+  if (sandbox.status !== 'CREATING') {
+    logger.warn(
+      `Skipping create for sandbox ${sandbox.id} - status is ${sandbox.status}, expected CREATING`
+    )
+    return
+  }
+
+  logger.info(`Creating sandbox ${sandbox.id} (${sandbox.name}) for project ${project.name}`)
+
+  try {
+    // Get Kubernetes service for user
+    const k8sService = await getK8sServiceForUser(user.id)
+
+    // Load project environment variables
+    const projectEnvVars = await getProjectEnvironments(project.id)
+
+    // Load anthropic variables for sandbox
+    const anthropicEnvVars = await loadEnvVarsForSandbox(user.id)
+
+    // Merge environment variables: project env vars first, then anthropic (anthropic can override)
+    const mergedEnvVars = {
+      ...projectEnvVars,
+      ...anthropicEnvVars,
+    }
+
+    // Create sandbox in Kubernetes
+    const sandboxInfo = await k8sService.createSandbox(
+      project.name,
+      sandbox.k8sNamespace,
+      sandbox.sandboxName,
+      mergedEnvVars
+    )
+
+    logger.info(
+      `Sandbox ${sandbox.id} created in Kubernetes: ${sandboxInfo.publicUrl}, ${sandboxInfo.ttydUrl}`
+    )
+
+    // Update sandbox with URLs
+    await updateSandboxUrls(sandbox.id, sandboxInfo.publicUrl, sandboxInfo.ttydUrl)
+
+    // Change status to STARTING
+    await updateSandboxStatus(sandbox.id, 'STARTING')
+    await projectStatusReconcile(project.id)
+
+    logger.info(`Sandbox ${sandbox.id} status changed to STARTING`)
+  } catch (error) {
+    logger.error(`Failed to create sandbox ${sandbox.id}: ${error}`)
+
+    // Update status to ERROR
+    await updateSandboxStatus(sandbox.id, 'ERROR')
+    await projectStatusReconcile(project.id)
+
+    throw error
+  }
+}
+lib/events/sandbox/sandboxListener.ts
+
+
+
+现在需要你继续修改
+sandbox/Dockerfile
+sandbox/entrypoint.sh
+
+
+
+前端terminal 相关代码
+app/projects/[id]/terminal/page.tsx
+components/project-terminal-view.tsx
+components/terminal-provider.tsx
+components/terminal-wrapper.tsx
+components/terminal.tsx

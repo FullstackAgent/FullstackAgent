@@ -43,8 +43,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { POST } from '@/lib/fetch-client';
+import { getAvailableProjectActions, type ProjectAction } from '@/lib/util/action';
 import { cn } from '@/lib/utils';
-import { getAvailableProjectActions, type ProjectAction } from '@/lib/utils/action';
 
 interface ProjectTerminalViewProps {
   sandbox: Sandbox | undefined;

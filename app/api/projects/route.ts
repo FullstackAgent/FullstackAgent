@@ -1,18 +1,21 @@
-import type { Database, Project, Sandbox } from '@prisma/client'
+import type { Database, Environment, Project, Sandbox } from '@prisma/client'
 import { NextResponse } from 'next/server'
 
 import { withAuth } from '@/lib/api-auth'
+import { EnvironmentCategory } from '@/lib/const'
 import { prisma } from '@/lib/db'
 import { getK8sServiceForUser } from '@/lib/k8s/k8s-service-helper'
 import { KubernetesUtils } from '@/lib/k8s/kubernetes-utils'
 import { VERSIONS } from '@/lib/k8s/versions'
 import { logger as baseLogger } from '@/lib/logger'
+import { generateRandomString } from '@/lib/util/common'
 
 const logger = baseLogger.child({ module: 'api/projects' })
 
 type ProjectWithRelations = Project & {
   databases: Database[]
   sandboxes: Sandbox[]
+  environments: Environment[]
 }
 
 type GetProjectsResponse = ProjectWithRelations[]
@@ -25,6 +28,7 @@ export const GET = withAuth<GetProjectsResponse>(async (_req, _context, session)
     include: {
       databases: true,
       sandboxes: true,
+      environments: true,
     },
     orderBy: {
       updatedAt: 'desc',
@@ -72,6 +76,7 @@ export const POST = withAuth<PostProjectResponse>(async (req, _context, session)
   // Generate K8s compatible names
   const k8sProjectName = KubernetesUtils.toK8sProjectName(name)
   const randomSuffix = KubernetesUtils.generateRandomString()
+  const ttydAuthToken = generateRandomString()
   const databaseName = `${k8sProjectName}-${randomSuffix}`
   const sandboxName = `${k8sProjectName}-${randomSuffix}`
 
@@ -123,11 +128,22 @@ export const POST = withAuth<PostProjectResponse>(async (req, _context, session)
       },
     })
 
-    return { project, database, sandbox }
+    // 4. Create Environment record for ttyd access token
+    const environment = await tx.environment.create({
+      data: {
+        projectId: project.id,
+        key: 'TTYD_ACCESS_TOKEN',
+        value: ttydAuthToken,
+        category: EnvironmentCategory.TTYD,
+        isSecret: true, // Mark as secret since it's an access token
+      },
+    })
+
+    return { project, database, sandbox, environment }
   })
 
   logger.info(
-    `Project created: ${result.project.id} with database: ${result.database.id} and sandbox: ${result.sandbox.id}`
+    `Project created: ${result.project.id} with database: ${result.database.id}, sandbox: ${result.sandbox.id}, and environment: ${result.environment.id}`
   )
 
   return NextResponse.json(result.project)

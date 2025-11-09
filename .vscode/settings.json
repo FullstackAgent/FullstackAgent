@@ -43,6 +43,7 @@
         "nsid",
         "openebs",
         "sealos",
+        "ttyd",
         "whatwg"
     ]
 }

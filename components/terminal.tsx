@@ -55,6 +55,7 @@ export default function TerminalComponent({
           }}
           title="Terminal"
           onLoad={() => setIframeLoaded(true)}
+          allow="clipboard-read; clipboard-write"
         />
       </div>
     );

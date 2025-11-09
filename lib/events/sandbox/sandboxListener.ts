@@ -1,5 +1,6 @@
 import { getK8sServiceForUser } from '@/lib/k8s/k8s-service-helper'
 import { logger as baseLogger } from '@/lib/logger'
+import { getProjectEnvironments } from '@/lib/repo/environment'
 import { projectStatusReconcile } from '@/lib/repo/project'
 import { deleteSandbox, updateSandboxStatus, updateSandboxUrls } from '@/lib/repo/sandbox'
 import { loadEnvVarsForSandbox } from '@/lib/services/aiproxy'
@@ -30,15 +31,24 @@ async function handleCreateSandbox(payload: SandboxEventPayload): Promise<void> 
     // Get Kubernetes service for user
     const k8sService = await getK8sServiceForUser(user.id)
 
+    // Load project environment variables
+    const projectEnvVars = await getProjectEnvironments(project.id)
+
     // Load anthropic variables for sandbox
     const anthropicEnvVars = await loadEnvVarsForSandbox(user.id)
+
+    // Merge environment variables: project env vars first, then anthropic (anthropic can override)
+    const mergedEnvVars = {
+      ...projectEnvVars,
+      ...anthropicEnvVars,
+    }
 
     // Create sandbox in Kubernetes
     const sandboxInfo = await k8sService.createSandbox(
       project.name,
       sandbox.k8sNamespace,
       sandbox.sandboxName,
-      anthropicEnvVars
+      mergedEnvVars
     )
 
     logger.info(

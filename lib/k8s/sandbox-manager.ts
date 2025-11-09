@@ -122,11 +122,16 @@ export class SandboxManager {
     await this.createIngresses(sandboxName, k8sProjectName, namespace, serviceName, ingressDomain)
     logger.info(`Ingresses created for: ${sandboxName}`)
 
+    // Build ttydUrl with authentication token if available
+    const baseTtydUrl = `https://${sandboxName}-ttyd.${ingressDomain}`
+    const ttydAccessToken = envVars['TTYD_ACCESS_TOKEN']
+    const ttydUrl = ttydAccessToken ? `${baseTtydUrl}?arg=${ttydAccessToken}` : baseTtydUrl
+
     return {
       statefulSetName: sandboxName,
       serviceName: serviceName,
       publicUrl: `https://${sandboxName}-app.${ingressDomain}`,
-      ttydUrl: `https://${sandboxName}-ttyd.${ingressDomain}`,
+      ttydUrl: ttydUrl,
     }
   }
 
