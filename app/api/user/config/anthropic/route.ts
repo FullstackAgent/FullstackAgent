@@ -143,28 +143,40 @@ export const POST = withAuth<PostAnthropicConfigResponse>(
       }),
     ]
 
-    // Save model if provided
-    if (body.model) {
-      operations.push(
-        prisma.userConfig.upsert({
-          where: {
-            userId_key: {
+    // Save or clear model if provided
+    if (body.model !== undefined) {
+      if (body.model === '' || body.model === null) {
+        // Delete the config if the value is empty or null
+        operations.push(
+          prisma.userConfig.deleteMany({
+            where: {
               userId: session.user.id,
               key: ANTHROPIC_MODEL,
             },
-          },
-          create: {
-            userId: session.user.id,
-            key: ANTHROPIC_MODEL,
-            value: body.model,
-            category: 'anthropic',
-            isSecret: false,
-          },
-          update: {
-            value: body.model,
-          },
-        })
-      )
+          })
+        )
+      } else {
+        operations.push(
+          prisma.userConfig.upsert({
+            where: {
+              userId_key: {
+                userId: session.user.id,
+                key: ANTHROPIC_MODEL,
+              },
+            },
+            create: {
+              userId: session.user.id,
+              key: ANTHROPIC_MODEL,
+              value: body.model,
+              category: 'anthropic',
+              isSecret: false,
+            },
+            update: {
+              value: body.model,
+            },
+          })
+        )
+      }
     }
 
     // Save or clear small fast model if provided
