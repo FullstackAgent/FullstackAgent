@@ -3,8 +3,8 @@ import { notFound } from 'next/navigation';
 
 import ContentWrapper from '@/components/content-wrapper';
 import PersistentTerminal from '@/components/persistent-terminal';
-import PrimarySidebar from '@/components/primary-sidebar';
-import ProjectSidebar from '@/components/project-sidebar';
+import PrimarySidebar from '@/components/sidebars/primary-sidebar';
+import ProjectSidebar from '@/components/sidebars/project-sidebar';
 import { TerminalProvider } from '@/components/terminal-provider';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
