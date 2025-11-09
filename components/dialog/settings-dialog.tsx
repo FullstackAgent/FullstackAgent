@@ -232,7 +232,7 @@ export default function SettingsDialog({
             className="h-full flex flex-col"
           >
             <TabsList
-              className={`grid w-full ${isSealos ? 'grid-cols-2' : 'grid-cols-3'} bg-[#1e1e1e] border-[#3e3e42]`}
+              className={`shrink-0 grid w-full ${isSealos ? 'grid-cols-2' : 'grid-cols-3'} bg-[#1e1e1e] border-[#3e3e42] rounded-lg`}
             >
               <TabsTrigger
                 value="system-prompt"
@@ -259,32 +259,40 @@ export default function SettingsDialog({
               </TabsTrigger>
             </TabsList>
 
-            <div className="flex-1 overflow-y-auto mt-4">
+            <div className="flex-1 mt-4 min-h-0">
               {/* System Prompt Tab */}
-              <TabsContent value="system-prompt" className="mt-0 h-full">
-                <div className="space-y-4 h-full flex flex-col">
-                  <div className="flex-1 space-y-2">
-                    <Label htmlFor="system-prompt-dialog" className="text-white text-sm">
+              <TabsContent value="system-prompt" className="mt-0 h-full flex flex-col">
+                <div className="space-y-4 pb-4 flex-1 flex flex-col min-h-0">
+                  <div className="space-y-2 shrink-0">
+                    <Label
+                      htmlFor="system-prompt-dialog"
+                      className="text-white text-sm font-medium"
+                    >
                       System Prompt Template
                     </Label>
-                    <Textarea
-                      id="system-prompt-dialog"
-                      value={systemPrompt}
-                      onChange={(e) => setSystemPrompt(e.target.value)}
-                      disabled={isSystemPromptInitialLoading}
-                      className="h-[calc(100%-2rem)] bg-[#1e1e1e] border-[#3e3e42] text-white placeholder:text-gray-500 font-mono text-sm resize-none"
-                      placeholder={
-                        isSystemPromptInitialLoading
-                          ? 'Loading...'
-                          : 'Enter your system prompt here...'
-                      }
-                    />
                   </div>
-                  <div className="flex gap-2">
+                  <Textarea
+                    id="system-prompt-dialog"
+                    value={systemPrompt}
+                    onChange={(e) => setSystemPrompt(e.target.value)}
+                    disabled={isSystemPromptInitialLoading}
+                    className="flex-1 min-h-[300px] bg-[#1e1e1e] border-[#3e3e42] text-white placeholder:text-gray-500 font-mono text-sm disabled:opacity-50 resize-none overflow-y-auto rounded-md"
+                    placeholder={
+                      isSystemPromptInitialLoading
+                        ? 'Loading...'
+                        : 'Enter your system prompt here...'
+                    }
+                  />
+                  <p className="text-xs text-gray-500 shrink-0">
+                    This prompt will be used as context for Claude Code to understand your project
+                    environment and coding preferences.
+                  </p>
+
+                  <div className="flex gap-2 pt-2 shrink-0">
                     <Button
                       onClick={handleSaveSystemPrompt}
                       disabled={isSystemPromptLoading || isSystemPromptInitialLoading}
-                      className="bg-[#0e639c] hover:bg-[#1177bb] text-white"
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground"
                     >
                       <Save className="mr-2 h-4 w-4" />
                       {isSystemPromptLoading ? 'Saving...' : 'Save'}
@@ -303,10 +311,10 @@ export default function SettingsDialog({
 
               {/* Kubeconfig Tab */}
               {!isSealos && (
-                <TabsContent value="kubeconfig" className="mt-0 h-full">
-                  <div className="space-y-4 h-full flex flex-col">
-                    <div>
-                      <Label htmlFor="kubeconfig-dialog" className="text-white text-sm">
+                <TabsContent value="kubeconfig" className="mt-0 h-full flex flex-col">
+                  <div className="space-y-4 pb-4 flex-1 flex flex-col min-h-0">
+                    <div className="space-y-2 shrink-0">
+                      <Label htmlFor="kubeconfig-dialog" className="text-white text-sm font-medium">
                         Kubeconfig Content
                       </Label>
                       {kubeconfigNamespace && (
@@ -320,23 +328,23 @@ export default function SettingsDialog({
                       value={kubeconfig}
                       onChange={(e) => setKubeconfig(e.target.value)}
                       disabled={isKubeconfigInitialLoading}
-                      className="flex-1 bg-[#1e1e1e] border-[#3e3e42] text-white placeholder:text-gray-500 font-mono text-sm resize-none"
+                      className="flex-1 min-h-[300px] bg-[#1e1e1e] border-[#3e3e42] text-white placeholder:text-gray-500 font-mono text-sm disabled:opacity-50 resize-none overflow-y-auto rounded-md"
                       placeholder={
                         isKubeconfigInitialLoading
                           ? 'Loading...'
                           : 'Paste your kubeconfig content here...'
                       }
                     />
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-500 shrink-0">
                       The system will validate your kubeconfig before saving.
                     </p>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 pt-2 shrink-0">
                       <Button
                         onClick={handleSaveKubeconfig}
                         disabled={
                           isKubeconfigLoading || isKubeconfigInitialLoading || !kubeconfig.trim()
                         }
-                        className="bg-[#0e639c] hover:bg-[#1177bb] text-white"
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground"
                       >
                         <Save className="mr-2 h-4 w-4" />
                         {isKubeconfigLoading ? 'Validating & Saving...' : 'Validate & Save'}
@@ -347,10 +355,13 @@ export default function SettingsDialog({
               )}
 
               {/* Anthropic Tab */}
-              <TabsContent value="anthropic" className="mt-0 h-full">
-                <div className="space-y-4">
+              <TabsContent value="anthropic" className="mt-0">
+                <div className="space-y-4 pb-4">
                   <div className="space-y-2">
-                    <Label htmlFor="anthropic-api-base-url-dialog" className="text-white text-sm">
+                    <Label
+                      htmlFor="anthropic-api-base-url-dialog"
+                      className="text-white text-sm font-medium"
+                    >
                       API Base URL
                     </Label>
                     <Input
@@ -359,7 +370,7 @@ export default function SettingsDialog({
                       value={anthropicApiBaseUrl}
                       onChange={(e) => setAnthropicApiBaseUrl(e.target.value)}
                       disabled={isAnthropicInitialLoading}
-                      className="bg-[#1e1e1e] border-[#3e3e42] text-white placeholder:text-gray-500"
+                      className="bg-[#1e1e1e] border-[#3e3e42] text-white placeholder:text-gray-500 disabled:opacity-50 rounded-md"
                       placeholder="https://api.anthropic.com"
                     />
                     <p className="text-xs text-gray-500">
@@ -369,7 +380,10 @@ export default function SettingsDialog({
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="anthropic-api-key-dialog" className="text-white text-sm">
+                    <Label
+                      htmlFor="anthropic-api-key-dialog"
+                      className="text-white text-sm font-medium"
+                    >
                       API Key
                     </Label>
                     <Input
@@ -378,7 +392,7 @@ export default function SettingsDialog({
                       value={anthropicApiKey}
                       onChange={(e) => setAnthropicApiKey(e.target.value)}
                       disabled={isAnthropicInitialLoading}
-                      className="bg-[#1e1e1e] border-[#3e3e42] text-white placeholder:text-gray-500 font-mono"
+                      className="bg-[#1e1e1e] border-[#3e3e42] text-white placeholder:text-gray-500 font-mono disabled:opacity-50 rounded-md"
                       placeholder="sk-ant-..."
                     />
                     <p className="text-xs text-gray-500">
@@ -387,7 +401,7 @@ export default function SettingsDialog({
                     </p>
                   </div>
 
-                  <div className="flex gap-2 pt-4">
+                  <div className="flex gap-2 pt-2">
                     <Button
                       onClick={handleSaveAnthropicConfig}
                       disabled={
@@ -396,7 +410,7 @@ export default function SettingsDialog({
                         !anthropicApiKey.trim() ||
                         !anthropicApiBaseUrl.trim()
                       }
-                      className="bg-[#0e639c] hover:bg-[#1177bb] text-white"
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground"
                     >
                       <Save className="mr-2 h-4 w-4" />
                       {isAnthropicLoading ? 'Saving...' : 'Save Configuration'}

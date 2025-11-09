@@ -1,61 +1,28 @@
-'use client';
+/**
+ * Projects Page
+ *
+ * Displays list of user projects with automatic polling
+ * Uses React Query for state management
+ */
 
-import { useCallback, useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+'use client';
 
 import NoProject from '@/components/features/projectList/NoProject';
 import PageHeader from '@/components/features/projectList/PageHeader';
 import ProjectCard from '@/components/features/projectList/ProjectCard';
-import { GET } from '@/lib/fetch-client';
-import { Project } from '@/types/project';
-
-// TODO: convert this page to ssr, add loading and error status, add a ProjectGrid UI, and handle data fetching there
+import { Spinner } from '@/components/ui/spinner';
+import { useProjects } from '@/hooks/use-projects';
 
 export default function ProjectsPage() {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Fetch projects with automatic polling (every 3 seconds)
+  const { data: projects, isLoading } = useProjects();
 
-  // Fetch projects list with AbortController support
-  const fetchProjects = useCallback(async (signal?: AbortSignal) => {
-    try {
-      const data = await GET<Project[]>('/api/projects', { signal });
-      setProjects(data);
-    } catch (error) {
-      // Ignore AbortError (component was unmounted)
-      if (error instanceof Error && error.name === 'AbortError') {
-        return;
-      }
-      console.error('Failed to fetch projects:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Initial load and polling with proper cleanup
-  useEffect(() => {
-    const abortController = new AbortController();
-
-    // Initial fetch
-    fetchProjects(abortController.signal);
-
-    // Set up polling
-    const interval = setInterval(() => {
-      fetchProjects(abortController.signal);
-    }, 3000);
-
-    // Cleanup function
-    return () => {
-      abortController.abort(); // Cancel all ongoing requests
-      clearInterval(interval); // Clear polling interval
-    };
-  }, [fetchProjects]);
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center gap-2">
-          <Loader2 className="h-6 w-6 text-muted-foreground animate-spin" />
-          <p className="text-xs text-muted-foreground">Loading projects...</p>
+        <div className="flex items-center gap-3">
+          <Spinner className="h-5 w-5 text-primary" />
+          <span className="text-sm text-muted-foreground">Loading projects...</span>
         </div>
       </div>
     );
@@ -64,11 +31,11 @@ export default function ProjectsPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header Bar */}
-      <PageHeader projectsCount={projects.length} />
+      <PageHeader projectsCount={projects?.length || 0} />
 
       {/* Content */}
       <div className="p-6">
-        {projects.length === 0 ? (
+        {!projects || projects.length === 0 ? (
           <NoProject />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">

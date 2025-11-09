@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Circle, FolderOpen, GitBranch, Home, Plus, Settings } from 'lucide-react';
 import Link from 'next/link';
 
+import SettingsDialog from '@/components/dialog/settings-dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
@@ -20,9 +21,7 @@ interface PrimarySidebarProps {
   userId: string;
 }
 
-export default function PrimarySidebar({
-  currentProjectId,
-}: PrimarySidebarProps) {
+export default function PrimarySidebar({ currentProjectId }: PrimarySidebarProps) {
   // Fetch projects list with TanStack Query, polling every 5 seconds
   const { data: projects } = useQuery<Project[]>({
     queryKey: ['projects'],
@@ -38,6 +37,7 @@ export default function PrimarySidebar({
     retry: 2,
   });
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -152,13 +152,13 @@ export default function PrimarySidebar({
         <div className="p-2">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Link
-                href="/settings"
-                className="group flex items-center h-8 px-2 hover:bg-sidebar-accent rounded transition-colors"
+              <button
+                onClick={() => setShowSettings(true)}
+                className="group flex items-center h-8 px-2 hover:bg-sidebar-accent rounded transition-colors w-full"
               >
-                <Settings className="h-4 w-4 text-muted-foreground group-hover:text-sidebar-foreground flex-shrink-0 transition-colors" />
+                <Settings className="h-4 w-4 text-muted-foreground group-hover:text-sidebar-foreground shrink-0 transition-colors" />
                 {isExpanded && <span className="ml-3 text-sm text-foreground">Settings</span>}
-              </Link>
+              </button>
             </TooltipTrigger>
             {!isExpanded && (
               <TooltipContent side="right">
@@ -168,6 +168,9 @@ export default function PrimarySidebar({
           </Tooltip>
         </div>
       </TooltipProvider>
+
+      {/* Settings Dialog */}
+      <SettingsDialog open={showSettings} onOpenChange={setShowSettings} />
     </div>
   );
 }
