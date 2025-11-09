@@ -71,6 +71,8 @@ export default function SettingsDialog({
   // Anthropic state
   const [anthropicApiKey, setAnthropicApiKey] = useState('');
   const [anthropicApiBaseUrl, setAnthropicApiBaseUrl] = useState('');
+  const [anthropicModel, setAnthropicModel] = useState('');
+  const [anthropicSmallFastModel, setAnthropicSmallFastModel] = useState('');
   const [isAnthropicLoading, setIsAnthropicLoading] = useState(false);
   const [isAnthropicInitialLoading, setIsAnthropicInitialLoading] = useState(true);
 
@@ -126,11 +128,16 @@ export default function SettingsDialog({
 
   const loadAnthropicConfig = async () => {
     try {
-      const data = await fetchClient.GET<{ apiKey: string | null; apiBaseUrl: string | null }>(
-        '/api/user/config/anthropic'
-      );
+      const data = await fetchClient.GET<{
+        apiKey: string | null;
+        apiBaseUrl: string | null;
+        model: string | null;
+        smallFastModel: string | null;
+      }>('/api/user/config/anthropic');
       setAnthropicApiKey(data.apiKey || '');
       setAnthropicApiBaseUrl(data.apiBaseUrl || '');
+      setAnthropicModel(data.model || '');
+      setAnthropicSmallFastModel(data.smallFastModel || '');
     } catch (error) {
       console.error('Failed to load Anthropic config:', error);
     } finally {
@@ -197,6 +204,8 @@ export default function SettingsDialog({
       await fetchClient.POST('/api/user/config/anthropic', {
         apiKey: anthropicApiKey,
         apiBaseUrl: anthropicApiBaseUrl,
+        model: anthropicModel.trim() || undefined,
+        smallFastModel: anthropicSmallFastModel.trim() || undefined,
       });
       toast.success('Anthropic configuration saved successfully');
       onOpenChange(false);
@@ -398,6 +407,50 @@ export default function SettingsDialog({
                     <p className="text-xs text-gray-500">
                       Your Anthropic API key. This will be stored securely and injected as
                       ANTHROPIC_AUTH_TOKEN in sandboxes.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label
+                      htmlFor="anthropic-model-dialog"
+                      className="text-white text-sm font-medium"
+                    >
+                      Default Model (Optional)
+                    </Label>
+                    <Input
+                      id="anthropic-model-dialog"
+                      type="text"
+                      value={anthropicModel}
+                      onChange={(e) => setAnthropicModel(e.target.value)}
+                      disabled={isAnthropicInitialLoading}
+                      className="bg-[#1e1e1e] border-[#3e3e42] text-white placeholder:text-gray-500 font-mono disabled:opacity-50 rounded-md"
+                      placeholder="claude-sonnet-4-5-20250929"
+                    />
+                    <p className="text-xs text-gray-500">
+                      Default model to use (e.g., claude-sonnet-4-5-20250929). This will be injected
+                      as ANTHROPIC_MODEL in sandboxes.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label
+                      htmlFor="anthropic-small-fast-model-dialog"
+                      className="text-white text-sm font-medium"
+                    >
+                      Small Fast Model (Optional)
+                    </Label>
+                    <Input
+                      id="anthropic-small-fast-model-dialog"
+                      type="text"
+                      value={anthropicSmallFastModel}
+                      onChange={(e) => setAnthropicSmallFastModel(e.target.value)}
+                      disabled={isAnthropicInitialLoading}
+                      className="bg-[#1e1e1e] border-[#3e3e42] text-white placeholder:text-gray-500 font-mono disabled:opacity-50 rounded-md"
+                      placeholder="claude-3-5-haiku-20241022"
+                    />
+                    <p className="text-xs text-gray-500">
+                      Small fast model for quick operations (e.g., claude-3-5-haiku-20241022). This
+                      will be injected as ANTHROPIC_SMALL_FAST_MODEL in sandboxes.
                     </p>
                   </div>
 

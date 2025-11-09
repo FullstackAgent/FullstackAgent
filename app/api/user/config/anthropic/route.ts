@@ -21,10 +21,17 @@ const logger = baseLogger.child({ module: 'api/user/config/anthropic' })
 
 const ANTHROPIC_API_KEY = 'ANTHROPIC_API_KEY'
 const ANTHROPIC_API = 'ANTHROPIC_API'
+const ANTHROPIC_MODEL = 'ANTHROPIC_MODEL'
+const ANTHROPIC_SMALL_FAST_MODEL = 'ANTHROPIC_SMALL_FAST_MODEL'
 
 type GetAnthropicConfigResponse =
   | { error: string }
-  | { apiKey: string | null; apiBaseUrl: string | null }
+  | {
+      apiKey: string | null
+      apiBaseUrl: string | null
+      model: string | null
+      smallFastModel: string | null
+    }
 
 /**
  * GET /api/user/config/anthropic
@@ -37,17 +44,21 @@ export const GET = withAuth<GetAnthropicConfigResponse>(
       where: {
         userId: session.user.id,
         key: {
-          in: [ANTHROPIC_API_KEY, ANTHROPIC_API],
+          in: [ANTHROPIC_API_KEY, ANTHROPIC_API, ANTHROPIC_MODEL, ANTHROPIC_SMALL_FAST_MODEL],
         },
       },
     })
 
     const apiKey = configs.find((c) => c.key === ANTHROPIC_API_KEY)?.value || null
     const apiBaseUrl = configs.find((c) => c.key === ANTHROPIC_API)?.value || null
+    const model = configs.find((c) => c.key === ANTHROPIC_MODEL)?.value || null
+    const smallFastModel = configs.find((c) => c.key === ANTHROPIC_SMALL_FAST_MODEL)?.value || null
 
     return NextResponse.json({
       apiKey,
       apiBaseUrl,
+      model,
+      smallFastModel,
     })
   } catch (error) {
     logger.error(`Failed to fetch Anthropic config: ${error}`)
@@ -63,6 +74,8 @@ export const GET = withAuth<GetAnthropicConfigResponse>(
 interface SaveAnthropicConfigRequest {
   apiBaseUrl: string
   apiKey: string
+  model?: string
+  smallFastModel?: string
 }
 
 type PostAnthropicConfigResponse = { error: string } | { success: true; message: string }
@@ -88,8 +101,8 @@ export const POST = withAuth<PostAnthropicConfigResponse>(
       return NextResponse.json({ error: 'Invalid API base URL format' }, { status: 400 })
     }
 
-    // Save both configs
-    await Promise.all([
+    // Prepare operations array
+    const operations = [
       // Save API key
       prisma.userConfig.upsert({
         where: {
@@ -128,7 +141,57 @@ export const POST = withAuth<PostAnthropicConfigResponse>(
           value: body.apiBaseUrl,
         },
       }),
-    ])
+    ]
+
+    // Save model if provided
+    if (body.model) {
+      operations.push(
+        prisma.userConfig.upsert({
+          where: {
+            userId_key: {
+              userId: session.user.id,
+              key: ANTHROPIC_MODEL,
+            },
+          },
+          create: {
+            userId: session.user.id,
+            key: ANTHROPIC_MODEL,
+            value: body.model,
+            category: 'anthropic',
+            isSecret: false,
+          },
+          update: {
+            value: body.model,
+          },
+        })
+      )
+    }
+
+    // Save small fast model if provided
+    if (body.smallFastModel) {
+      operations.push(
+        prisma.userConfig.upsert({
+          where: {
+            userId_key: {
+              userId: session.user.id,
+              key: ANTHROPIC_SMALL_FAST_MODEL,
+            },
+          },
+          create: {
+            userId: session.user.id,
+            key: ANTHROPIC_SMALL_FAST_MODEL,
+            value: body.smallFastModel,
+            category: 'anthropic',
+            isSecret: false,
+          },
+          update: {
+            value: body.smallFastModel,
+          },
+        })
+      )
+    }
+
+    await Promise.all(operations)
 
     logger.info(`Anthropic configuration saved for user ${session.user.id}`)
 
