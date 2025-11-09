@@ -6,8 +6,9 @@
 
 import { useQuery } from '@tanstack/react-query';
 
+import type { Project } from '@prisma/client';
+
 import { GET } from '@/lib/fetch-client';
-import type { Project } from '@/types/project';
 
 interface UseProjectsOptions {
   /** Enable automatic refetching every 3 seconds */
@@ -33,8 +34,7 @@ export function useProjects(options: UseProjectsOptions = {}) {
       const url = namespace
         ? `/api/projects?namespace=${encodeURIComponent(namespace)}`
         : '/api/projects';
-      const data = await GET<Project[]>(url);
-      return data;
+      return GET<Project[]>(url);
     },
     refetchInterval,
     refetchOnWindowFocus,
