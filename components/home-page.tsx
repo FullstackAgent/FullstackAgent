@@ -109,8 +109,8 @@ export function HomePage() {
             <Button
               size="lg"
               variant="outline"
-              onClick={() => router.push('/about')}
-              className="border-gray-700 text-white hover:bg-gray-900"
+              disabled
+              className="border-gray-700 text-white hover:bg-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Learn More
             </Button>

@@ -81,14 +81,14 @@ export async function createAiproxyToken(
 /**
  * Load environment variables for sandbox from user config
  * @param userId - User ID
- * @returns Environment variables object with ANTHROPIC_BASE_URL and ANTHROPIC_AUTH_TOKEN
+ * @returns Environment variables object with ANTHROPIC_BASE_URL, ANTHROPIC_AUTH_TOKEN, and model configs
  */
 export async function loadEnvVarsForSandbox(userId: string): Promise<Record<string, string>> {
   const userConfig = await prisma.userConfig.findMany({
     where: {
       userId,
       key: {
-        in: ['ANTHROPIC_API_KEY', 'ANTHROPIC_API'],
+        in: ['ANTHROPIC_API_KEY', 'ANTHROPIC_API', 'ANTHROPIC_MODEL', 'ANTHROPIC_SMALL_FAST_MODEL'],
       },
     },
   })
@@ -105,6 +105,18 @@ export async function loadEnvVarsForSandbox(userId: string): Promise<Record<stri
   const apiBaseUrl = userConfig.find((config) => config.key === 'ANTHROPIC_API')
   if (apiBaseUrl?.value) {
     envVars.ANTHROPIC_BASE_URL = apiBaseUrl.value
+  }
+
+  // Find ANTHROPIC_MODEL
+  const model = userConfig.find((config) => config.key === 'ANTHROPIC_MODEL')
+  if (model?.value) {
+    envVars.ANTHROPIC_MODEL = model.value
+  }
+
+  // Find ANTHROPIC_SMALL_FAST_MODEL
+  const smallFastModel = userConfig.find((config) => config.key === 'ANTHROPIC_SMALL_FAST_MODEL')
+  if (smallFastModel?.value) {
+    envVars.ANTHROPIC_SMALL_FAST_MODEL = smallFastModel.value
   }
 
   return envVars

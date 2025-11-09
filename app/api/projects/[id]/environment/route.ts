@@ -2,13 +2,10 @@ import type { Environment } from '@prisma/client'
 import { NextResponse } from 'next/server'
 
 import { verifyProjectAccess, withAuth } from '@/lib/api-auth'
+import { EnvironmentCategory } from '@/lib/const'
 import { prisma } from '@/lib/db'
 
-type GroupedEnvironments = {
-  general: Environment[]
-  auth: Environment[]
-  payment: Environment[]
-}
+type GroupedEnvironments = Record<string, Environment[]>
 
 type GetEnvironmentsResponse = { error: string } | GroupedEnvironments
 
@@ -25,12 +22,16 @@ export const GET = withAuth<GetEnvironmentsResponse>(async (_req, context, sessi
       orderBy: { createdAt: 'asc' },
     })
 
-    // Group environment variables by category
-    const grouped = {
-      general: environments.filter((e) => !e.category || e.category === 'general'),
-      auth: environments.filter((e) => e.category === 'auth'),
-      payment: environments.filter((e) => e.category === 'payment'),
-    }
+    // Group environment variables by category (dynamically based on EnvironmentCategory enum)
+    const grouped: GroupedEnvironments = {}
+
+    // Initialize all categories from enum
+    Object.values(EnvironmentCategory).forEach((category) => {
+      grouped[category] = environments.filter((e) => e.category === category)
+    })
+
+    // Add general category for null/undefined categories
+    grouped.general = environments.filter((e) => !e.category)
 
     return NextResponse.json(grouped)
   } catch (error) {

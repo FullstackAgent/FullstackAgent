@@ -1,4 +1,4 @@
-import type { Database, Environment, Project, Sandbox } from '@prisma/client'
+import type { Database, Environment, Prisma, Project, Sandbox } from '@prisma/client'
 import { NextResponse } from 'next/server'
 
 import { withAuth } from '@/lib/api-auth'
@@ -20,11 +20,27 @@ type ProjectWithRelations = Project & {
 
 type GetProjectsResponse = ProjectWithRelations[]
 
-export const GET = withAuth<GetProjectsResponse>(async (_req, _context, session) => {
+export const GET = withAuth<GetProjectsResponse>(async (req, _context, session) => {
+  // Get optional namespace filter from query params
+  const { searchParams } = new URL(req.url)
+  const namespace = searchParams.get('namespace')
+
+  // Build where clause
+  const whereClause: Prisma.ProjectWhereInput = {
+    userId: session.user.id,
+  }
+
+  // Add namespace filter if provided (filter projects by sandbox namespace)
+  if (namespace) {
+    whereClause.sandboxes = {
+      some: {
+        k8sNamespace: namespace,
+      },
+    }
+  }
+
   const projects = await prisma.project.findMany({
-    where: {
-      userId: session.user.id,
-    },
+    where: whereClause,
     include: {
       databases: true,
       sandboxes: true,
@@ -34,6 +50,10 @@ export const GET = withAuth<GetProjectsResponse>(async (_req, _context, session)
       updatedAt: 'desc',
     },
   })
+
+  logger.info(
+    `Fetched ${projects.length} projects for user ${session.user.id}${namespace ? ` in namespace ${namespace}` : ''}`
+  )
 
   return NextResponse.json(projects)
 })
