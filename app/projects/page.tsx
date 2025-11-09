@@ -1,13 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { Project } from '@prisma/client';
 import { Loader2 } from 'lucide-react';
 
 import NoProject from '@/components/features/projectList/NoProject';
 import PageHeader from '@/components/features/projectList/PageHeader';
 import ProjectCard from '@/components/features/projectList/ProjectCard';
 import { GET } from '@/lib/fetch-client';
-import { Project } from '@/types/project';
 
 // TODO: convert this page to ssr, add loading and error status, add a ProjectGrid UI, and handle data fetching there
 

@@ -1,9 +1,9 @@
 import { memo } from 'react';
+import { Project } from '@prisma/client';
 import { Clock } from 'lucide-react';
 import Link from 'next/link';
 
 import { cn } from '@/lib/utils';
-import { Project } from '@/types/project';
 
 interface ProjectCardProps {
   project: Project;
