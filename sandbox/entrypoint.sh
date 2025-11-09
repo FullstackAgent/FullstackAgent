@@ -13,7 +13,27 @@ if [ ! -f /usr/local/bin/ttyd-auth.sh ]; then
 fi
 
 # Terminal theme configuration (ttyd expects theme={...} format)
-THEME='theme={"foreground":"#ada594","background":"#292724","cursor":"#bc672f","black":"#292724","red":"#816f4b","green":"#ec9255","yellow":"#ffb380","blue":"#957e50","magenta":"#ec9255","cyan":"#ac8e53","white":"#ada594","brightBlack":"#7e7767","brightRed":"#f29d63","brightGreen":"#3d3a34","brightYellow":"#615c51","brightBlue":"#908774","brightMagenta":"#ddcba6","brightCyan":"#e58748","brightWhite":"#f2ead9"}'
+THEME='theme={
+ "background":"#262626",
+ "foreground":"#BCBCBC",
+ "cursor":"#BCBCBC",
+ "black":"#1C1C1C",
+ "red":"#AF5F5F",
+ "green":"#5F875F",
+ "yellow":"#87875F",
+ "blue":"#5F87AF",
+ "magenta":"#5F5F87",
+ "cyan":"#5F8787",
+ "white":"#6C6C6C",
+ "brightBlack":"#444444",
+ "brightRed":"#FF8700",
+ "brightGreen":"#87AF87",
+ "brightYellow":"#FFFFAF",
+ "brightBlue":"#8FAFD7",
+ "brightMagenta":"#8787AF",
+ "brightCyan":"#5FAFAF",
+ "brightWhite":"#FFFFFF"
+}'
 
 # Start ttyd with authentication wrapper and theme
 ttyd -T xterm-256color -W -a -t "$THEME" /usr/local/bin/ttyd-auth.sh

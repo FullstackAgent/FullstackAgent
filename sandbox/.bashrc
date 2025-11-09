@@ -7,6 +7,20 @@ export COLORTERM="${COLORTERM:-truecolor}"
 
 PROJECT_NAME="${PROJECT_NAME:-sandbox}"
 
+# ---- colorized ls/grep ----
+if command -v dircolors >/dev/null 2>&1; then
+  # Use system default if user hasn't customized ~/.dircolors
+  if [ -f "$HOME/.dircolors" ]; then
+    eval "$(dircolors -b "$HOME/.dircolors")"
+  else
+    eval "$(dircolors -b)"
+  fi
+fi
+alias ls='ls --color=auto'
+alias grep='grep --color=auto'
+alias egrep='egrep --color=auto'
+alias fgrep='fgrep --color=auto'
+
 # Function to show path relative to /home/agent
 _path() {
     case "${PWD}" in
@@ -17,8 +31,18 @@ _path() {
 }
 
 # Update prompt on every command
+# ---- prompt (Apprentice-friendly) ----
+# Color scheme:
+#  - Username: default color (follows foreground)
+#  - Hostname: bright blue (brightBlue -> #8FAFD7)
+#  - Project name: bright cyan (brightCyan -> #5FAFAF)
+#  - Path: bright yellow (brightYellow -> #FFFFAF)
 _ps1_update() {
-  PS1="\u@\[\e[1;97m\]\h\[\e[0m\]:${PROJECT_NAME}:$(_path)\$ "
+  local c_reset='\[\e[0m\]'
+  local c_host='\[\e[94m\]'   # brightBlue
+  local c_proj='\[\e[96m\]'   # brightCyan
+  local c_path='\[\e[93m\]'   # brightYellow
+  PS1="\u@${c_host}\h${c_reset}:${c_proj}${PROJECT_NAME}${c_reset}:${c_path}$(_path)${c_reset}\$ "
 }
 PROMPT_COMMAND=_ps1_update
 
