@@ -208,7 +208,7 @@ function StatusTransitionView({ status, project }: StatusTransitionViewProps) {
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Header Bar with Operations */}
-      <div className="h-9 bg-card border-b border-border flex items-center justify-end px-2">
+      <div className="h-12 bg-card border-b border-border flex items-center justify-end px-2">
         <div className="flex items-center gap-2">
           {/* Status Badge */}
           <div className="flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground">
