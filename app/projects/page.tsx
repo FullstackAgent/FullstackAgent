@@ -7,8 +7,6 @@
 
 'use client';
 
-import { Project } from '@prisma/client';
-
 import NoProject from '@/components/features/projectList/NoProject';
 import PageHeader from '@/components/features/projectList/PageHeader';
 import ProjectCard from '@/components/features/projectList/ProjectCard';

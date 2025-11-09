@@ -4,9 +4,8 @@
  * Provides automatic caching, refetching, and state synchronization
  */
 
-import { useQuery } from '@tanstack/react-query';
-
 import type { Project } from '@prisma/client';
+import { useQuery } from '@tanstack/react-query';
 
 import { GET } from '@/lib/fetch-client';
 
