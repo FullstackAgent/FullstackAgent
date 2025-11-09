@@ -147,7 +147,7 @@ export default function ProjectSidebar({ project }: ProjectSidebarProps) {
               <span className="text-foreground flex-1 text-left truncate">Configuration</span>
               <ChevronDown
                 className={cn(
-                  'h-4 w-4 text-muted-foreground group-hover:text-sidebar-foreground transition-transform flex-shrink-0 transition-colors',
+                  'h-4 w-4 text-muted-foreground group-hover:text-sidebar-foreground transition-transform flex-shrink-0',
                   !isConfigExpanded && '-rotate-90'
                 )}
               />
