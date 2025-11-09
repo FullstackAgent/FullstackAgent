@@ -1,7 +1,7 @@
 import { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 
-import PrimarySidebar from '@/components/primary-sidebar';
+import PrimarySidebar from '@/components/sidebars/primary-sidebar';
 import { auth } from '@/lib/auth';
 
 export default async function SettingsLayout({
