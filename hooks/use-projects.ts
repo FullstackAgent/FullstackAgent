@@ -14,6 +14,8 @@ interface UseProjectsOptions {
   refetchInterval?: number;
   /** Enable refetch on window focus */
   refetchOnWindowFocus?: boolean;
+  /** Optional namespace filter (for Sealos environment) */
+  namespace?: string | null;
 }
 
 /**
@@ -23,12 +25,15 @@ interface UseProjectsOptions {
  * @returns Query result with projects list
  */
 export function useProjects(options: UseProjectsOptions = {}) {
-  const { refetchInterval = 3000, refetchOnWindowFocus = false } = options;
+  const { refetchInterval = 3000, refetchOnWindowFocus = false, namespace } = options;
 
   return useQuery({
-    queryKey: ['projects'],
+    queryKey: ['projects', namespace],
     queryFn: async () => {
-      const data = await GET<Project[]>('/api/projects');
+      const url = namespace
+        ? `/api/projects?namespace=${encodeURIComponent(namespace)}`
+        : '/api/projects';
+      const data = await GET<Project[]>(url);
       return data;
     },
     refetchInterval,

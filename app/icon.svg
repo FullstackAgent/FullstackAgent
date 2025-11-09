@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title2 desc2">
+  <title id="title2">FullStack Agent — Full-Bleed App Icon</title>
+  <desc id="desc2">Rounded-square tile filled by a geometric comet for maximum size at small favicon scales.</desc>
+  <defs>
+    <linearGradient id="fs-grad2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0"  stop-color="var(--fs-primary, #FF7A1A)"/>
+      <stop offset="1"  stop-color="var(--fs-secondary, #FF3D81)"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="256" height="256" rx="56" fill="var(--fs-bg, #0B0B0F)"/>
+  <g transform="translate(128,128) rotate(-30) translate(-128,-128) scale(1.1) translate(-12,-12)">
+    <rect x="44" y="124" width="128" height="20" rx="10" fill="url(#fs-grad2)"/>
+    <rect x="62" y="96"  width="114" height="18" rx="9"  fill="url(#fs-grad2)" opacity="0.9"/>
+    <rect x="78" y="70"  width="96"  height="16" rx="8"  fill="url(#fs-grad2)" opacity="0.75"/>
+    <circle cx="210" cy="132" r="40" fill="url(#fs-grad2)"/>
+    <circle cx="222" cy="120" r="10" fill="#ffffff" opacity="0.9"/>
+    <path d="M208 110 L234 132 L218 152 Z" fill="#ffffff" opacity="0.12"/>
+  </g>
+</svg>

@@ -12,10 +12,16 @@ import PageHeader from '@/components/features/projectList/PageHeader';
 import ProjectCard from '@/components/features/projectList/ProjectCard';
 import { Spinner } from '@/components/ui/spinner';
 import { useProjects } from '@/hooks/use-projects';
+import { useSealos } from '@/provider/sealos';
 
 export default function ProjectsPage() {
+  const { sealosNs } = useSealos();
+
   // Fetch projects with automatic polling (every 3 seconds)
-  const { data: projects, isLoading } = useProjects();
+  // Pass sealosNs if in Sealos environment for namespace filtering
+  const { data: projects, isLoading } = useProjects({
+    namespace: sealosNs,
+  });
 
   if (isLoading) {
     return (

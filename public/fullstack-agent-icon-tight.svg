@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">FullStack Agent — Comet Mark (Tight)</title>
+  <desc id="desc">Geometric comet filling the square view with minimal padding.</desc>
+  <defs>
+    <linearGradient id="fs-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0"  stop-color="var(--fs-primary, #FF7A1A)"/>
+      <stop offset="1"  stop-color="var(--fs-secondary, #FF3D81)"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Scale up the mark and keep minimal padding (~6px) -->
+  <g transform="translate(128,128) rotate(-30) translate(-128,-128) scale(1.15) translate(-14,-14)">
+    <rect x="40"  y="120" width="120" height="20" rx="10" fill="url(#fs-grad)"/>
+    <rect x="56"  y="92"  width="110" height="18" rx="9"  fill="url(#fs-grad)" opacity="0.9"/>
+    <rect x="72"  y="66"  width="92"  height="16" rx="8"  fill="url(#fs-grad)" opacity="0.75"/>
+    <circle cx="204" cy="128" r="40" fill="url(#fs-grad)"/>
+    <circle cx="216" cy="116" r="10" fill="#ffffff" opacity="0.9"/>
+    <path d="M202 106 L228 128 L212 148 Z" fill="#ffffff" opacity="0.12"/>
+  </g>
+</svg>
