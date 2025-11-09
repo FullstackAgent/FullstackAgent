@@ -17,7 +17,10 @@ _path() {
 }
 
 # Update prompt on every command
-PROMPT_COMMAND='PS1="\u@${PROJECT_NAME}:$(_path)\$ "'
+_ps1_update() {
+  PS1="\u@\[\e[1;97m\]\h\[\e[0m\]:${PROJECT_NAME}:$(_path)\$ "
+}
+PROMPT_COMMAND=_ps1_update
 
 # Change to Next.js project directory on shell start
 if [ "$PWD" = "$HOME" ] && [ -d "$HOME/next" ]; then
