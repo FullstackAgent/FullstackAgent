@@ -18,7 +18,7 @@ export default function NoProject() {
         >
           <div className="flex flex-col items-center space-y-4 w-4/5 text-center">
             {/* Empty State Icon with hover effect */}
-            <EmptyStateIcon className="w-24 h-24 **:transition-colors **:fill-muted-foreground group-hover:**:data-hover-fill:fill-foreground" />
+            <EmptyStateIcon className="w-24 h-24 [&_*]:transition-colors [&_*]:fill-muted-foreground group-hover:[&_*]:fill-foreground" />
 
             {/* Text Content */}
             <div className="space-y-2">
