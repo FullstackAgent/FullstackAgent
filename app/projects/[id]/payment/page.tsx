@@ -75,7 +75,7 @@ export default async function PaymentConfigurationPage({
             </CardHeader>
 
             <CardContent className="p-6 space-y-4">
-              <div className="space-y-4">
+              <div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="text-sm font-medium text-foreground">Publishable Key</label>
@@ -89,10 +89,10 @@ export default async function PaymentConfigurationPage({
                     className="bg-input border-border text-foreground font-mono text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-colors"
                   />
                 </div>
-                <p className="text-xs text-muted-foreground">Public key used in client-side code</p>
+                <p className="text-xs text-muted-foreground mt-0">Public key used in client-side code</p>
               </div>
 
-              <div className="space-y-4">
+              <div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="text-sm font-medium text-foreground">Secret Key</label>
@@ -106,10 +106,10 @@ export default async function PaymentConfigurationPage({
                     className="bg-input border-border text-foreground font-mono text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-colors"
                   />
                 </div>
-                <p className="text-xs text-muted-foreground">Secret key for server-side operations</p>
+                <p className="text-xs text-muted-foreground mt-0">Secret key for server-side operations</p>
               </div>
 
-              <div className="space-y-4">
+              <div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="text-sm font-medium text-foreground">Webhook Secret</label>
@@ -123,7 +123,7 @@ export default async function PaymentConfigurationPage({
                     className="bg-input border-border text-foreground font-mono text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-colors"
                   />
                 </div>
-                <p className="text-xs text-muted-foreground">Secret for verifying webhook signatures</p>
+                <p className="text-xs text-muted-foreground mt-0">Secret for verifying webhook signatures</p>
               </div>
 
               <div className="mt-6 pt-4 border-t border-border">
@@ -158,7 +158,7 @@ export default async function PaymentConfigurationPage({
             </CardHeader>
 
             <CardContent className="p-6 space-y-4">
-              <div className="space-y-4">
+              <div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="text-sm font-medium text-foreground">Client ID</label>
@@ -172,10 +172,10 @@ export default async function PaymentConfigurationPage({
                     className="bg-input border-border text-foreground font-mono text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-colors"
                   />
                 </div>
-                <p className="text-xs text-muted-foreground">PayPal client identifier for your application</p>
+                <p className="text-xs text-muted-foreground mt-0">PayPal client identifier for your application</p>
               </div>
 
-              <div className="space-y-4">
+              <div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="text-sm font-medium text-foreground">Client Secret</label>
@@ -189,7 +189,7 @@ export default async function PaymentConfigurationPage({
                     className="bg-input border-border text-foreground font-mono text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-colors"
                   />
                 </div>
-                <p className="text-xs text-muted-foreground">Secret key for PayPal API authentication</p>
+                <p className="text-xs text-muted-foreground mt-0">Secret key for PayPal API authentication</p>
               </div>
 
               <div className="mt-6 pt-4 border-t border-border">

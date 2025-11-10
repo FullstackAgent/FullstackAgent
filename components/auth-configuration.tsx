@@ -181,7 +181,7 @@ export default function AuthConfiguration({
           </button>
         )}
       </div>
-      {helpText && <p className="text-xs text-muted-foreground">{helpText}</p>}
+      {helpText && <p className="text-xs text-muted-foreground mt-0">{helpText}</p>}
     </div>
   );
 
@@ -227,7 +227,7 @@ export default function AuthConfiguration({
             )}
           </button>
         </div>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-muted-foreground mt-0">
           Copy this URL and add it to your OAuth app&apos;s callback URLs
         </p>
       </div>
@@ -507,7 +507,8 @@ export default function AuthConfiguration({
                       Set URL
                     </button>
                   </div>
-                  <p className="text-xs text-muted-foreground">
+                  {/*TODO: nextauth not wrapped in a reuseable component*/}
+                  <p className="text-xs text-muted-foreground mt-0">
                     The URL of your application (automatically set to your project URL)
                   </p>
                 </div>
@@ -560,7 +561,7 @@ export default function AuthConfiguration({
                       Generate
                     </button>
                   </div>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground mt-0">
                     A random string used to hash tokens, sign cookies and generate cryptographic
                     keys
                   </p>
