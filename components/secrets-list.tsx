@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronRight, Copy, Eye, EyeOff, Key, Settings, Shield } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
 interface SystemSecret {
