@@ -191,19 +191,7 @@ export default function EnvironmentPage() {
 
           {/* Footer Actions */}
           <div className="mt-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="text-sm text-muted-foreground">
-              {envVars.length > 0 && (
-                <span>{envVars.length} environment variable{envVars.length !== 1 ? 's' : ''} configured</span>
-              )}
-            </div>
             <div className="flex gap-3">
-              <Button
-                onClick={() => router.back()}
-                variant="outline"
-                className="border-border text-foreground hover:bg-accent transition-colors"
-              >
-                Cancel
-              </Button>
               <Button
                 onClick={saveEnvironment}
                 disabled={saving || envVars.length === 0}
@@ -212,6 +200,18 @@ export default function EnvironmentPage() {
                 <Save className="mr-2 h-4 w-4" />
                 {saving ? 'Saving...' : 'Save Changes'}
               </Button>
+              <Button
+                onClick={() => router.back()}
+                variant="outline"
+                className="border-border text-foreground hover:bg-accent transition-colors"
+              >
+                Cancel
+              </Button>
+            </div>
+            <div className="text-sm text-muted-foreground">
+              {envVars.length > 0 && (
+                <span>{envVars.length} environment variable{envVars.length !== 1 ? 's' : ''} configured</span>
+              )}
             </div>
           </div>
         </div>
