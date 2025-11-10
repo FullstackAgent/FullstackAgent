@@ -382,7 +382,7 @@ export default function SettingsDialog({
                       className="bg-input border-border text-foreground placeholder:text-muted-foreground disabled:opacity-50 rounded-md focus:ring-2 focus:ring-ring focus:border-ring"
                       placeholder="https://api.anthropic.com"
                     />
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground mt-0">
                       The base URL for Anthropic API (e.g., https://api.anthropic.com or your proxy
                       URL)
                     </p>
@@ -404,7 +404,7 @@ export default function SettingsDialog({
                       className="bg-input border-border text-foreground placeholder:text-muted-foreground font-mono disabled:opacity-50 rounded-md focus:ring-2 focus:ring-ring focus:border-ring"
                       placeholder="sk-ant-..."
                     />
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground mt-0">
                       Your Anthropic API key. This will be stored securely and injected as
                       ANTHROPIC_AUTH_TOKEN in sandboxes.
                     </p>
@@ -426,7 +426,7 @@ export default function SettingsDialog({
                       className="bg-input border-border text-foreground placeholder:text-muted-foreground font-mono disabled:opacity-50 rounded-md focus:ring-2 focus:ring-ring focus:border-ring"
                       placeholder="claude-sonnet-4-5-20250929"
                     />
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground mt-0">
                       Default model to use (e.g., claude-sonnet-4-5-20250929). This will be injected
                       as ANTHROPIC_MODEL in sandboxes.
                     </p>
@@ -448,7 +448,7 @@ export default function SettingsDialog({
                       className="bg-input border-border text-foreground placeholder:text-muted-foreground font-mono disabled:opacity-50 rounded-md focus:ring-2 focus:ring-ring focus:border-ring"
                       placeholder="claude-3-5-haiku-20241022"
                     />
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground mt-0">
                       Small fast model for quick operations (e.g., claude-3-5-haiku-20241022). This
                       will be injected as ANTHROPIC_SMALL_FAST_MODEL in sandboxes.
                     </p>
