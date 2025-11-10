@@ -507,7 +507,7 @@ export default function AuthConfiguration({
                       Set URL
                     </button>
                   </div>
-                  {/*TODO: nextauth not wrapped in a reuseable component*/}
+                  {/*TODO: nextauth not wrapped in a reusable component*/}
                   <p className="text-xs text-muted-foreground mt-0">
                     The URL of your application (automatically set to your project URL)
                   </p>
