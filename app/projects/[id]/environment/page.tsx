@@ -39,7 +39,8 @@ export default function EnvironmentPage() {
       setEnvVars(generalVars);
     } catch (error) {
       console.error('Error fetching environment variables:', error);
-      toast.error('Failed to load environment variables');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      toast.error(`Failed to load environment variables: ${errorMessage}`);
     } finally {
       setLoading(false);
     }

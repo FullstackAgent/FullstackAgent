@@ -30,8 +30,8 @@ export const GET = withAuth<GetEnvironmentsResponse>(async (_req, context, sessi
       grouped[category] = environments.filter((e) => e.category === category)
     })
 
-    // Add general category for null/undefined categories
-    grouped.general = environments.filter((e) => !e.category)
+    // Add general category for 'general' and null/undefined categories
+    grouped.general = environments.filter((e) => e.category === 'general' || !e.category)
 
     return NextResponse.json(grouped)
   } catch (error) {
