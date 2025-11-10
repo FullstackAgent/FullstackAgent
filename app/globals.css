@@ -38,6 +38,7 @@
   --sidebar-border: oklch(0.92 0 0);
   --sidebar-ring: oklch(0.71 0 0);
   --destructive-foreground: oklch(1.0000 0 0);
+  --content-background: oklch(1.00 0 0);
   --font-serif: Source Serif 4, serif;
   --font-mono: JetBrains Mono, monospace;
   --radius: 0.375rem;
@@ -87,6 +88,7 @@
   --sidebar-border: oklch(1.00 0 0 / 10%);
   --sidebar-ring: oklch(0.55 0.02 285.93);
   --destructive-foreground: oklch(1.0000 0 0);
+  --content-background: #1E1E1E;
   --font-serif: Source Serif 4, serif;
   --font-mono: JetBrains Mono, monospace;
   --radius: 0.375rem;
@@ -135,6 +137,7 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-content-background: var(--content-background);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
   --font-serif: var(--font-serif);
