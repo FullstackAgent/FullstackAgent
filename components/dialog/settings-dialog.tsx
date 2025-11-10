@@ -227,11 +227,11 @@ export default function SettingsDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-6xl! h-[85vh] bg-[#252526] border-[#3e3e42] text-white p-0 flex flex-col rounded"
+        className="max-w-6xl! h-[85vh] bg-card border-border text-foreground p-0 flex flex-col rounded"
         showCloseButton={true}
       >
-        <DialogHeader className="px-6 py-4 border-b border-[#3e3e42]">
-          <DialogTitle className="text-xl text-white">Settings</DialogTitle>
+        <DialogHeader className="px-6 py-4 border-b border-border">
+          <DialogTitle className="text-xl text-foreground">Settings</DialogTitle>
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden px-6 py-4">
@@ -241,11 +241,11 @@ export default function SettingsDialog({
             className="h-full flex flex-col"
           >
             <TabsList
-              className={`shrink-0 grid w-full ${isSealos ? 'grid-cols-2' : 'grid-cols-3'} bg-[#1e1e1e] border-[#3e3e42] rounded-lg`}
+              className={`shrink-0 grid w-full ${isSealos ? 'grid-cols-2' : 'grid-cols-3'} bg-secondary border-border rounded-lg`}
             >
               <TabsTrigger
                 value="system-prompt"
-                className="data-[state=active]:bg-[#0e639c] data-[state=active]:text-white text-gray-400 hover:text-white"
+                className="data-[state=active]:bg-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground"
               >
                 <Code className="mr-2 h-4 w-4" />
                 System Prompt
@@ -253,7 +253,7 @@ export default function SettingsDialog({
               {!isSealos && (
                 <TabsTrigger
                   value="kubeconfig"
-                  className="data-[state=active]:bg-[#0e639c] data-[state=active]:text-white text-gray-400 hover:text-white"
+                  className="data-[state=active]:bg-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground"
                 >
                   <Database className="mr-2 h-4 w-4" />
                   Kubeconfig
@@ -261,7 +261,7 @@ export default function SettingsDialog({
               )}
               <TabsTrigger
                 value="anthropic"
-                className="data-[state=active]:bg-[#0e639c] data-[state=active]:text-white text-gray-400 hover:text-white"
+                className="data-[state=active]:bg-primary data-[state=active]:text-foreground text-muted-foreground hover:text-foreground"
               >
                 <Terminal className="mr-2 h-4 w-4" />
                 Anthropic
@@ -275,7 +275,7 @@ export default function SettingsDialog({
                   <div className="space-y-2 shrink-0">
                     <Label
                       htmlFor="system-prompt-dialog"
-                      className="text-white text-sm font-medium"
+                      className="text-foreground text-sm font-medium"
                     >
                       System Prompt Template
                     </Label>
@@ -285,14 +285,14 @@ export default function SettingsDialog({
                     value={systemPrompt}
                     onChange={(e) => setSystemPrompt(e.target.value)}
                     disabled={isSystemPromptInitialLoading}
-                    className="flex-1 min-h-[300px] bg-[#1e1e1e] border-[#3e3e42] text-white placeholder:text-gray-500 font-mono text-sm disabled:opacity-50 resize-none overflow-y-auto rounded-md"
+                    className="flex-1 min-h-[300px] bg-input border-border text-foreground placeholder:text-muted-foreground font-mono text-sm disabled:opacity-50 resize-none overflow-y-auto rounded-md focus:ring-2 focus:ring-ring focus:border-ring"
                     placeholder={
                       isSystemPromptInitialLoading
                         ? 'Loading...'
                         : 'Enter your system prompt here...'
                     }
                   />
-                  <p className="text-xs text-gray-500 shrink-0">
+                  <p className="text-xs text-muted-foreground shrink-0">
                     This prompt will be used as context for Claude Code to understand your project
                     environment and coding preferences.
                   </p>
@@ -310,7 +310,7 @@ export default function SettingsDialog({
                       variant="outline"
                       onClick={handleResetSystemPrompt}
                       disabled={isSystemPromptInitialLoading}
-                      className="border-[#3e3e42] text-gray-400 hover:text-white hover:bg-[#3e3e42]"
+                      className="border-border text-muted-foreground hover:text-foreground hover:bg-accent"
                     >
                       Reset to Default
                     </Button>
@@ -323,11 +323,11 @@ export default function SettingsDialog({
                 <TabsContent value="kubeconfig" className="mt-0 h-full flex flex-col">
                   <div className="space-y-4 pb-4 flex-1 flex flex-col min-h-0">
                     <div className="space-y-2 shrink-0">
-                      <Label htmlFor="kubeconfig-dialog" className="text-white text-sm font-medium">
+                      <Label htmlFor="kubeconfig-dialog" className="text-foreground text-sm font-medium">
                         Kubeconfig Content
                       </Label>
                       {kubeconfigNamespace && (
-                        <p className="text-xs text-green-500 mt-1">
+                        <p className="text-xs text-green-600 dark:text-green-500 mt-1">
                           Current namespace: {kubeconfigNamespace}
                         </p>
                       )}
@@ -337,14 +337,14 @@ export default function SettingsDialog({
                       value={kubeconfig}
                       onChange={(e) => setKubeconfig(e.target.value)}
                       disabled={isKubeconfigInitialLoading}
-                      className="flex-1 min-h-[300px] bg-[#1e1e1e] border-[#3e3e42] text-white placeholder:text-gray-500 font-mono text-sm disabled:opacity-50 resize-none overflow-y-auto rounded-md"
+                      className="flex-1 min-h-[300px] bg-input border-border text-foreground placeholder:text-muted-foreground font-mono text-sm disabled:opacity-50 resize-none overflow-y-auto rounded-md focus:ring-2 focus:ring-ring focus:border-ring"
                       placeholder={
                         isKubeconfigInitialLoading
                           ? 'Loading...'
                           : 'Paste your kubeconfig content here...'
                       }
                     />
-                    <p className="text-xs text-gray-500 shrink-0">
+                    <p className="text-xs text-muted-foreground shrink-0">
                       The system will validate your kubeconfig before saving.
                     </p>
                     <div className="flex gap-2 pt-2 shrink-0">
@@ -369,7 +369,7 @@ export default function SettingsDialog({
                   <div className="space-y-2">
                     <Label
                       htmlFor="anthropic-api-base-url-dialog"
-                      className="text-white text-sm font-medium"
+                      className="text-foreground text-sm font-medium"
                     >
                       API Base URL
                     </Label>
@@ -379,10 +379,10 @@ export default function SettingsDialog({
                       value={anthropicApiBaseUrl}
                       onChange={(e) => setAnthropicApiBaseUrl(e.target.value)}
                       disabled={isAnthropicInitialLoading}
-                      className="bg-[#1e1e1e] border-[#3e3e42] text-white placeholder:text-gray-500 disabled:opacity-50 rounded-md"
+                      className="bg-input border-border text-foreground placeholder:text-muted-foreground disabled:opacity-50 rounded-md focus:ring-2 focus:ring-ring focus:border-ring"
                       placeholder="https://api.anthropic.com"
                     />
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-muted-foreground">
                       The base URL for Anthropic API (e.g., https://api.anthropic.com or your proxy
                       URL)
                     </p>
@@ -391,7 +391,7 @@ export default function SettingsDialog({
                   <div className="space-y-2">
                     <Label
                       htmlFor="anthropic-api-key-dialog"
-                      className="text-white text-sm font-medium"
+                      className="text-foreground text-sm font-medium"
                     >
                       API Key
                     </Label>
@@ -401,10 +401,10 @@ export default function SettingsDialog({
                       value={anthropicApiKey}
                       onChange={(e) => setAnthropicApiKey(e.target.value)}
                       disabled={isAnthropicInitialLoading}
-                      className="bg-[#1e1e1e] border-[#3e3e42] text-white placeholder:text-gray-500 font-mono disabled:opacity-50 rounded-md"
+                      className="bg-input border-border text-foreground placeholder:text-muted-foreground font-mono disabled:opacity-50 rounded-md focus:ring-2 focus:ring-ring focus:border-ring"
                       placeholder="sk-ant-..."
                     />
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-muted-foreground">
                       Your Anthropic API key. This will be stored securely and injected as
                       ANTHROPIC_AUTH_TOKEN in sandboxes.
                     </p>
@@ -413,7 +413,7 @@ export default function SettingsDialog({
                   <div className="space-y-2">
                     <Label
                       htmlFor="anthropic-model-dialog"
-                      className="text-white text-sm font-medium"
+                      className="text-foreground text-sm font-medium"
                     >
                       Default Model (Optional)
                     </Label>
@@ -423,10 +423,10 @@ export default function SettingsDialog({
                       value={anthropicModel}
                       onChange={(e) => setAnthropicModel(e.target.value)}
                       disabled={isAnthropicInitialLoading}
-                      className="bg-[#1e1e1e] border-[#3e3e42] text-white placeholder:text-gray-500 font-mono disabled:opacity-50 rounded-md"
+                      className="bg-input border-border text-foreground placeholder:text-muted-foreground font-mono disabled:opacity-50 rounded-md focus:ring-2 focus:ring-ring focus:border-ring"
                       placeholder="claude-sonnet-4-5-20250929"
                     />
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-muted-foreground">
                       Default model to use (e.g., claude-sonnet-4-5-20250929). This will be injected
                       as ANTHROPIC_MODEL in sandboxes.
                     </p>
@@ -435,7 +435,7 @@ export default function SettingsDialog({
                   <div className="space-y-2">
                     <Label
                       htmlFor="anthropic-small-fast-model-dialog"
-                      className="text-white text-sm font-medium"
+                      className="text-foreground text-sm font-medium"
                     >
                       Small Fast Model (Optional)
                     </Label>
@@ -445,10 +445,10 @@ export default function SettingsDialog({
                       value={anthropicSmallFastModel}
                       onChange={(e) => setAnthropicSmallFastModel(e.target.value)}
                       disabled={isAnthropicInitialLoading}
-                      className="bg-[#1e1e1e] border-[#3e3e42] text-white placeholder:text-gray-500 font-mono disabled:opacity-50 rounded-md"
+                      className="bg-input border-border text-foreground placeholder:text-muted-foreground font-mono disabled:opacity-50 rounded-md focus:ring-2 focus:ring-ring focus:border-ring"
                       placeholder="claude-3-5-haiku-20241022"
                     />
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-muted-foreground">
                       Small fast model for quick operations (e.g., claude-3-5-haiku-20241022). This
                       will be injected as ANTHROPIC_SMALL_FAST_MODEL in sandboxes.
                     </p>
