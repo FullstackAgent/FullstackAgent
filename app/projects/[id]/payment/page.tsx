@@ -1,12 +1,11 @@
-import { CreditCard, DollarSign, ExternalLink, Zap } from 'lucide-react';
+import { DollarSign, ExternalLink, Zap } from 'lucide-react';
 import { notFound } from 'next/navigation';
 
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
-
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default async function PaymentConfigurationPage({
   params,

@@ -13,7 +13,6 @@ import {
   Github as GithubIcon,
   Key,
   RefreshCw,
-  Shield,
 } from 'lucide-react';
 
 import { POST, PUT } from '@/lib/fetch-client';

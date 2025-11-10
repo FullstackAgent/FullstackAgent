@@ -1,11 +1,10 @@
 import { Copy, Eye, Key, Lock, Plus, Shield, Trash2 } from 'lucide-react';
 import { notFound } from 'next/navigation';
 
+import { SystemSecretsList } from '@/components/secrets-list';
+import { Button } from '@/components/ui/button';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
-
-import { Button } from '@/components/ui/button';
-import { SystemSecretsList } from '@/components/secrets-list';
 
 export default async function SecretsConfigurationPage({
   params,
