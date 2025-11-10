@@ -5,11 +5,11 @@ import { Check, Copy, Eye, EyeOff, Key, Lock, Plus, Save, Shield, Trash2, X } fr
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
+import { SystemSecretsList } from '@/components/secrets-list';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
-import { SystemSecretsList } from '@/components/secrets-list';
 import { GET, POST } from '@/lib/fetch-client';
 
 interface EnvVariable {

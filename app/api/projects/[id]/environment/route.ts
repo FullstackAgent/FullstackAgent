@@ -75,13 +75,30 @@ export const POST = withAuth<PostEnvironmentResponse>(async (req, context, sessi
 
       return NextResponse.json(newVar)
     } else if (body.variables) {
-      // Batch update (replace all variables)
+      // Batch update (replace variables by category)
       const { variables } = body
 
-      // Delete existing environment variables
-      await prisma.environment.deleteMany({
-        where: { projectId },
-      })
+      // Determine the primary category for this batch update
+      // If all variables have the same category, only delete that category
+      // Otherwise, delete all to maintain backward compatibility
+      const categories = new Set((variables as EnvironmentVariableInput[]).map(v => v.category || 'general'))
+      const deleteByCategory = categories.size === 1
+
+      if (deleteByCategory) {
+        // Delete only environment variables of the same category
+        const targetCategory = Array.from(categories)[0]
+        await prisma.environment.deleteMany({
+          where: {
+            projectId,
+            category: targetCategory
+          },
+        })
+      } else {
+        // Mixed categories - delete all (fallback behavior)
+        await prisma.environment.deleteMany({
+          where: { projectId },
+        })
+      }
 
       // Create new environment variables
       const envPromises = (variables as EnvironmentVariableInput[])
