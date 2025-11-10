@@ -1,4 +1,3 @@
-import { redirect } from 'next/navigation';
 import { notFound } from 'next/navigation';
 
 import AuthConfiguration from '@/components/auth-configuration';
@@ -12,16 +11,12 @@ export default async function AuthConfigurationPage({
 }) {
   const session = await auth();
 
-  if (!session) {
-    redirect('/login');
-  }
-
   const { id } = await params;
 
   const project = await prisma.project.findFirst({
     where: {
       id: id,
-      userId: session.user.id,
+      userId: session?.user.id,
     },
     include: {
       sandboxes: true,

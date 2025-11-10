@@ -148,20 +148,20 @@ export default function AuthConfiguration({
   }) => (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <label className="text-sm font-medium text-gray-300">{label}</label>
+        <label className="text-sm font-medium text-foreground">{label}</label>
         <div className="flex items-center gap-2">
-          <code className="text-xs bg-[#1e1e1e] px-2 py-1 rounded text-blue-400">{envKey}</code>
+          <code className="text-xs bg-accent px-2 py-1 rounded text-primary">{envKey}</code>
           <button
             onClick={() => copyToClipboard(envKey, `env-${envKey}`)}
-            className="p-1 text-gray-400 hover:text-gray-200"
+            className="p-1 text-muted-foreground hover:text-foreground transition-colors"
           >
             {copiedId === `env-${envKey}` ? (
-              <Check className="h-3 w-3 text-green-400" />
+              <Check className="h-3 w-3 text-green-600 dark:text-green-500" />
             ) : (
               <Copy className="h-3 w-3" />
             )}
           </button>
-          {savedFields.has(envKey) && <Check className="h-3 w-3 text-green-400" />}
+          {savedFields.has(envKey) && <Check className="h-3 w-3 text-green-600 dark:text-green-500" />}
         </div>
       </div>
       <div className="flex items-center gap-2">
@@ -171,18 +171,18 @@ export default function AuthConfiguration({
           onChange={(e) => saveEnvVar(envKey, e.target.value)}
           placeholder={placeholder}
           readOnly={readOnly}
-          className="flex-1 px-3 py-2 bg-[#1e1e1e] border border-[#3e3e42] rounded text-sm text-gray-300 font-mono"
+          className="flex-1 px-3 py-2 bg-input border-border rounded text-sm text-foreground font-mono focus:ring-2 focus:ring-ring focus:border-ring transition-colors"
         />
         {isSecret && (
           <button
             onClick={() => toggleSecret(envKey)}
-            className="p-2 text-gray-400 hover:text-gray-200"
+            className="p-2 text-muted-foreground hover:text-foreground transition-colors"
           >
             {showSecrets[envKey] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
         )}
       </div>
-      {helpText && <p className="text-xs text-gray-400">{helpText}</p>}
+      {helpText && <p className="text-xs text-muted-foreground">{helpText}</p>}
     </div>
   );
 
@@ -193,17 +193,17 @@ export default function AuthConfiguration({
     return (
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <label className="text-sm font-medium text-gray-300">Authorization Callback URL</label>
+          <label className="text-sm font-medium text-foreground">Authorization Callback URL</label>
           <div className="flex items-center gap-2">
-            <code className="text-xs bg-[#1e1e1e] px-2 py-1 rounded text-blue-400">
+            <code className="text-xs bg-accent px-2 py-1 rounded text-primary">
               {envVarName}
             </code>
             <button
               onClick={() => copyToClipboard(envVarName, `env-callback-${provider}`)}
-              className="p-1 text-gray-400 hover:text-gray-200"
+              className="p-1 text-muted-foreground hover:text-foreground transition-colors"
             >
               {copiedId === `env-callback-${provider}` ? (
-                <Check className="h-3 w-3 text-green-400" />
+                <Check className="h-3 w-3 text-green-600 dark:text-green-500" />
               ) : (
                 <Copy className="h-3 w-3" />
               )}
@@ -215,20 +215,20 @@ export default function AuthConfiguration({
             type="text"
             value={callbackUrl}
             readOnly
-            className="flex-1 px-3 py-2 bg-[#252526] border border-[#3e3e42] rounded text-sm text-gray-400 font-mono"
+            className="flex-1 px-3 py-2 bg-input border-border rounded text-sm text-muted-foreground font-mono"
           />
           <button
             onClick={() => copyToClipboard(callbackUrl, `callback-${provider}`)}
-            className="p-2 text-gray-400 hover:text-gray-200"
+            className="p-2 text-muted-foreground hover:text-foreground transition-colors"
           >
             {copiedId === `callback-${provider}` ? (
-              <Check className="h-4 w-4 text-green-400" />
+              <Check className="h-4 w-4 text-green-600 dark:text-green-500" />
             ) : (
               <Copy className="h-4 w-4" />
             )}
           </button>
         </div>
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-muted-foreground">
           Copy this URL and add it to your OAuth app&apos;s callback URLs
         </p>
       </div>
@@ -236,17 +236,16 @@ export default function AuthConfiguration({
   };
 
   return (
-    <div className="h-full flex flex-col bg-[#1e1e1e]">
-      {/* Header */}
-      <div className="border-b border-[#3e3e42] bg-[#252526]">
+    <div className="flex-1 flex flex-col overflow-auto bg-content-background">
+      {/* VSCode-style Header Panel */}
+      <div className="border-b border-border bg-card">
         <div className="px-6 py-4">
-          <h1 className="text-xl font-semibold text-white flex items-center gap-2">
-            <Shield className="h-5 w-5 text-blue-400" />
-            Authentication Configuration
-          </h1>
-          <p className="text-sm text-gray-400 mt-1">
-            Configure authentication providers for your application
-          </p>
+          <h1 className="text-xl font-semibold text-foreground">Authentication Configuration</h1>
+          <div className="mt-2">
+            <p className="text-sm text-muted-foreground">
+              Configure authentication providers for your application
+            </p>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -260,8 +259,8 @@ export default function AuthConfiguration({
                 className={cn(
                   'px-4 py-3 flex items-center gap-2 text-sm border-b-2 transition-colors',
                   activeTab === tab.id
-                    ? 'text-white border-[#0e639c]'
-                    : 'text-gray-400 border-transparent hover:text-gray-300'
+                    ? 'text-foreground border-primary'
+                    : 'text-muted-foreground border-transparent hover:text-foreground'
                 )}
               >
                 <Icon className="h-4 w-4" />
@@ -272,14 +271,14 @@ export default function AuthConfiguration({
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      {/* Content Area */}
+      <div className="flex-1 overflow-auto p-6">
         {/* GitHub OAuth */}
         {activeTab === 'github' && (
-          <div className="max-w-4xl space-y-6">
-            <div className="bg-[#252526] rounded-lg border border-[#3e3e42] p-6">
+          <div className="mx-auto space-y-6">
+            <div className="bg-card rounded-lg border border-border shadow-sm p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-medium text-white flex items-center gap-2">
+                <h2 className="text-lg font-medium text-foreground flex items-center gap-2">
                   <GithubIcon className="h-5 w-5" />
                   GitHub OAuth Configuration
                 </h2>
@@ -287,7 +286,7 @@ export default function AuthConfiguration({
                   href="https://github.com/settings/developers"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-sm text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                  className="text-sm text-primary hover:text-primary/80 flex items-center gap-1 transition-colors"
                 >
                   GitHub Developer Settings
                   <ExternalLink className="h-3 w-3" />
@@ -312,17 +311,17 @@ export default function AuthConfiguration({
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-gray-300">Homepage URL</label>
+                    <label className="text-sm font-medium text-foreground">Homepage URL</label>
                     <div className="flex items-center gap-2">
-                      <code className="text-xs bg-[#1e1e1e] px-2 py-1 rounded text-blue-400">
+                      <code className="text-xs bg-accent px-2 py-1 rounded text-primary">
                         NEXTAUTH_URL
                       </code>
                       <button
                         onClick={() => copyToClipboard('NEXTAUTH_URL', 'env-homepage-github')}
-                        className="p-1 text-gray-400 hover:text-gray-200"
+                        className="p-1 text-muted-foreground hover:text-foreground transition-colors"
                       >
                         {copiedId === 'env-homepage-github' ? (
-                          <Check className="h-3 w-3 text-green-400" />
+                          <Check className="h-3 w-3 text-green-600 dark:text-green-500" />
                         ) : (
                           <Copy className="h-3 w-3" />
                         )}
@@ -334,14 +333,14 @@ export default function AuthConfiguration({
                       type="text"
                       value={projectUrl}
                       readOnly
-                      className="flex-1 px-3 py-2 bg-[#252526] border border-[#3e3e42] rounded text-sm text-gray-400 font-mono"
+                      className="flex-1 px-3 py-2 bg-input border-border rounded text-sm text-muted-foreground font-mono"
                     />
                     <button
                       onClick={() => copyToClipboard(projectUrl, 'homepage-github')}
-                      className="p-2 text-gray-400 hover:text-gray-200"
+                      className="p-2 text-muted-foreground hover:text-foreground transition-colors"
                     >
                       {copiedId === 'homepage-github' ? (
-                        <Check className="h-4 w-4 text-green-400" />
+                        <Check className="h-4 w-4 text-green-600 dark:text-green-500" />
                       ) : (
                         <Copy className="h-4 w-4" />
                       )}
@@ -352,9 +351,9 @@ export default function AuthConfiguration({
                 <CallbackUrlField provider="github" />
               </div>
 
-              <div className="mt-6 p-4 bg-[#1e1e1e] rounded border border-[#3e3e42]">
-                <h3 className="text-sm font-medium text-gray-300 mb-2">Setup Instructions:</h3>
-                <ol className="text-xs text-gray-400 space-y-1 list-decimal list-inside">
+              <div className="mt-6 p-4 rounded border border-border">
+                <h3 className="text-sm font-medium text-foreground mb-2">Setup Instructions:</h3>
+                <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
                   <li>Go to GitHub Settings → Developer settings → OAuth Apps</li>
                   <li>Click &quot;New OAuth App&quot; or select an existing app</li>
                   <li>Set the Homepage URL and Authorization callback URL from above</li>
@@ -368,10 +367,10 @@ export default function AuthConfiguration({
 
         {/* Google OAuth */}
         {activeTab === 'google' && (
-          <div className="max-w-4xl space-y-6">
-            <div className="bg-[#252526] rounded-lg border border-[#3e3e42] p-6">
+          <div className="mx-auto space-y-6">
+            <div className="bg-card rounded-lg border border-border shadow-sm p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-medium text-white flex items-center gap-2">
+                <h2 className="text-lg font-medium text-foreground flex items-center gap-2">
                   <ChromeIcon className="h-5 w-5" />
                   Google OAuth Configuration
                 </h2>
@@ -379,7 +378,7 @@ export default function AuthConfiguration({
                   href="https://console.cloud.google.com/apis/credentials"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-sm text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                  className="text-sm text-primary hover:text-primary/80 flex items-center gap-1 transition-colors"
                 >
                   Google Cloud Console
                   <ExternalLink className="h-3 w-3" />
@@ -404,19 +403,19 @@ export default function AuthConfiguration({
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-gray-300">
+                    <label className="text-sm font-medium text-foreground">
                       Authorized JavaScript Origins
                     </label>
                     <div className="flex items-center gap-2">
-                      <code className="text-xs bg-[#1e1e1e] px-2 py-1 rounded text-blue-400">
+                      <code className="text-xs bg-accent px-2 py-1 rounded text-primary">
                         NEXTAUTH_URL
                       </code>
                       <button
                         onClick={() => copyToClipboard('NEXTAUTH_URL', 'env-origin-google')}
-                        className="p-1 text-gray-400 hover:text-gray-200"
+                        className="p-1 text-muted-foreground hover:text-foreground transition-colors"
                       >
                         {copiedId === 'env-origin-google' ? (
-                          <Check className="h-3 w-3 text-green-400" />
+                          <Check className="h-3 w-3 text-green-600 dark:text-green-500" />
                         ) : (
                           <Copy className="h-3 w-3" />
                         )}
@@ -428,14 +427,14 @@ export default function AuthConfiguration({
                       type="text"
                       value={projectUrl}
                       readOnly
-                      className="flex-1 px-3 py-2 bg-[#252526] border border-[#3e3e42] rounded text-sm text-gray-400 font-mono"
+                      className="flex-1 px-3 py-2 bg-input border-border rounded text-sm text-muted-foreground font-mono"
                     />
                     <button
                       onClick={() => copyToClipboard(projectUrl, 'origin-google')}
-                      className="p-2 text-gray-400 hover:text-gray-200"
+                      className="p-2 text-muted-foreground hover:text-foreground transition-colors"
                     >
                       {copiedId === 'origin-google' ? (
-                        <Check className="h-4 w-4 text-green-400" />
+                        <Check className="h-4 w-4 text-green-600 dark:text-green-500" />
                       ) : (
                         <Copy className="h-4 w-4" />
                       )}
@@ -446,9 +445,9 @@ export default function AuthConfiguration({
                 <CallbackUrlField provider="google" />
               </div>
 
-              <div className="mt-6 p-4 bg-[#1e1e1e] rounded border border-[#3e3e42]">
-                <h3 className="text-sm font-medium text-gray-300 mb-2">Setup Instructions:</h3>
-                <ol className="text-xs text-gray-400 space-y-1 list-decimal list-inside">
+              <div className="mt-6 p-4 rounded border border-border">
+                <h3 className="text-sm font-medium text-foreground mb-2">Setup Instructions:</h3>
+                <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
                   <li>Go to Google Cloud Console → APIs & Services → Credentials</li>
                   <li>Click &quot;Create Credentials&quot; → &quot;OAuth client ID&quot;</li>
                   <li>Choose &quot;Web application&quot; as the application type</li>
@@ -463,10 +462,10 @@ export default function AuthConfiguration({
 
         {/* NextAuth Settings */}
         {activeTab === 'nextauth' && (
-          <div className="max-w-4xl space-y-6">
-            <div className="bg-[#252526] rounded-lg border border-[#3e3e42] p-6">
+          <div className="mx-auto space-y-6">
+            <div className="bg-card rounded-lg border border-border shadow-sm p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-medium text-white flex items-center gap-2">
+                <h2 className="text-lg font-medium text-foreground flex items-center gap-2">
                   <Key className="h-5 w-5" />
                   NextAuth Configuration
                 </h2>
@@ -475,23 +474,23 @@ export default function AuthConfiguration({
               <div className="space-y-4">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-gray-300">NextAuth URL</label>
+                    <label className="text-sm font-medium text-foreground">NextAuth URL</label>
                     <div className="flex items-center gap-2">
-                      <code className="text-xs bg-[#1e1e1e] px-2 py-1 rounded text-blue-400">
+                      <code className="text-xs bg-accent px-2 py-1 rounded text-primary">
                         NEXTAUTH_URL
                       </code>
                       <button
                         onClick={() => copyToClipboard('NEXTAUTH_URL', 'env-NEXTAUTH_URL')}
-                        className="p-1 text-gray-400 hover:text-gray-200"
+                        className="p-1 text-muted-foreground hover:text-foreground transition-colors"
                       >
                         {copiedId === 'env-NEXTAUTH_URL' ? (
-                          <Check className="h-3 w-3 text-green-400" />
+                          <Check className="h-3 w-3 text-green-600 dark:text-green-500" />
                         ) : (
                           <Copy className="h-3 w-3" />
                         )}
                       </button>
                       {savedFields.has('NEXTAUTH_URL') && (
-                        <Check className="h-3 w-3 text-green-400" />
+                        <Check className="h-3 w-3 text-green-600 dark:text-green-500" />
                       )}
                     </div>
                   </div>
@@ -500,39 +499,39 @@ export default function AuthConfiguration({
                       type="text"
                       value={projectUrl}
                       readOnly
-                      className="flex-1 px-3 py-2 bg-[#252526] border border-[#3e3e42] rounded text-sm text-gray-400 font-mono"
+                      className="flex-1 px-3 py-2 bg-input border-border rounded text-sm text-muted-foreground font-mono"
                     />
                     <button
                       onClick={() => saveEnvVar('NEXTAUTH_URL', projectUrl)}
-                      className="px-3 py-2 bg-[#0e639c] hover:bg-[#1177bb] text-white text-sm rounded transition-colors"
+                      className="px-3 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-sm rounded transition-colors"
                     >
                       Set URL
                     </button>
                   </div>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-muted-foreground">
                     The URL of your application (automatically set to your project URL)
                   </p>
                 </div>
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-gray-300">NextAuth Secret</label>
+                    <label className="text-sm font-medium text-foreground">NextAuth Secret</label>
                     <div className="flex items-center gap-2">
-                      <code className="text-xs bg-[#1e1e1e] px-2 py-1 rounded text-blue-400">
+                      <code className="text-xs bg-accent px-2 py-1 rounded text-primary">
                         NEXTAUTH_SECRET
                       </code>
                       <button
                         onClick={() => copyToClipboard('NEXTAUTH_SECRET', 'env-NEXTAUTH_SECRET')}
-                        className="p-1 text-gray-400 hover:text-gray-200"
+                        className="p-1 text-muted-foreground hover:text-foreground transition-colors"
                       >
                         {copiedId === 'env-NEXTAUTH_SECRET' ? (
-                          <Check className="h-3 w-3 text-green-400" />
+                          <Check className="h-3 w-3 text-green-600 dark:text-green-500" />
                         ) : (
                           <Copy className="h-3 w-3" />
                         )}
                       </button>
                       {savedFields.has('NEXTAUTH_SECRET') && (
-                        <Check className="h-3 w-3 text-green-400" />
+                        <Check className="h-3 w-3 text-green-600 dark:text-green-500" />
                       )}
                     </div>
                   </div>
@@ -542,11 +541,11 @@ export default function AuthConfiguration({
                       value={envVars['NEXTAUTH_SECRET'] || ''}
                       onChange={(e) => saveEnvVar('NEXTAUTH_SECRET', e.target.value)}
                       placeholder="Click Generate to create a secure secret"
-                      className="flex-1 px-3 py-2 bg-[#1e1e1e] border border-[#3e3e42] rounded text-sm text-gray-300 font-mono"
+                      className="flex-1 px-3 py-2 bg-input border-border rounded text-sm text-foreground font-mono"
                     />
                     <button
                       onClick={() => toggleSecret('NEXTAUTH_SECRET')}
-                      className="p-2 text-gray-400 hover:text-gray-200"
+                      className="p-2 text-muted-foreground hover:text-foreground transition-colors"
                     >
                       {showSecrets['NEXTAUTH_SECRET'] ? (
                         <EyeOff className="h-4 w-4" />
@@ -556,25 +555,25 @@ export default function AuthConfiguration({
                     </button>
                     <button
                       onClick={generateSecret}
-                      className="px-3 py-2 bg-[#0e639c] hover:bg-[#1177bb] text-white text-sm rounded transition-colors flex items-center gap-2"
+                      className="px-3 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-sm rounded transition-colors flex items-center gap-2"
                     >
                       <RefreshCw className="h-4 w-4" />
                       Generate
                     </button>
                   </div>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-muted-foreground">
                     A random string used to hash tokens, sign cookies and generate cryptographic
                     keys
                   </p>
                 </div>
               </div>
 
-              <div className="mt-6 p-4 bg-[#1e1e1e] rounded border border-[#3e3e42]">
+              <div className="mt-6 p-4 rounded border border-border">
                 <div className="flex items-start gap-2">
-                  <AlertCircle className="h-4 w-4 text-yellow-400 mt-0.5" />
+                  <AlertCircle className="h-4 w-4 text-yellow-500 mt-0.5" />
                   <div>
-                    <h3 className="text-sm font-medium text-gray-300 mb-1">Important Notes:</h3>
-                    <ul className="text-xs text-gray-400 space-y-1 list-disc list-inside">
+                    <h3 className="text-sm font-medium text-foreground mb-1">Important Notes:</h3>
+                    <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
                       <li>The NextAuth URL must match your application&apos;s URL exactly</li>
                       <li>The secret should be a random string at least 32 characters long</li>
                       <li>Never commit your NEXTAUTH_SECRET to version control</li>
@@ -586,8 +585,8 @@ export default function AuthConfiguration({
             </div>
 
             {/* Additional NextAuth Options */}
-            <div className="bg-[#252526] rounded-lg border border-[#3e3e42] p-6">
-              <h3 className="text-sm font-medium text-gray-300 mb-4">
+            <div className="bg-card rounded-lg border border-border shadow-sm p-6">
+              <h3 className="text-sm font-medium text-foreground mb-4">
                 Additional Settings (Optional)
               </h3>
               <div className="space-y-4">
