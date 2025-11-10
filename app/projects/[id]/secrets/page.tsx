@@ -1,49 +1,260 @@
-import { Copy, Eye, Key, Lock, Plus, Shield, Trash2 } from 'lucide-react';
-import { notFound } from 'next/navigation';
+'use client';
 
-import { SystemSecretsList } from '@/components/secrets-list';
+import { useEffect, useState } from 'react';
+import { Check, Copy, Eye, EyeOff, Key, Lock, Plus, Save, Shield, Trash2, X } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
+import { toast } from 'sonner';
+
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { auth } from '@/lib/auth';
-import { prisma } from '@/lib/db';
+import { Input } from '@/components/ui/input';
+import { Spinner } from '@/components/ui/spinner';
+import { SystemSecretsList } from '@/components/secrets-list';
+import { GET, POST } from '@/lib/fetch-client';
 
-export default async function SecretsConfigurationPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const session = await auth();
+interface EnvVariable {
+  id?: string;
+  key: string;
+  value: string;
+  category?: string;
+  isSecret?: boolean;
+}
 
-  const { id } = await params;
+interface SystemSecret {
+  key: string;
+  value: string;
+  category?: string | null;
+  description?: string;
+}
 
-  const project = await prisma.project.findFirst({
-    where: {
-      id: id,
-      userId: session?.user.id,
-    },
-    include: {
-      environments: {
-        where: {
-          isSecret: true,
-        },
-      },
-    },
-  });
+interface Project {
+  id: string;
+  name: string;
+  environments: {
+    id: string;
+    key: string;
+    value: string;
+    category: string | null;
+    isSecret: boolean;
+    createdAt: string;
+    updatedAt: string;
+  }[];
+}
 
-  if (!project) {
-    notFound();
+export default function SecretsPage() {
+  const params = useParams();
+  const router = useRouter();
+  const projectId = params.id as string;
+
+  const [secrets, setSecrets] = useState<EnvVariable[]>([]);
+  const [systemSecrets, setSystemSecrets] = useState<SystemSecret[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [visibleSecrets, setVisibleSecrets] = useState<Set<string>>(new Set());
+  const [copiedSecrets, setCopiedSecrets] = useState<Set<string>>(new Set());
+
+  // Fetch secrets from project data
+  const fetchSecrets = async () => {
+    try {
+      // Get project data including environments
+      const project: Project = await GET(`/api/projects/${projectId}`);
+
+      // Filter for secret category and isSecret true
+      const secretEnvs = project.environments
+        .filter(env => env.category === 'secret' && env.isSecret)
+        .map(env => ({
+          id: env.id,
+          key: env.key,
+          value: env.value,
+          category: env.category,
+          isSecret: env.isSecret
+        }));
+
+      setSecrets(secretEnvs);
+
+      // Get user-level secrets (like ANTHROPIC_API_KEY)
+      // This would come from a different endpoint or be hardcoded
+      const userSecrets: SystemSecret[] = [
+        // Add system secrets here if needed
+      ];
+      setSystemSecrets(userSecrets);
+    } catch (error) {
+      console.error('Error fetching secrets:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      toast.error(`Failed to load secrets: ${errorMessage}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSecrets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl/Cmd + S to save
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        if (secrets.length > 0 && !saving) {
+          saveSecrets();
+        }
+      }
+      // Escape to cancel/go back
+      if (e.key === 'Escape') {
+        router.back();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [secrets, saving, router]);
+
+  // Helper functions
+  const maskSecret = (value: string): string => {
+    if (!value || value.length < 8) return '••••••••';
+    return '••••' + value.slice(-4);
+  };
+
+  const toggleVisibility = (index: number) => {
+    const key = `secret-${index}`;
+    setVisibleSecrets((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(key)) {
+        newSet.delete(key);
+      } else {
+        newSet.add(key);
+      }
+      return newSet;
+    });
+  };
+
+  const copyToClipboard = async (text: string, index: number) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      const key = `secret-${index}`;
+      setCopiedSecrets((prev) => new Set(prev).add(key));
+      setTimeout(() => {
+        setCopiedSecrets((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(key);
+          return newSet;
+        });
+      }, 2000);
+      toast.success('Copied to clipboard');
+    } catch (error) {
+      console.error('Failed to copy:', error);
+      toast.error('Failed to copy to clipboard');
+    }
+  };
+
+  // Validation function
+  const validateSecrets = (): { isValid: boolean; errors: string[] } => {
+    const errors: string[] = [];
+    const keys = new Set<string>();
+
+    // Check for duplicate keys
+    secrets.forEach((secret, index) => {
+      if (secret.key) {
+        if (keys.has(secret.key)) {
+          errors.push(`Duplicate secret key: ${secret.key}`);
+        } else {
+          keys.add(secret.key);
+        }
+      }
+    });
+
+    // Check for valid key format
+    secrets.forEach((secret, index) => {
+      if (secret.key && !/^[A-Z][A-Z0-9_]*$/.test(secret.key)) {
+        errors.push(`Secret key "${secret.key}" must start with a letter and contain only uppercase letters, numbers, and underscores`);
+      }
+    });
+
+    // Check for empty values
+    secrets.forEach((secret, index) => {
+      if (secret.key && !secret.value.trim()) {
+        errors.push(`Secret key "${secret.key}" cannot have an empty value`);
+      }
+    });
+
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  };
+
+  // CRUD operations
+  const addSecret = () => {
+    setSecrets([...secrets, { key: '', value: '', category: 'secret', isSecret: true }]);
+  };
+
+  const removeSecret = (index: number) => {
+    const secret = secrets[index];
+    if (secret.key) {
+      // Only ask for confirmation if the secret has a key (non-empty)
+      if (window.confirm(`Are you sure you want to delete the secret "${secret.key}"? This action cannot be undone.`)) {
+        setSecrets(secrets.filter((_, i) => i !== index));
+        toast.success('Secret removed');
+      }
+    } else {
+      // Remove empty secrets without confirmation
+      setSecrets(secrets.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateSecret = (index: number, field: keyof EnvVariable, value: string) => {
+    const updated = [...secrets];
+    updated[index] = { ...updated[index], [field]: value };
+    setSecrets(updated);
+  };
+
+  const saveSecrets = async () => {
+    // Validate before saving
+    const validation = validateSecrets();
+    if (!validation.isValid) {
+      validation.errors.forEach(error => toast.error(error));
+      return;
+    }
+
+    setSaving(true);
+
+    // Only save secrets with both key and value
+    const validSecrets = secrets.filter(secret => secret.key && secret.value);
+
+    try {
+      await POST(`/api/projects/${projectId}/environment`, {
+        variables: validSecrets.map(secret => ({
+          key: secret.key,
+          value: secret.value,
+          category: 'secret',
+          isSecret: true
+        }))
+      });
+
+      toast.success(`Successfully saved ${validSecrets.length} secret${validSecrets.length !== 1 ? 's' : ''}`);
+      router.push(`/projects/${projectId}`);
+    } catch (error) {
+      console.error('Error saving secrets:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      toast.error(`Failed to save secrets: ${errorMessage}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-content-background">
+        <div className="flex items-center gap-3 text-muted-foreground">
+          <Spinner className="h-5 w-5" />
+          <span>Loading secrets...</span>
+        </div>
+      </div>
+    );
   }
-
-  // Get user-level configuration (like ANTHROPIC_API_KEY)
-  const userConfigs = await prisma.userConfig.findMany({
-    where: {
-      userId: session?.user.id,
-      isSecret: true,
-    },
-    orderBy: {
-      key: 'asc',
-    },
-  });
 
   return (
     <div className="flex-1 flex flex-col overflow-auto bg-content-background">
@@ -71,6 +282,7 @@ export default async function SecretsConfigurationPage({
                   Project Secrets
                 </CardTitle>
                 <Button
+                  onClick={addSecret}
                   variant="outline"
                   size="sm"
                   className="border-border text-foreground hover:bg-accent transition-colors w-full sm:w-auto"
@@ -81,54 +293,80 @@ export default async function SecretsConfigurationPage({
               </div>
               <CardDescription className="text-muted-foreground">
                 Project-specific secrets that can be edited and deleted
+                <br />
+                <span className="text-xs">Press Ctrl+S to save • Press Escape to cancel</span>
               </CardDescription>
             </CardHeader>
 
             <CardContent className="p-6">
-              {project.environments.length > 0 ? (
+              {secrets.length > 0 ? (
                 <div className="space-y-3">
-                  {project.environments.map((secret) => (
-                    <div
-                      key={secret.id}
-                      className="flex items-center justify-between p-3 bg-accent rounded-lg border border-border"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Shield className="h-4 w-4 text-primary shrink-0" />
-                          <code className="text-sm font-mono text-foreground">{secret.key}</code>
+                  {secrets.map((secret, index) => {
+                    const isVisible = visibleSecrets.has(`secret-${index}`);
+                    const isCopied = copiedSecrets.has(`secret-${index}`);
+
+                    return (
+                      <div key={index} className="grid grid-cols-12 gap-3 items-start">
+                        <div className="col-span-12 md:col-span-4">
+                          <Input
+                            placeholder="SECRET_KEY"
+                            value={secret.key}
+                            onChange={(e) =>
+                              updateSecret(
+                                index,
+                                'key',
+                                e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, '_')
+                              )
+                            }
+                            className="bg-input border-border text-foreground font-mono text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-colors"
+                          />
                         </div>
-                        <div className="text-xs text-muted-foreground ml-6">
-                          Last updated: {new Date(secret.updatedAt).toLocaleDateString()}
+                        <div className="col-span-12 md:col-span-6 relative">
+                          <Input
+                            type={isVisible ? 'text' : 'password'}
+                            placeholder="Secret value"
+                            value={secret.value}
+                            onChange={(e) => updateSecret(index, 'value', e.target.value)}
+                            className="bg-input border-border text-foreground text-sm pr-20 focus:ring-2 focus:ring-ring focus:border-ring transition-colors"
+                          />
+                          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => toggleVisibility(index)}
+                              className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                              title={isVisible ? 'Hide secret' : 'Show secret'}
+                            >
+                              {isVisible ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => copyToClipboard(secret.value, index)}
+                              className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                              title="Copy to clipboard"
+                            >
+                              {isCopied ? <Check className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="col-span-12 md:col-span-2 flex justify-end">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeSecret(index)}
+                            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors md:w-auto w-full"
+                            title="Remove secret"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1 sm:gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors sm:w-auto w-8 h-8"
-                          title="View secret"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors sm:w-auto w-8 h-8"
-                          title="Copy to clipboard"
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors sm:w-auto w-8 h-8"
-                          title="Delete secret"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-8">
@@ -141,11 +379,40 @@ export default async function SecretsConfigurationPage({
                   </p>
                 </div>
               )}
+
+              {secrets.length > 0 && (
+                <div className="mt-6 pt-6 border-t border-border">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex gap-3">
+                      <Button
+                        onClick={saveSecrets}
+                        disabled={saving || secrets.length === 0}
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground transition-colors"
+                      >
+                        <Save className="mr-2 h-4 w-4" />
+                        {saving ? 'Saving...' : 'Save Changes'}
+                      </Button>
+                      <Button
+                        onClick={() => router.back()}
+                        variant="outline"
+                        className="border-border text-foreground hover:bg-accent transition-colors"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {secrets.filter(s => s.key && s.value).length > 0 && (
+                        <span>{secrets.filter(s => s.key && s.value).length} secret{secrets.filter(s => s.key && s.value).length !== 1 ? 's' : ''} configured</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
           {/* User-level Secrets (e.g., ANTHROPIC_API_KEY) */}
-          <SystemSecretsList systemSecrets={userConfigs} />
+          <SystemSecretsList systemSecrets={systemSecrets} />
 
           {/* Security Best Practices */}
           <Card className="bg-card border-border shadow-sm p-6">
@@ -154,7 +421,7 @@ export default async function SecretsConfigurationPage({
               <h2 className="text-lg font-medium text-foreground">Security Best Practices</h2>
             </div>
 
-            <ul className="text-sm text-muted-foreground space-y-3">
+            <ul className="text-sm text-muted-foreground space-y-3 mt-4">
               <li className="flex items-start gap-2">
                 <span className="text-green-600 dark:text-green-500 mt-0.5 shrink-0">✓</span>
                 <span>Never commit secrets to version control systems</span>
