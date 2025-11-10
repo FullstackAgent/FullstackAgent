@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Check, Copy, Eye, EyeOff, Key, Lock, Plus, Save, Shield, Trash2, X } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import type { Environment } from '@prisma/client';
 
 import { SystemSecretsList } from '@/components/secrets-list';
 import { Button } from '@/components/ui/button';
@@ -30,15 +31,7 @@ interface SystemSecret {
 interface Project {
   id: string;
   name: string;
-  environments: {
-    id: string;
-    key: string;
-    value: string;
-    category: string | null;
-    isSecret: boolean;
-    createdAt: string;
-    updatedAt: string;
-  }[];
+  environments: Environment[];
 }
 
 export default function SecretsPage() {
@@ -66,7 +59,7 @@ export default function SecretsPage() {
           id: env.id,
           key: env.key,
           value: env.value,
-          category: env.category,
+          category: env.category || undefined,
           isSecret: env.isSecret
         }));
 
@@ -113,10 +106,10 @@ export default function SecretsPage() {
   }, [secrets, saving, router]);
 
   // Helper functions
-  const maskSecret = (value: string): string => {
-    if (!value || value.length < 8) return '••••••••';
-    return '••••' + value.slice(-4);
-  };
+  // const maskSecret = (value: string): string => {
+  //   if (!value || value.length < 8) return '••••••••';
+  //   return '••••' + value.slice(-4);
+  // };
 
   const toggleVisibility = (index: number) => {
     const key = `secret-${index}`;
@@ -156,7 +149,7 @@ export default function SecretsPage() {
     const keys = new Set<string>();
 
     // Check for duplicate keys
-    secrets.forEach((secret, index) => {
+    secrets.forEach((secret) => {
       if (secret.key) {
         if (keys.has(secret.key)) {
           errors.push(`Duplicate secret key: ${secret.key}`);
@@ -167,14 +160,14 @@ export default function SecretsPage() {
     });
 
     // Check for valid key format
-    secrets.forEach((secret, index) => {
+    secrets.forEach((secret) => {
       if (secret.key && !/^[A-Z][A-Z0-9_]*$/.test(secret.key)) {
         errors.push(`Secret key "${secret.key}" must start with a letter and contain only uppercase letters, numbers, and underscores`);
       }
     });
 
     // Check for empty values
-    secrets.forEach((secret, index) => {
+    secrets.forEach((secret) => {
       if (secret.key && !secret.value.trim()) {
         errors.push(`Secret key "${secret.key}" cannot have an empty value`);
       }
