@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronRight, Copy, Eye, EyeOff, Key, Settings, Shield } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 
 interface SystemSecret {
   key: string;
@@ -71,11 +74,12 @@ export function SystemSecretsList({ systemSecrets }: SecretsListProps) {
   }
 
   return (
-    <div className="bg-card rounded-lg border border-border overflow-hidden">
+    <Card className="bg-card border-border overflow-hidden gap-0 py-0">
       {/* Collapsible Header */}
-      <button
+      <Button
+        variant="ghost"
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full px-6 py-4 flex items-center justify-between hover:bg-accent transition-colors"
+        className="w-full px-6 justify-between hover:bg-accent h-auto py-4"
       >
         <div className="flex items-center gap-3">
           <div
@@ -84,19 +88,20 @@ export function SystemSecretsList({ systemSecrets }: SecretsListProps) {
           >
             <ChevronRight className="h-5 w-5 text-muted-foreground" />
           </div>
-          <Settings className="h-5 w-5 text-primary" />
-          <div className="text-left">
-            <h2 className="text-lg font-medium text-foreground">Claude Code Secrets</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              System-wide secrets ({systemSecrets.length} variable
-              {systemSecrets.length !== 1 ? 's' : ''})
-            </p>
+          <div className="flex items-center gap-2">
+            <Settings className="h-5 w-5 text-primary" />
+            <div className="flex gap-4">
+              <h2 className="text-lg font-medium text-foreground">Claude Code Secrets</h2>
+              <p className="text-xs text-muted-foreground mt-0">
+                ({systemSecrets.length} variable{systemSecrets.length !== 1 ? 's' : ''})
+              </p>
+            </div>
           </div>
         </div>
         <div className="text-xs text-muted-foreground">
           {isExpanded ? 'Click to collapse' : 'Click to expand'}
         </div>
-      </button>
+      </Button>
 
       {/* Collapsible Content with Smooth Animation */}
       <div
@@ -106,7 +111,7 @@ export function SystemSecretsList({ systemSecrets }: SecretsListProps) {
         }}
         className="transition-all duration-300 ease-in-out overflow-hidden"
       >
-        <div ref={contentRef} className="px-6 pb-6 space-y-4 border-t border-border">
+        <CardContent ref={contentRef} className="px-6 pb-6 space-y-4 border-t border-border">
           <p className="text-xs text-muted-foreground pt-4">
             System-wide secrets shared across all projects (read-only)
           </p>
@@ -128,9 +133,9 @@ export function SystemSecretsList({ systemSecrets }: SecretsListProps) {
                       <code className="text-sm font-mono text-foreground font-medium">
                         {secret.key}
                       </code>
-                      <span className="text-xs px-2 py-0.5 bg-primary/10 text-primary rounded border border-primary/20">
+                      <Badge variant="secondary" className="text-xs">
                         System
-                      </span>
+                      </Badge>
                     </div>
 
                     {secret.description && (
@@ -153,16 +158,18 @@ export function SystemSecretsList({ systemSecrets }: SecretsListProps) {
                   <div className="flex items-center gap-2 ml-4">
                     {!isEmpty && (
                       <>
-                        <button
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           onClick={() => toggleVisibility(secret.key)}
-                          className="p-1.5 text-muted-foreground hover:text-foreground transition-colors hover:bg-accent/50 rounded"
                           title={isVisible ? 'Hide value' : 'Show value'}
                         >
                           {isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           onClick={() => copyToClipboard(secret.key, secret.value)}
-                          className="p-1.5 text-muted-foreground hover:text-foreground transition-colors hover:bg-accent/50 rounded"
                           title="Copy to clipboard"
                         >
                           {isCopied ? (
@@ -170,7 +177,7 @@ export function SystemSecretsList({ systemSecrets }: SecretsListProps) {
                           ) : (
                             <Copy className="h-4 w-4" />
                           )}
-                        </button>
+                        </Button>
                       </>
                     )}
                   </div>
@@ -191,8 +198,8 @@ export function SystemSecretsList({ systemSecrets }: SecretsListProps) {
               </span>
             </p>
           </div>
-        </div>
+        </CardContent>
       </div>
-    </div>
+    </Card>
   );
 }

@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 
 import { SystemSecretsList } from '@/components/secrets-list';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 
@@ -62,13 +63,13 @@ export default async function SecretsConfigurationPage({
       <div className="flex-1 overflow-auto p-6">
         <div className="mx-auto space-y-6">
           {/* Project Secrets Card */}
-          <div className="bg-card rounded-lg border border-border shadow-sm">
-            <div className="border-b border-border p-6">
+          <Card className="bg-card border-border shadow-sm">
+            <CardHeader className="border-b border-border">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
+                <CardTitle className="text-foreground flex items-center gap-2">
                   <Lock className="h-4 w-4 text-primary" />
-                  <h2 className="text-lg font-medium text-foreground">Project Secrets</h2>
-                </div>
+                  Project Secrets
+                </CardTitle>
                 <Button
                   variant="outline"
                   size="sm"
@@ -78,12 +79,12 @@ export default async function SecretsConfigurationPage({
                   Add Secret
                 </Button>
               </div>
-              <p className="text-sm text-muted-foreground mt-2">
+              <CardDescription className="text-muted-foreground">
                 Project-specific secrets that can be edited and deleted
-              </p>
-            </div>
+              </CardDescription>
+            </CardHeader>
 
-            <div className="p-6">
+            <CardContent className="p-6">
               {project.environments.length > 0 ? (
                 <div className="space-y-3">
                   {project.environments.map((secret) => (
@@ -131,8 +132,8 @@ export default async function SecretsConfigurationPage({
                 </div>
               ) : (
                 <div className="text-center py-8">
-                  <div className="mx-auto w-12 h-12 bg-muted rounded-full flex items-center justify-center mb-3">
-                    <Key className="h-6 w-6 text-muted-foreground" />
+                  <div className="mx-auto w-10 h-10 bg-muted rounded-full flex items-center justify-center mb-3">
+                    <Key className="h-5 w-5 text-muted-foreground" />
                   </div>
                   <p className="text-muted-foreground font-medium">No secrets configured yet</p>
                   <p className="text-sm text-muted-foreground mt-1">
@@ -140,15 +141,15 @@ export default async function SecretsConfigurationPage({
                   </p>
                 </div>
               )}
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
           {/* User-level Secrets (e.g., ANTHROPIC_API_KEY) */}
           <SystemSecretsList systemSecrets={userConfigs} />
 
           {/* Security Best Practices */}
-          <div className="bg-card rounded-lg border border-border shadow-sm p-6">
-            <div className="flex items-center gap-2 mb-4">
+          <Card className="bg-card border-border shadow-sm p-6">
+            <div className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-primary" />
               <h2 className="text-lg font-medium text-foreground">Security Best Practices</h2>
             </div>
@@ -175,7 +176,7 @@ export default async function SecretsConfigurationPage({
                 <span>Use strong, randomly generated values for API keys and tokens</span>
               </li>
             </ul>
-          </div>
+          </Card>
         </div>
       </div>
     </div>
