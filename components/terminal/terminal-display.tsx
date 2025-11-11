@@ -45,8 +45,21 @@ export function TerminalDisplay({ ttydUrl, status, tabId }: TerminalDisplayProps
   // Listen to postMessage from ttyd iframe (autoscroll status updates)
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      // Security: Verify message format
+      // Security: Verify message format and origin
       if (typeof event.data !== 'object' || !event.data) return;
+
+      // Verify message comes from ttyd iframe (check if origin matches ttydUrl)
+      if (ttydUrl) {
+        try {
+          const ttydOrigin = new URL(ttydUrl).origin;
+          if (event.origin !== ttydOrigin) {
+            // Silently ignore messages from other origins
+            return;
+          }
+        } catch {
+          // Invalid URL, skip origin check
+        }
+      }
 
       // Handle autoscroll status updates
       if (event.data.type === 'ttyd-scroll-status') {
@@ -62,7 +75,7 @@ export function TerminalDisplay({ ttydUrl, status, tabId }: TerminalDisplayProps
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [tabId]);
+  }, [tabId, ttydUrl]);
 
   // Only show terminal iframe if status is RUNNING and URL is available
   if (status === 'RUNNING' && ttydUrl) {

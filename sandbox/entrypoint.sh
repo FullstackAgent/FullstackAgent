@@ -37,7 +37,8 @@ THEME='theme={
 
 # Start ttyd with authentication wrapper, theme, and custom HTML for auto-scroll injection
 # -b: Set base path for serving static files (index.html and autoscroll script)
-# -I: Custom index.html path
+# -I: Custom index.html path (required for autoscroll to work)
 ttyd -T xterm-256color -W -a -t "$THEME" \
   -b /usr/local/share/ttyd \
+  -I /usr/local/share/ttyd/index.html \
   /usr/local/bin/ttyd-auth.sh
