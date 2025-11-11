@@ -4,6 +4,16 @@ import { useEffect, useState } from 'react';
 import { Code, Database, Save, Terminal } from 'lucide-react';
 import { toast } from 'sonner';
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -76,6 +86,11 @@ export default function SettingsDialog({
   const [isAnthropicLoading, setIsAnthropicLoading] = useState(false);
   const [isAnthropicInitialLoading, setIsAnthropicInitialLoading] = useState(true);
 
+  // Confirmation dialog state
+  const [showSystemPromptConfirm, setShowSystemPromptConfirm] = useState(false);
+  const [showSystemPromptResetConfirm, setShowSystemPromptResetConfirm] = useState(false);
+  const [showAnthropicConfirm, setShowAnthropicConfirm] = useState(false);
+
   // Load data when dialog opens
   useEffect(() => {
     if (open) {
@@ -145,7 +160,12 @@ export default function SettingsDialog({
     }
   };
 
-  const handleSaveSystemPrompt = async () => {
+  const handleSaveSystemPrompt = () => {
+    setShowSystemPromptConfirm(true);
+  };
+
+  const handleConfirmSaveSystemPrompt = async () => {
+    setShowSystemPromptConfirm(false);
     setIsSystemPromptLoading(true);
     try {
       await fetchClient.POST('/api/user/config/system-prompt', {
@@ -193,12 +213,16 @@ export default function SettingsDialog({
     }
   };
 
-  const handleSaveAnthropicConfig = async () => {
+  const handleSaveAnthropicConfig = () => {
     if (!anthropicApiKey.trim() || !anthropicApiBaseUrl.trim()) {
       toast.error('Both API key and base URL are required');
       return;
     }
+    setShowAnthropicConfirm(true);
+  };
 
+  const handleConfirmSaveAnthropicConfig = async () => {
+    setShowAnthropicConfirm(false);
     setIsAnthropicLoading(true);
     try {
       await fetchClient.POST('/api/user/config/anthropic', {
@@ -220,6 +244,11 @@ export default function SettingsDialog({
   };
 
   const handleResetSystemPrompt = () => {
+    setShowSystemPromptResetConfirm(true);
+  };
+
+  const handleConfirmResetSystemPrompt = () => {
+    setShowSystemPromptResetConfirm(false);
     setSystemPrompt(DEFAULT_SYSTEM_PROMPT);
     toast.success('Reset to default system prompt');
   };
@@ -323,7 +352,10 @@ export default function SettingsDialog({
                 <TabsContent value="kubeconfig" className="mt-0 h-full flex flex-col">
                   <div className="space-y-4 pb-4 flex-1 flex flex-col min-h-0">
                     <div className="space-y-2 shrink-0">
-                      <Label htmlFor="kubeconfig-dialog" className="text-foreground text-sm font-medium">
+                      <Label
+                        htmlFor="kubeconfig-dialog"
+                        className="text-foreground text-sm font-medium"
+                      >
                         Kubeconfig Content
                       </Label>
                       {kubeconfigNamespace && (
@@ -474,6 +506,87 @@ export default function SettingsDialog({
             </div>
           </Tabs>
         </div>
+
+        {/* System Prompt Confirmation Dialog */}
+        <AlertDialog open={showSystemPromptConfirm} onOpenChange={setShowSystemPromptConfirm}>
+          <AlertDialogContent className="bg-card border-border text-foreground">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-foreground">
+                Confirm Save System Prompt
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-muted-foreground">
+                These changes won&apos;t take effect until you manually restart the application.
+                Save now?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="border-border text-muted-foreground hover:text-foreground hover:bg-accent">
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleConfirmSaveSystemPrompt}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground"
+              >
+                Save
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* System Prompt Reset Confirmation Dialog */}
+        <AlertDialog
+          open={showSystemPromptResetConfirm}
+          onOpenChange={setShowSystemPromptResetConfirm}
+        >
+          <AlertDialogContent className="bg-card border-border text-foreground">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-foreground">
+                Reset System Prompt to Default
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-muted-foreground">
+                This will reset the system prompt to the default template. You&apos;ll need to
+                manually restart the application for this change to take effect. Continue?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="border-border text-muted-foreground hover:text-foreground hover:bg-accent">
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleConfirmResetSystemPrompt}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground"
+              >
+                Reset to Default
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Anthropic Config Confirmation Dialog */}
+        <AlertDialog open={showAnthropicConfirm} onOpenChange={setShowAnthropicConfirm}>
+          <AlertDialogContent className="bg-card border-border text-foreground">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-foreground">
+                Confirm Save Anthropic Configuration
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-muted-foreground">
+                These changes won&apos;t take effect until you manually restart the application.
+                Save now?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="border-border text-muted-foreground hover:text-foreground hover:bg-accent">
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleConfirmSaveAnthropicConfig}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground"
+              >
+                Save Configuration
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );
