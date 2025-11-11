@@ -80,7 +80,7 @@ export default function PaymentConfigurationPage() {
         variables: paymentVars.filter((env) => env.key && env.value).map(env => ({
           ...env,
           category: 'payment',
-          isSecret: false
+          isSecret: env.key.includes('SECRET')
         }))
       });
 
