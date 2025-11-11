@@ -248,11 +248,16 @@ RUN set -eux; \
     echo "✓ shadcn/ui installed"
 
 # -----------------------------------------------------------------------------
-# Step 3: Clean up and set ownership
+# Step 3: Clean up node_modules and set ownership
+# Rationale: node_modules installed by root causes permission issues when
+#            copied to PVC and used by agent user (UID 1001)
+# Solution: Remove node_modules from template, agent will install when needed
 # -----------------------------------------------------------------------------
 RUN set -eux; \
     TEMPLATE_DIR="/opt/next-template"; \
     cd "$TEMPLATE_DIR"; \
+    echo "=== Removing node_modules to avoid permission issues ==="; \
+    rm -rf node_modules .next; \
     echo "=== Cleaning up pnpm cache ==="; \
     pnpm store prune; \
     echo "=== Setting ownership to agent user (1001:1001) ==="; \
@@ -260,10 +265,15 @@ RUN set -eux; \
     echo "=== Final verification ==="; \
     ls -la "$TEMPLATE_DIR"; \
     if [ ! -f "$TEMPLATE_DIR/package.json" ]; then \
-        echo "ERROR: Template verification failed"; \
+        echo "ERROR: Template verification failed - package.json missing"; \
         exit 1; \
     fi; \
-    echo "✓ Template ready at $TEMPLATE_DIR (owned by agent:agent)"
+    if [ -d "$TEMPLATE_DIR/node_modules" ]; then \
+        echo "ERROR: node_modules should have been removed"; \
+        exit 1; \
+    fi; \
+    echo "✓ Template ready at $TEMPLATE_DIR (owned by agent:agent)"; \
+    echo "✓ node_modules removed - user will install dependencies as needed"
 
 # =============================================================================
 # Container Runtime Configuration

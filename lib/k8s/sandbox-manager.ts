@@ -720,12 +720,13 @@ export class SandboxManager {
    *
    * What gets initialized:
    * 1. .bashrc - Shell configuration (only if doesn't exist, never overwrite user changes)
-   * 2. next/ - Next.js project template (only if directory is empty)
+   * 2. next/ - Next.js project template WITHOUT node_modules (only if directory is empty)
    *
    * Safety strategy:
    * - .bashrc: Copy only if missing (user may have customized it)
    * - next/: Copy only if directory doesn't exist or is completely empty
    * - Never overwrites existing user files
+   * - node_modules NOT copied (removed from image to avoid root permission issues)
    */
   private generateInitContainerScript(): string {
     return `
@@ -788,14 +789,15 @@ if [ ! -d /opt/next-template ]; then
   exit 1
 fi
 
-# Copy Next.js project template
+# Copy Next.js project template (without node_modules)
 echo "→ Copying Next.js project template from /opt/next-template..."
 echo "  Source: /opt/next-template (agent:agent)"
 echo "  Target: /home/agent/next"
-echo "  This may take 10-30 seconds..."
+echo "  Note: node_modules NOT included - run 'pnpm install' to install dependencies"
+echo "  This may take 5-10 seconds..."
 mkdir -p /home/agent/next
 
-# Copy with progress indicator and preserve timestamps
+# Copy project files (node_modules already removed from image)
 # Using cp instead of rsync for simplicity (rsync is available but cp is sufficient)
 cp -rp /opt/next-template/. /home/agent/next 2>&1 || {
   echo "✗ ERROR: Failed to copy template"
@@ -833,7 +835,8 @@ echo "✓ Next.js project: ready (newly created)"
 echo "✓ Location: /home/agent/next"
 echo "✓ Ownership: agent (1001:1001)"
 echo "✓ Files copied: $FILE_COUNT"
-echo "✓ Project can be accessed via: cd ~/next && pnpm dev"
+echo "⚠ node_modules not included - run 'pnpm install' to install dependencies"
+echo "✓ To start: cd ~/next && pnpm install && pnpm dev"
 echo ""
 echo "=== Init Container: Completed successfully ==="
     `.trim()
