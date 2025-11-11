@@ -195,10 +195,14 @@ WORKDIR /home/agent
 # Copy configuration files (placed before user switch for better caching)
 # entrypoint.sh: Container startup script
 # ttyd-auth.sh: Authentication script for ttyd terminal access
+# ttyd-index.html: Custom HTML template for ttyd
+# ttyd-autoscroll.js: Auto-scroll script injected into ttyd HTML
 # .bashrc: Shell configuration with custom prompt and Claude CLI auto-start
 # -----------------------------------------------------------------------------
 COPY --chmod=755 entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY --chmod=755 ttyd-auth.sh /usr/local/bin/ttyd-auth.sh
+COPY --chmod=644 ttyd-index.html /usr/local/share/ttyd/index.html
+COPY --chmod=644 ttyd-autoscroll.js /usr/local/share/ttyd/ttyd-autoscroll.js
 COPY --chmod=644 .bashrc /etc/skel/.bashrc
 
 # =============================================================================
@@ -249,10 +253,14 @@ RUN set -eux; \
 
 # -----------------------------------------------------------------------------
 # Step 3: Clean up and set ownership
+# IMPORTANT: Remove node_modules to avoid pnpm store path conflicts
+# Users will run pnpm install manually when needed
 # -----------------------------------------------------------------------------
 RUN set -eux; \
     TEMPLATE_DIR="/opt/next-template"; \
     cd "$TEMPLATE_DIR"; \
+    echo "=== Removing node_modules to prevent store conflicts ==="; \
+    rm -rf node_modules .pnpm-store; \
     echo "=== Cleaning up pnpm cache ==="; \
     pnpm store prune; \
     echo "=== Setting ownership to agent user (1001:1001) ==="; \
@@ -263,7 +271,11 @@ RUN set -eux; \
         echo "ERROR: Template verification failed"; \
         exit 1; \
     fi; \
-    echo "✓ Template ready at $TEMPLATE_DIR (owned by agent:agent)"
+    if [ -d "$TEMPLATE_DIR/node_modules" ]; then \
+        echo "ERROR: node_modules should have been removed"; \
+        exit 1; \
+    fi; \
+    echo "✓ Template ready at $TEMPLATE_DIR (owned by agent:agent, no node_modules)"
 
 # =============================================================================
 # Container Runtime Configuration
