@@ -390,17 +390,21 @@ export class SandboxManager {
     }
   }
 
-  // TODO: This method is not idempotent - it will create a new StatefulSet if it doesn't exist (this method should be idempotent)
   /**
-   * Update StatefulSet environment variables
+   * Update StatefulSet environment variables (idempotent)
+   *
+   * This method ensures environment variables are up-to-date:
+   * 1. Returns false if StatefulSet doesn't exist
+   * 2. Returns true without changes if env vars are already correct
+   * 3. Updates StatefulSet only if there are differences
    *
    * @param projectName - Project name
    * @param namespace - Kubernetes namespace
    * @param sandboxName - Sandbox name
-   * @param envVars - Environment variables
+   * @param envVars - Environment variables to set
+   * @returns true if successful or no changes needed, false if StatefulSet not found
    */
   async updateStatefulSetEnvVars(
-    projectName: string,
     namespace: string,
     sandboxName: string,
     envVars: Record<string, string>
@@ -408,32 +412,74 @@ export class SandboxManager {
     logger.info(`Updating StatefulSet env vars: ${sandboxName}`)
 
     try {
-      // Find StatefulSet by exact match
+      // Step 1: Find StatefulSet by exact match
       const statefulSet = await this.getStatefulSet(sandboxName, namespace)
 
       if (!statefulSet) {
-        throw new Error(`StatefulSet not found: ${sandboxName}`)
+        // StatefulSet doesn't exist - return false
+        logger.warn(`StatefulSet not found: ${sandboxName}`)
+        return false
       }
 
-      // Merge all environment variables
-      const allEnvVars: Record<string, string> = {
+      // Step 2: Get current environment variables from the main container
+      const mainContainer = statefulSet.spec!.template.spec!.containers.find(
+        (container) => container.name === sandboxName
+      )
+
+      if (!mainContainer) {
+        logger.error(`Main container not found in StatefulSet: ${sandboxName}`)
+        return false
+      }
+
+      // Convert current env array to map for comparison
+      const currentEnvMap: Record<string, string> = {}
+      if (mainContainer.env) {
+        for (const envVar of mainContainer.env) {
+          if (envVar.name && envVar.value !== undefined) {
+            currentEnvMap[envVar.name] = envVar.value
+          }
+        }
+      }
+
+      // Step 3: Check if environment variables have changed
+      let hasChanges = false
+
+      // Check if all desired envVars are present with correct values
+      for (const [key, value] of Object.entries(envVars)) {
+        if (currentEnvMap[key] !== String(value)) {
+          hasChanges = true
+          break
+        }
+      }
+
+      // Check if there are any extra env vars that should be removed (optional)
+      // For now, we only add/update, not remove, so we skip this check
+
+      if (!hasChanges) {
+        // No changes needed - environment variables are already correct
+        logger.info(`StatefulSet env vars unchanged: ${sandboxName}`)
+        return true
+      }
+
+      // Step 4: Merge environment variables (preserve existing, add/update new ones)
+      const mergedEnvMap: Record<string, string> = {
+        ...currentEnvMap,
         ...envVars,
-        PROJECT_NAME: projectName,
-        NODE_ENV: 'development',
-        TTYD_PORT: '7681',
-        TTYD_INTERFACE: '0.0.0.0',
       }
 
-      // Update container environment variables
+      // Convert merged map back to env array
+      const updatedEnv = Object.entries(mergedEnvMap).map(([key, value]) => ({
+        name: key,
+        value: String(value),
+      }))
+
+      // Step 5: Update container environment variables
       const containers = statefulSet.spec!.template.spec!.containers.map((container) => {
         // Match main container (name equals sandboxName)
         if (container.name === sandboxName) {
           return {
             ...container,
-            env: Object.entries(allEnvVars).map(([key, value]) => ({
-              name: key,
-              value: String(value),
-            })),
+            env: updatedEnv,
           }
         }
         return container
@@ -457,13 +503,14 @@ export class SandboxManager {
         spec: updatedSpec,
       }
 
+      // Step 6: Apply changes to Kubernetes
       await this.k8sAppsApi.replaceNamespacedStatefulSet({
         name: sandboxName,
         namespace,
         body: updatedStatefulSet,
       })
 
-      logger.info(`StatefulSet env vars updated: ${sandboxName}`)
+      logger.info(`StatefulSet env vars updated successfully: ${sandboxName}`)
       return true
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)

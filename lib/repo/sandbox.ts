@@ -81,7 +81,7 @@ export async function acquireAndLockSandboxes(
         WHERE "id" IN (
           SELECT "id"
           FROM "Sandbox"
-          WHERE "status" IN ('CREATING', 'STARTING', 'STOPPING', 'TERMINATING')
+          WHERE "status" IN ('CREATING', 'STARTING', 'STOPPING', 'TERMINATING','UPDATING')
             AND ("lockedUntil" IS NULL OR "lockedUntil" <= ${now})
           ORDER BY "updatedAt" ASC
           LIMIT ${limit}
@@ -167,9 +167,7 @@ export async function updateSandboxStatus(
       return false
     }
 
-    logger.info(
-      `Sandbox ${sandboxId} status updated: ${result.previousStatus} -> ${newStatus}`
-    )
+    logger.info(`Sandbox ${sandboxId} status updated: ${result.previousStatus} -> ${newStatus}`)
     return true
   } catch (error) {
     logger.error(`Failed to update sandbox ${sandboxId} status: ${error}`)

@@ -4,6 +4,10 @@ import { NextResponse } from 'next/server'
 import { verifyProjectAccess, withAuth } from '@/lib/api-auth'
 import { EnvironmentCategory } from '@/lib/const'
 import { prisma } from '@/lib/db'
+import { logger as baseLogger } from '@/lib/logger'
+import { canUpdateResource } from '@/lib/util/action'
+
+const logger = baseLogger.child({ module: 'api/projects/[id]/environment' })
 
 type GroupedEnvironments = Record<string, Environment[]>
 
@@ -58,6 +62,37 @@ export const POST = withAuth<PostEnvironmentResponse>(async (req, context, sessi
 
   try {
     await verifyProjectAccess(projectId, session.user.id)
+
+    // Check if project sandboxes can be updated
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      include: {
+        sandboxes: {
+          select: { id: true, status: true, name: true },
+        },
+      },
+    })
+
+    if (!project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+    }
+
+    // Check if all sandboxes can be updated
+    const nonUpdatableSandboxes = project.sandboxes.filter((sb) => !canUpdateResource(sb.status))
+
+    if (nonUpdatableSandboxes.length > 0) {
+      const statusList = nonUpdatableSandboxes.map((sb) => `${sb.name}: ${sb.status}`).join(', ')
+      logger.warn(
+        `Cannot update environment variables for project ${projectId}: some sandboxes cannot be updated (${statusList})`
+      )
+      return NextResponse.json(
+        {
+          error: `Cannot update environment variables: some sandboxes are not in a state that allows updates. Only RUNNING sandboxes can be updated. Non-updatable sandboxes: ${statusList}`,
+        },
+        { status: 400 }
+      )
+    }
+
     const body = await req.json()
 
     // Check if this is a single variable creation or batch update
@@ -72,6 +107,22 @@ export const POST = withAuth<PostEnvironmentResponse>(async (req, context, sessi
           isSecret: body.isSecret || false,
         },
       })
+
+      // Set all sandboxes to UPDATING status
+      if (project.sandboxes.length > 0) {
+        await prisma.sandbox.updateMany({
+          where: {
+            projectId,
+            status: 'RUNNING', // Only update RUNNING sandboxes
+          },
+          data: {
+            status: 'UPDATING',
+          },
+        })
+        logger.info(
+          `Set ${project.sandboxes.length} sandboxes to UPDATING status for project ${projectId}`
+        )
+      }
 
       return NextResponse.json(newVar)
     } else if (body.variables) {
@@ -100,12 +151,28 @@ export const POST = withAuth<PostEnvironmentResponse>(async (req, context, sessi
 
       const created = await Promise.all(envPromises)
 
+      // Set all sandboxes to UPDATING status
+      if (project.sandboxes.length > 0) {
+        await prisma.sandbox.updateMany({
+          where: {
+            projectId,
+            status: 'RUNNING', // Only update RUNNING sandboxes
+          },
+          data: {
+            status: 'UPDATING',
+          },
+        })
+        logger.info(
+          `Set ${project.sandboxes.length} sandboxes to UPDATING status for project ${projectId}`
+        )
+      }
+
       return NextResponse.json({ success: true, count: created.length })
     } else {
       return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
     }
   } catch (error) {
-    console.error('Error saving environment variables:', error)
+    logger.error(`Error saving environment variables: ${error}`)
     return NextResponse.json({ error: 'Failed to save environment variables' }, { status: 500 })
   }
 })

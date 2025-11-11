@@ -164,6 +164,7 @@ export function TerminalToolbar({
                 project.status === 'STARTING' && 'bg-yellow-500 animate-pulse',
                 project.status === 'STOPPING' && 'bg-yellow-500 animate-pulse',
                 project.status === 'CREATING' && 'bg-blue-500 animate-pulse',
+                project.status === 'UPDATING' && 'bg-cyan-500 animate-pulse',
                 project.status === 'TERMINATING' && 'bg-red-500 animate-pulse',
                 project.status === 'ERROR' && 'bg-red-500',
                 project.status === 'PARTIAL' && 'bg-orange-500'
