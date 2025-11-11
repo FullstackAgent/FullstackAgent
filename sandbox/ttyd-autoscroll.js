@@ -132,16 +132,17 @@
 
         viewport.addEventListener('scroll', () => {
           const currentScrollTop = viewport.scrollTop
-          const wasAtBottom = isAtBottom(term)
+          const isAtBottomNow = isAtBottom(term)
+          const scrolledUp = currentScrollTop < lastScrollTop
 
-          // User scrolled manually (not at bottom)
-          if (!wasAtBottom && currentScrollTop !== lastScrollTop) {
+          // User scrolled up manually (not at bottom)
+          if (scrolledUp && !isAtBottomNow) {
             userManuallyScrolled = true
             lastScrollTime = Date.now()
             log('→ User manually scrolled up')
           }
           // User scrolled back to bottom
-          else if (wasAtBottom && userManuallyScrolled) {
+          else if (isAtBottomNow && userManuallyScrolled) {
             userManuallyScrolled = false
             log('→ User scrolled back to bottom, resuming auto-scroll')
           }
@@ -172,8 +173,9 @@
 
         // Active streaming: smart scroll (only if user hasn't manually scrolled)
         if (timeSinceActivity < CONFIG.STREAMING_WINDOW) {
-          // If user manually scrolled recently (within 2 seconds), don't force scroll
-          if (userManuallyScrolled && timeSinceManualScroll < 2000) {
+          // If user manually scrolled recently (within 5 seconds), don't force scroll
+          // Increased from 2 seconds to 5 seconds to give users more time to read history
+          if (userManuallyScrolled && timeSinceManualScroll < 5000) {
             // User is viewing history, don't interrupt
             return
           }

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -29,22 +29,39 @@
     <!-- Auto-scroll injection script - loaded after ttyd init -->
     <script>
       // Wait for ttyd to fully initialize before loading autoscroll script
-      (function() {
-        const loadAutoScroll = () => {
-          const script = document.createElement('script');
-          script.src = '/ttyd-autoscroll.js';
-          script.onerror = () => console.error('[ttyd] Failed to load autoscroll script');
-          script.onload = () => console.log('[ttyd] Autoscroll script loaded');
-          document.body.appendChild(script);
-        };
+      ;(function () {
+        let retryCount = 0
+        const MAX_RETRIES = 10
+        const INITIAL_DELAY = 500
+        const RETRY_DELAY = 500
 
-        // Load after a short delay to ensure ttyd is ready
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', () => setTimeout(loadAutoScroll, 500));
-        } else {
-          setTimeout(loadAutoScroll, 500);
+        const loadAutoScroll = () => {
+          const script = document.createElement('script')
+          script.src = '/ttyd-autoscroll.js'
+          script.onerror = () => {
+            retryCount++
+            if (retryCount < MAX_RETRIES) {
+              console.warn(
+                `[ttyd] Failed to load autoscroll script, retrying (${retryCount}/${MAX_RETRIES})...`
+              )
+              setTimeout(loadAutoScroll, RETRY_DELAY)
+            } else {
+              console.error('[ttyd] Failed to load autoscroll script after multiple retries')
+            }
+          }
+          script.onload = () => console.log('[ttyd] Autoscroll script loaded successfully')
+          document.body.appendChild(script)
         }
-      })();
+
+        // Load after a delay to ensure ttyd is ready
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', () =>
+            setTimeout(loadAutoScroll, INITIAL_DELAY)
+          )
+        } else {
+          setTimeout(loadAutoScroll, INITIAL_DELAY)
+        }
+      })()
     </script>
   </body>
 </html>
