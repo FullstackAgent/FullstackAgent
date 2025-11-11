@@ -288,7 +288,7 @@ export default function SecretsPage() {
                               updateSecret(
                                 index,
                                 'key',
-                                e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, '_')
+                                e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, '')
                               )
                             }
                             className="bg-input border-border text-foreground font-mono text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-colors"
