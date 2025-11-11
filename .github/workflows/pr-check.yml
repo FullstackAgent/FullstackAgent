@@ -167,13 +167,17 @@ jobs:
                   ref: headSha,
                 });
                 
-                // Find our checks
-                const lintBuild = checkRuns.check_runs.find(run => 
+                // Find our checks - filter all matches, then find non-skipped one
+                const lintBuilds = checkRuns.check_runs.filter(run =>
                   run.name === 'Lint and Build Check'
                 );
-                const dockerBuild = checkRuns.check_runs.find(run => 
+                const dockerBuilds = checkRuns.check_runs.filter(run =>
                   run.name === 'Docker Build Test'
                 );
+
+                // Prefer non-skipped check runs, fallback to first one if all are skipped
+                const lintBuild = lintBuilds.find(run => run.conclusion !== 'skipped') || lintBuilds[0];
+                const dockerBuild = dockerBuilds.find(run => run.conclusion !== 'skipped') || dockerBuilds[0];
                 
                 if (lintBuild && dockerBuild) {
                   console.log(`Lint & Build: ${lintBuild.status}, Docker Build: ${dockerBuild.status}`);
