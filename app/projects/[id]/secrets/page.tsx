@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Check, Copy, Eye, EyeOff, Key, Lock, Plus, Save, Shield, Trash2, X } from 'lucide-react';
+import type { Environment } from '@prisma/client';
+import { Check, Copy, Eye, EyeOff, Key, Lock, Plus, Save, Shield, Trash2 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import type { Environment } from '@prisma/client';
 
 import { SystemSecretsList } from '@/components/secrets-list';
 import { Button } from '@/components/ui/button';
@@ -84,26 +84,6 @@ export default function SecretsPage() {
     fetchSecrets();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
-
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl/Cmd + S to save
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        if (secrets.length > 0 && !saving) {
-          saveSecrets();
-        }
-      }
-      // Escape to cancel/go back
-      if (e.key === 'Escape') {
-        router.back();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [secrets, saving, router]);
 
   // Helper functions
   // const maskSecret = (value: string): string => {

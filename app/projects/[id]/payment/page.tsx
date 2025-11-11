@@ -1,37 +1,113 @@
-import { DollarSign, ExternalLink, Zap } from 'lucide-react';
-import { notFound } from 'next/navigation';
+'use client';
+
+import { useEffect, useState } from 'react';
+import { DollarSign, ExternalLink, Save, Zap } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { auth } from '@/lib/auth';
-import { prisma } from '@/lib/db';
+import { Spinner } from '@/components/ui/spinner';
+import { GET, POST } from '@/lib/fetch-client';
 
-export default async function PaymentConfigurationPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const session = await auth();
+interface PaymentVariable {
+  id?: string;
+  key: string;
+  value: string;
+}
 
-  const { id } = await params;
+const PAYMENT_VARIABLES = {
+  stripe: [
+    { key: 'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY', label: 'Publishable Key', placeholder: 'pk_test_...', type: 'text', description: 'Public key used in client-side code' },
+    { key: 'STRIPE_SECRET_KEY', label: 'Secret Key', placeholder: 'sk_test_...', type: 'password', description: 'Secret key for server-side operations' },
+    { key: 'STRIPE_WEBHOOK_SECRET', label: 'Webhook Secret', placeholder: 'whsec_...', type: 'password', description: 'Secret for verifying webhook signatures' },
+  ],
+  paypal: [
+    { key: 'PAYPAL_CLIENT_ID', label: 'Client ID', placeholder: 'Enter PayPal Client ID', type: 'text', description: 'PayPal client identifier for your application' },
+    { key: 'PAYPAL_CLIENT_SECRET', label: 'Client Secret', placeholder: 'Enter PayPal Client Secret', type: 'password', description: 'Secret key for PayPal API authentication' },
+  ]
+};
 
-  const project = await prisma.project.findFirst({
-    where: {
-      id: id,
-      userId: session?.user.id,
-    },
-    include: {
-      environments: {
-        where: {
+export default function PaymentConfigurationPage() {
+  const params = useParams();
+  const router = useRouter();
+  const projectId = params.id as string;
+
+  const [paymentVars, setPaymentVars] = useState<PaymentVariable[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const fetchPaymentVariables = async () => {
+    try {
+      const data = await GET<{
+        payment: PaymentVariable[];
+      }>(`/api/projects/${projectId}/environment`);
+
+      // Load payment environment variables
+      const paymentVariables = data.payment || [];
+      setPaymentVars(paymentVariables);
+    } catch (error) {
+      console.error('Error fetching payment variables:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      toast.error(`Failed to load payment configuration: ${errorMessage}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPaymentVariables();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
+
+  const updatePaymentVar = (key: string, value: string) => {
+    setPaymentVars(prev => {
+      const existing = prev.find(v => v.key === key);
+      if (existing) {
+        return prev.map(v => v.key === key ? { ...v, value } : v);
+      } else {
+        return [...prev, { key, value }];
+      }
+    });
+  };
+
+  const savePaymentConfiguration = async () => {
+    setSaving(true);
+
+    try {
+      await POST(`/api/projects/${projectId}/environment`, {
+        variables: paymentVars.filter((env) => env.key && env.value).map(env => ({
+          ...env,
           category: 'payment',
-        },
-      },
-    },
-  });
+          isSecret: false
+        }))
+      });
 
-  if (!project) {
-    notFound();
+      toast.success('Payment configuration saved successfully');
+      router.push(`/projects/${projectId}`);
+    } catch (error) {
+      console.error('Error saving payment configuration:', error);
+      toast.error('Failed to save payment configuration');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const getPaymentVarValue = (key: string) => {
+    const variable = paymentVars.find(v => v.key === key);
+    return variable?.value || '';
+  };
+
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-content-background">
+        <div className="flex items-center gap-3 text-muted-foreground">
+          <Spinner className="h-5 w-5" />
+          <span>Loading payment configuration...</span>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -75,60 +151,35 @@ export default async function PaymentConfigurationPage({
             </CardHeader>
 
             <CardContent className="p-6 space-y-4">
-              <div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-foreground">Publishable Key</label>
-                    <code className="text-xs bg-accent px-2 py-1 rounded text-primary">
-                      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-                    </code>
+              {PAYMENT_VARIABLES.stripe.map((variable) => (
+                <div key={variable.key}>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium text-foreground">{variable.label}</label>
+                      <code className="text-xs bg-accent px-2 py-1 rounded text-primary">
+                        {variable.key}
+                      </code>
+                    </div>
+                    <Input
+                      type={variable.type}
+                      placeholder={variable.placeholder}
+                      value={getPaymentVarValue(variable.key)}
+                      onChange={(e) => updatePaymentVar(variable.key, e.target.value)}
+                      className="bg-input border-border text-foreground font-mono text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-colors"
+                    />
                   </div>
-                  <Input
-                    type="text"
-                    placeholder="pk_test_..."
-                    className="bg-input border-border text-foreground font-mono text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-colors"
-                  />
+                  <p className="text-xs text-muted-foreground mt-0">{variable.description}</p>
                 </div>
-                <p className="text-xs text-muted-foreground mt-0">Public key used in client-side code</p>
-              </div>
-
-              <div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-foreground">Secret Key</label>
-                    <code className="text-xs bg-accent px-2 py-1 rounded text-primary">
-                      STRIPE_SECRET_KEY
-                    </code>
-                  </div>
-                  <Input
-                    type="password"
-                    placeholder="sk_test_..."
-                    className="bg-input border-border text-foreground font-mono text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-colors"
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground mt-0">Secret key for server-side operations</p>
-              </div>
-
-              <div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-foreground">Webhook Secret</label>
-                    <code className="text-xs bg-accent px-2 py-1 rounded text-primary">
-                      STRIPE_WEBHOOK_SECRET
-                    </code>
-                  </div>
-                  <Input
-                    type="password"
-                    placeholder="whsec_..."
-                    className="bg-input border-border text-foreground font-mono text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-colors"
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground mt-0">Secret for verifying webhook signatures</p>
-              </div>
+              ))}
 
               <div className="mt-6 pt-4 border-t border-border">
-                <Button className="bg-primary hover:bg-primary/90 text-primary-foreground transition-colors">
-                  Save Stripe Configuration
+                <Button 
+                  onClick={savePaymentConfiguration}
+                  disabled={saving}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground transition-colors"
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  {saving ? 'Saving...' : 'Save Changes'}
                 </Button>
               </div>
             </CardContent>
@@ -158,43 +209,34 @@ export default async function PaymentConfigurationPage({
             </CardHeader>
 
             <CardContent className="p-6 space-y-4">
-              <div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-foreground">Client ID</label>
-                    <code className="text-xs bg-accent px-2 py-1 rounded text-primary">
-                      PAYPAL_CLIENT_ID
-                    </code>
+              {PAYMENT_VARIABLES.paypal.map((variable) => (
+                <div key={variable.key}>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium text-foreground">{variable.label}</label>
+                      <code className="text-xs bg-accent px-2 py-1 rounded text-primary">
+                        {variable.key}
+                      </code>
+                    </div>
+                    <Input
+                      type={variable.type}
+                      placeholder={variable.placeholder}
+                      value={getPaymentVarValue(variable.key)}
+                      onChange={(e) => updatePaymentVar(variable.key, e.target.value)}
+                      className="bg-input border-border text-foreground font-mono text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-colors"
+                    />
                   </div>
-                  <Input
-                    type="text"
-                    placeholder="Enter PayPal Client ID"
-                    className="bg-input border-border text-foreground font-mono text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-colors"
-                  />
+                  <p className="text-xs text-muted-foreground mt-0">{variable.description}</p>
                 </div>
-                <p className="text-xs text-muted-foreground mt-0">PayPal client identifier for your application</p>
-              </div>
-
-              <div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-foreground">Client Secret</label>
-                    <code className="text-xs bg-accent px-2 py-1 rounded text-primary">
-                      PAYPAL_CLIENT_SECRET
-                    </code>
-                  </div>
-                  <Input
-                    type="password"
-                    placeholder="Enter PayPal Client Secret"
-                    className="bg-input border-border text-foreground font-mono text-sm focus:ring-2 focus:ring-ring focus:border-ring transition-colors"
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground mt-0">Secret key for PayPal API authentication</p>
-              </div>
-
+              ))}
               <div className="mt-6 pt-4 border-t border-border">
-                <Button className="bg-primary hover:bg-primary/90 text-primary-foreground transition-colors">
-                  Save PayPal Configuration
+                <Button 
+                  onClick={savePaymentConfiguration}
+                  disabled={saving}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground transition-colors"
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  {saving ? 'Saving...' : 'Save Changes'}
                 </Button>
               </div>
             </CardContent>
