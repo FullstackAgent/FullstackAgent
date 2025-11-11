@@ -70,7 +70,7 @@ async function handleCreateSandbox(payload: SandboxEventPayload): Promise<void> 
     await updateSandboxStatus(sandbox.id, 'ERROR')
     await projectStatusReconcile(project.id)
 
-    throw error
+    // Don't throw - let reconciliation continue for other sandboxes
   }
 }
 
@@ -122,7 +122,8 @@ async function handleStartSandbox(payload: SandboxEventPayload): Promise<void> {
     // Update status to ERROR
     await updateSandboxStatus(sandbox.id, 'ERROR')
     await projectStatusReconcile(project.id)
-    throw error
+
+    // Don't throw - let reconciliation continue for other sandboxes
   }
 }
 
@@ -175,7 +176,7 @@ async function handleStopSandbox(payload: SandboxEventPayload): Promise<void> {
     await updateSandboxStatus(sandbox.id, 'ERROR')
     await projectStatusReconcile(project.id)
 
-    throw error
+    // Don't throw - let reconciliation continue for other sandboxes
   }
 }
 
@@ -233,7 +234,96 @@ async function handleDeleteSandbox(payload: SandboxEventPayload): Promise<void> 
     await updateSandboxStatus(sandbox.id, 'ERROR')
     await projectStatusReconcile(project.id)
 
-    throw error
+    // Don't throw - let reconciliation continue for other sandboxes
+  }
+}
+
+/**
+ * Handle sandbox update (environment variables)
+ * Only processes UPDATING sandboxes
+ * Updates environment variables, then monitors status
+ * Status transitions: UPDATING → STARTING (pod restart) → RUNNING
+ */
+async function handleUpdateSandbox(payload: SandboxEventPayload): Promise<void> {
+  const { user, project, sandbox } = payload
+
+  // Only process UPDATING sandboxes
+  if (sandbox.status !== 'UPDATING') {
+    logger.warn(
+      `Skipping update for sandbox ${sandbox.id} - status is ${sandbox.status}, expected UPDATING`
+    )
+    return
+  }
+
+  logger.info(`Updating sandbox ${sandbox.id} (${sandbox.name}) for project ${project.name}`)
+
+  try {
+    // Get Kubernetes service for user
+    const k8sService = await getK8sServiceForUser(user.id)
+
+    // Load project environment variables
+    const projectEnvVars = await getProjectEnvironments(project.id)
+
+    // Load anthropic variables for sandbox
+    const anthropicEnvVars = await loadEnvVarsForSandbox(user.id)
+
+    // Merge environment variables: project env vars first, then anthropic (anthropic can override)
+    const mergedEnvVars = {
+      ...projectEnvVars,
+      ...anthropicEnvVars,
+    }
+
+    // Update sandbox environment variables
+    const updated = await k8sService.updateSandboxEnvVars(
+      sandbox.k8sNamespace,
+      sandbox.sandboxName,
+      mergedEnvVars
+    )
+
+    if (!updated) {
+      // StatefulSet not found - sandbox may have been deleted
+      logger.error(`Sandbox ${sandbox.id} StatefulSet not found in Kubernetes`)
+      await updateSandboxStatus(sandbox.id, 'ERROR')
+      await projectStatusReconcile(project.id)
+      return
+    }
+
+    logger.info(`Sandbox ${sandbox.id} environment variables update command executed`)
+
+    // Get current status from Kubernetes
+    // Note: After env var update, Pod will restart, so status may be STARTING
+    const k8sStatus = await k8sService.getSandboxStatus(sandbox.k8sNamespace, sandbox.sandboxName)
+
+    logger.info(`Sandbox ${sandbox.id} K8s status after update: ${k8sStatus}`)
+
+    if (k8sStatus === 'RUNNING') {
+      // Pod is already running (either env vars didn't change, or restart completed quickly)
+      await updateSandboxStatus(sandbox.id, 'RUNNING')
+      await projectStatusReconcile(project.id)
+      logger.info(`Sandbox ${sandbox.id} is now RUNNING`)
+    } else if (k8sStatus === 'STARTING') {
+      // Pod is restarting due to env var changes - change status to STARTING
+      await updateSandboxStatus(sandbox.id, 'STARTING')
+      await projectStatusReconcile(project.id)
+      logger.info(`Sandbox ${sandbox.id} is STARTING (pod restarting after env var update)`)
+    } else if (k8sStatus === 'ERROR' || k8sStatus === 'TERMINATED') {
+      // Unexpected error or deletion
+      await updateSandboxStatus(sandbox.id, k8sStatus)
+      await projectStatusReconcile(project.id)
+      logger.error(`Sandbox ${sandbox.id} in unexpected state: ${k8sStatus}`)
+    } else {
+      // Other transient states (STOPPING, STOPPED) - keep monitoring
+      logger.info(`Sandbox ${sandbox.id} in transient state: ${k8sStatus}, keeping UPDATING status`)
+      // Keep status as UPDATING, reconciliation will check again in next cycle
+    }
+  } catch (error) {
+    logger.error(`Failed to update sandbox ${sandbox.id}: ${error}`)
+
+    // Update status to ERROR
+    await updateSandboxStatus(sandbox.id, 'ERROR')
+    await projectStatusReconcile(project.id)
+
+    // Don't throw - let reconciliation continue for other sandboxes
   }
 }
 
@@ -243,7 +333,7 @@ async function handleDeleteSandbox(payload: SandboxEventPayload): Promise<void> 
  */
 export function registerSandboxListeners(): void {
   logger.info('Registering sandbox event listeners')
-
+  on(Events.UpdateSandbox, handleUpdateSandbox)
   on(Events.CreateSandbox, handleCreateSandbox)
   on(Events.StartSandbox, handleStartSandbox)
   on(Events.StopSandbox, handleStopSandbox)

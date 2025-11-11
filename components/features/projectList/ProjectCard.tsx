@@ -28,6 +28,7 @@ const ProjectCard = memo(({ project }: ProjectCardProps) => {
               project.status === 'STARTING' && 'bg-yellow-600 dark:bg-yellow-500 animate-pulse',
               project.status === 'STOPPING' && 'bg-yellow-600 dark:bg-yellow-500 animate-pulse',
               project.status === 'CREATING' && 'bg-blue-600 dark:bg-blue-500 animate-pulse',
+              project.status === 'UPDATING' && 'bg-cyan-600 dark:bg-cyan-500 animate-pulse',
               project.status === 'TERMINATING' && 'bg-red-600 dark:bg-red-500 animate-pulse',
               project.status === 'ERROR' && 'bg-destructive',
               project.status === 'PARTIAL' && 'bg-orange-600 dark:bg-orange-500'

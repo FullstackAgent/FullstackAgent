@@ -17,15 +17,18 @@ export interface TerminalDisplayProps {
   ttydUrl?: string | null;
   /** Sandbox status */
   status: string;
+  /** Unique tab ID for this terminal instance */
+  tabId: string;
 }
 
 /**
  * Display terminal iframe or status message
+ * Each terminal tab gets its own iframe with unique key to ensure separate WebSocket connections
  */
-export function TerminalDisplay({ ttydUrl, status }: TerminalDisplayProps) {
+export function TerminalDisplay({ ttydUrl, status, tabId }: TerminalDisplayProps) {
   const [iframeLoaded, setIframeLoaded] = useState(false);
 
-  // Show terminal iframe if running and URL is available
+  // Only show terminal iframe if status is RUNNING and URL is available
   if (status === 'RUNNING' && ttydUrl) {
     return (
       <div className="h-full w-full bg-[#1e1e1e] flex flex-col relative">
@@ -39,8 +42,9 @@ export function TerminalDisplay({ ttydUrl, status }: TerminalDisplayProps) {
           </div>
         )}
 
-        {/* Terminal iframe */}
+        {/* Terminal iframe - unique key per tab ensures separate WebSocket connection */}
         <iframe
+          key={`terminal-${tabId}`}
           src={ttydUrl}
           className="flex-1 w-full bg-[#1e1e1e]"
           style={{
@@ -48,7 +52,7 @@ export function TerminalDisplay({ ttydUrl, status }: TerminalDisplayProps) {
             minHeight: '100%',
             height: '100%',
           }}
-          title="Terminal"
+          title={`Terminal ${tabId}`}
           onLoad={() => setIframeLoaded(true)}
           allow="clipboard-read; clipboard-write"
         />
@@ -75,6 +79,8 @@ function renderStatusIcon(status: string) {
     case 'CREATING':
     case 'STARTING':
       return <Spinner className="h-5 w-5 text-[#3794ff]" />;
+    case 'UPDATING':
+      return <Spinner className="h-5 w-5 text-[#3794ff]" />;
     case 'STOPPING':
       return <Spinner className="h-5 w-5 text-[#f48771]" />;
     case 'TERMINATING':
@@ -98,6 +104,8 @@ function getStatusMessage(status: string): string {
       return 'Creating sandbox...';
     case 'STARTING':
       return 'Starting sandbox...';
+    case 'UPDATING':
+      return 'Updating sandbox configuration...';
     case 'STOPPED':
       return 'Sandbox stopped';
     case 'STOPPING':

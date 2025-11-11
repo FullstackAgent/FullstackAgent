@@ -8,6 +8,7 @@ export const Events = {
   StartSandbox: 'sandbox.start',
   StopSandbox: 'sandbox.stop',
   DeleteSandbox: 'sandbox.delete',
+  UpdateSandbox: 'sandbox.update',
 } as const
 
 export type SandboxEventPayload = {
@@ -21,6 +22,7 @@ export type BusEvents = {
   [Events.StartSandbox]: SandboxEventPayload
   [Events.StopSandbox]: SandboxEventPayload
   [Events.DeleteSandbox]: SandboxEventPayload
+  [Events.UpdateSandbox]: SandboxEventPayload
 }
 
 export function on<E extends keyof BusEvents>(

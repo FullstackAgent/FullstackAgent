@@ -2,7 +2,8 @@
  * TerminalContainer Component
  *
  * Main container that combines toolbar and display
- * Manages tab state and terminal authentication
+ * Manages tab state and renders separate terminal instances for each tab
+ * Each tab gets its own iframe with independent WebSocket connection
  */
 
 'use client';
@@ -31,6 +32,7 @@ export interface TerminalContainerProps {
 
 /**
  * Terminal container with toolbar and display
+ * Renders separate terminal instances for each tab to ensure independent WebSocket connections
  */
 export function TerminalContainer({ project, sandbox }: TerminalContainerProps) {
   // Tab management
@@ -39,10 +41,10 @@ export function TerminalContainer({ project, sandbox }: TerminalContainerProps) 
 
   // Tab operations
   const handleTabAdd = () => {
-    const newId = (tabs.length + 1).toString();
+    const newId = Date.now().toString(); // Use timestamp for unique ID
     const newTab: Tab = {
       id: newId,
-      name: `Terminal ${newId}`,
+      name: `Terminal ${tabs.length + 1}`,
     };
     setTabs([...tabs, newTab]);
     setActiveTabId(newId);
@@ -76,9 +78,24 @@ export function TerminalContainer({ project, sandbox }: TerminalContainerProps) 
         onTabAdd={handleTabAdd}
       />
 
-      {/* Terminal Display */}
-      <div className="flex-1 bg-black">
-        <TerminalDisplay ttydUrl={sandbox?.ttydUrl} status={project.status} />
+      {/* Terminal Displays - render all tabs but only show active one */}
+      <div className="flex-1 bg-black relative">
+        {tabs.map((tab) => (
+          <div
+            key={tab.id}
+            className="absolute inset-0"
+            style={{
+              display: tab.id === activeTabId ? 'block' : 'none',
+            }}
+          >
+            <TerminalDisplay
+              key={tab.id}
+              ttydUrl={sandbox?.ttydUrl}
+              status={project.status}
+              tabId={tab.id}
+            />
+          </div>
+        ))}
       </div>
     </div>
   );

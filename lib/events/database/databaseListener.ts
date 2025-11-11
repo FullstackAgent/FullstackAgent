@@ -59,7 +59,7 @@ async function handleCreateDatabase(payload: DatabaseEventPayload): Promise<void
     // Update status to ERROR (with row-level lock)
     await updateDatabaseStatus(database.id, 'ERROR')
     await projectStatusReconcile(project.id)
-    throw error
+    // Don't throw - let reconciliation continue for other databases
   }
 }
 
@@ -146,7 +146,7 @@ async function handleStartDatabase(payload: DatabaseEventPayload): Promise<void>
     await updateDatabaseStatus(database.id, 'ERROR')
     await projectStatusReconcile(project.id)
 
-    throw error
+    // Don't throw - let reconciliation continue for other databases
   }
 }
 
@@ -206,7 +206,7 @@ async function handleStopDatabase(payload: DatabaseEventPayload): Promise<void> 
     await updateDatabaseStatus(database.id, 'ERROR')
     await projectStatusReconcile(project.id)
 
-    throw error
+    // Don't throw - let reconciliation continue for other databases
   }
 }
 
@@ -268,7 +268,7 @@ async function handleDeleteDatabase(payload: DatabaseEventPayload): Promise<void
     // Update status to ERROR (with row-level lock)
     await updateDatabaseStatus(database.id, 'ERROR')
     await projectStatusReconcile(project.id)
-    throw error
+    // Don't throw - let reconciliation continue for other databases
   }
 }
 
@@ -284,7 +284,7 @@ export function registerDatabaseListeners(): void {
   on(Events.StopDatabase, handleStopDatabase)
   on(Events.DeleteDatabase, handleDeleteDatabase)
 
-  logger.info(' Database event listeners registered')
+  logger.info('Database event listeners registered')
 }
 
 // Auto-register listeners when module is imported

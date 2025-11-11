@@ -193,12 +193,13 @@ model Sandbox {
 // Aggregation rules (priority order):
 // 1. ERROR: At least one resource has ERROR status
 // 2. CREATING: At least one resource has CREATING status (initial creation in progress)
-// 3. Pure states: All resources have the same status → Project uses that status
-// 4. Transition states (all resources in consistent transition):
+// 3. UPDATING: At least one resource has UPDATING status (environment variable changes)
+// 4. Pure states: All resources have the same status → Project uses that status
+// 5. Transition states (all resources in consistent transition):
 //    - STARTING: All resources ∈ {RUNNING, STARTING} (goal: RUNNING)
 //    - STOPPING: All resources ∈ {STOPPED, STOPPING} (goal: STOPPED)
 //    - TERMINATING: All resources ∈ {TERMINATED, TERMINATING} (goal: TERMINATED)
-// 5. PARTIAL: Mixed inconsistent states (e.g., some TERMINATING + some STARTING)
+// 6. PARTIAL: Mixed inconsistent states (e.g., some TERMINATING + some STARTING)
 //    This indicates manual intervention or error recovery is needed
 enum ProjectStatus {
   // Stable states
@@ -207,7 +208,8 @@ enum ProjectStatus {
   TERMINATED // All resources are TERMINATED - soft deleted
 
   // Transition states (consistent progress toward a goal)
-  CREATING // All resources are CREATING - initial creation
+  CREATING // At least one resource is CREATING - initial creation
+  UPDATING // At least one resource is UPDATING - configuration changes
   STARTING // Resources ∈ {RUNNING, STARTING} - transitioning to RUNNING
   STOPPING // Resources ∈ {STOPPED, STOPPING} - transitioning to STOPPED
   TERMINATING // Resources ∈ {TERMINATED, TERMINATING} - transitioning to TERMINATED
@@ -228,6 +230,7 @@ enum ResourceStatus {
   TERMINATING // Resource is being deleted from K8s
   TERMINATED // Resource deleted from K8s (soft delete: keep record)
   ERROR // Resource encountered an error
+  UPDATING // Resource is being updated
 }
 
 enum AuthProvider {

@@ -233,26 +233,19 @@ export class KubernetesService {
   /**
    * Update Sandbox environment variables
    *
-   * @param projectName - Project name
    * @param namespace - Kubernetes namespace
    * @param sandboxName - Sandbox resource name
    * @param envVars - Environment variables to update
    * @returns Success status
    */
   async updateSandboxEnvVars(
-    projectName: string,
     namespace: string,
     sandboxName: string,
     envVars: Record<string, string>
   ): Promise<boolean> {
     namespace = namespace || this.defaultNamespace
 
-    return await this.sandboxManager.updateStatefulSetEnvVars(
-      projectName,
-      namespace,
-      sandboxName,
-      envVars
-    )
+    return await this.sandboxManager.updateStatefulSetEnvVars(namespace, sandboxName, envVars)
   }
 
   // ==================== Utility Methods ====================

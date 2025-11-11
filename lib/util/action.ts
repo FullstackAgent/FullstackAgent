@@ -19,7 +19,7 @@ export type ProjectAction = 'START' | 'STOP' | 'DELETE'
 /**
  * Available actions for resources (Database, Sandbox)
  */
-export type ResourceAction = 'START' | 'STOP' | 'DELETE'
+export type ResourceAction = 'START' | 'STOP' | 'DELETE' | 'UPDATE'
 
 /**
  * Project with resources (minimal fields needed for action checks)
@@ -53,6 +53,7 @@ export interface ActionCheckResult {
  * - STOPPING: Can start or delete
  * - ERROR: Can start, stop, or delete
  * - CREATING: Can only delete
+ * - UPDATING: Can only delete
  * - TERMINATING: No actions allowed (deletion in progress)
  * - TERMINATED: No actions allowed (already deleted)
  */
@@ -64,6 +65,7 @@ export const PROJECT_ALLOWED_ACTIONS: Record<ProjectStatus, ProjectAction[]> = {
   STOPPING: ['START', 'DELETE'],
   ERROR: ['START', 'STOP', 'DELETE'],
   CREATING: ['DELETE'],
+  UPDATING: ['DELETE'],
   TERMINATING: [],
   TERMINATED: [],
 }
@@ -78,20 +80,22 @@ export const PROJECT_ALLOWED_ACTIONS: Record<ProjectStatus, ProjectAction[]> = {
  * Rules:
  * - CREATING: Can only delete
  * - STARTING: Can stop or delete
- * - RUNNING: Can stop or delete
+ * - RUNNING: Can stop, delete, or update (change environment variables)
  * - STOPPING: Can start or delete
  * - STOPPED: Can start or delete
  * - ERROR: Can start, stop, or delete
+ * - UPDATING: Can only delete
  * - TERMINATING: No actions allowed (deletion in progress)
  * - TERMINATED: No actions allowed (already deleted)
  */
 export const RESOURCE_ALLOWED_ACTIONS: Record<ResourceStatus, ResourceAction[]> = {
   CREATING: ['DELETE'],
   STARTING: ['STOP', 'DELETE'],
-  RUNNING: ['STOP', 'DELETE'],
+  RUNNING: ['STOP', 'DELETE', 'UPDATE'],
   STOPPING: ['START', 'DELETE'],
   STOPPED: ['START', 'DELETE'],
   ERROR: ['START', 'STOP', 'DELETE'],
+  UPDATING: ['DELETE'],
   TERMINATING: [],
   TERMINATED: [],
 }
@@ -112,27 +116,46 @@ function isProjectActionAllowed(status: ProjectStatus, action: ProjectAction): b
 }
 
 /**
- * Check if a project has any TERMINATING or TERMINATED resources (internal helper)
+ * Check if a project has any resources in transition states that block START/STOP
  *
  * @param project - Project with databases and sandboxes
- * @returns true if at least one resource is TERMINATING or TERMINATED
+ * @returns Object with blocking status information
  */
-function hasTerminatingOrTerminatedResources(project: ProjectWithResources): boolean {
+function hasBlockingResourceStates(project: ProjectWithResources): {
+  hasBlocking: boolean
+  blockingStates: ResourceStatus[]
+} {
   const allStatuses = [
     ...project.databases.map((db) => db.status),
     ...project.sandboxes.map((sb) => sb.status),
   ]
 
-  return allStatuses.some((status) => status === 'TERMINATING' || status === 'TERMINATED')
+  // States that block START/STOP operations
+  const blockingStates = allStatuses.filter(
+    (status) =>
+      status === 'TERMINATING' ||
+      status === 'TERMINATED' ||
+      status === 'UPDATING' ||
+      status === 'CREATING'
+  )
+
+  return {
+    hasBlocking: blockingStates.length > 0,
+    blockingStates: [...new Set(blockingStates)], // Remove duplicates
+  }
 }
 
 /**
  * Comprehensive check for project actions (with resource validation)
  *
- * Special rules:
- * - START/STOP: Not allowed if any resource is TERMINATING or TERMINATED
- *   (must wait for all resources to be fully deleted)
- * - DELETE: Always allowed if status permits (deletion can happen anytime)
+ * Special rules for START/STOP operations:
+ * - Not allowed if any resource is in TERMINATING state (deletion in progress)
+ * - Not allowed if any resource is in TERMINATED state (already deleted)
+ * - Not allowed if any resource is in UPDATING state (configuration changes in progress)
+ * - Not allowed if any resource is in CREATING state (initial creation in progress)
+ *
+ * Rationale: These transition states require completion before START/STOP can be safely executed.
+ * DELETE is always allowed (if status permits) since deletion can happen anytime.
  *
  * @param project - Project with resources
  * @param action - Action to check
@@ -143,7 +166,7 @@ function hasTerminatingOrTerminatedResources(project: ProjectWithResources): boo
  * const result = checkProjectAction(project, 'START')
  * if (!result.allowed) {
  *   console.log(result.reason)
- *   // "Cannot start project: some resources are being deleted"
+ *   // "Cannot start project: some resources are in UPDATING state..."
  * }
  * ```
  */
@@ -159,12 +182,15 @@ export function checkProjectAction(
     }
   }
 
-  // Special check for START/STOP: cannot execute if resources are TERMINATING or TERMINATED
+  // Special check for START/STOP: cannot execute if resources are in blocking states
   if (action === 'START' || action === 'STOP') {
-    if (hasTerminatingOrTerminatedResources(project)) {
+    const { hasBlocking, blockingStates } = hasBlockingResourceStates(project)
+
+    if (hasBlocking) {
+      const statesStr = blockingStates.join(', ')
       return {
         allowed: false,
-        reason: `Cannot ${action.toLowerCase()} project: some resources are being deleted or already terminated. Please wait for cleanup to complete.`,
+        reason: `Cannot ${action.toLowerCase()} project: some resources are in ${statesStr} state. Please wait for these operations to complete before starting or stopping the project.`,
       }
     }
   }
@@ -272,4 +298,11 @@ export function canStopResource(status: ResourceStatus): boolean {
  */
 export function canDeleteResource(status: ResourceStatus): boolean {
   return isResourceActionAllowed(status, 'DELETE')
+}
+
+/**
+ * Check if a resource can be updated
+ */
+export function canUpdateResource(status: ResourceStatus): boolean {
+  return isResourceActionAllowed(status, 'UPDATE')
 }

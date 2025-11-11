@@ -84,6 +84,12 @@ async function reconcileSandboxes() {
           processedCount++
           break
 
+        case 'UPDATING':
+          logger.info(`Emitting UpdateSandbox event for sandbox ${sandbox.id}`)
+          emit(Events.UpdateSandbox, payload)
+          processedCount++
+          break
+
         default:
           logger.warn(`Unknown sandbox status: ${sandbox.status}`)
       }
