@@ -710,7 +710,23 @@ export class SandboxManager {
       },
     }
 
-    await this.k8sAppsApi.createNamespacedStatefulSet({ namespace, body: statefulSet })
+    try {
+      await this.k8sAppsApi.createNamespacedStatefulSet({ namespace, body: statefulSet })
+    } catch (error) {
+      // Handle 409 Conflict (AlreadyExists) as idempotent operation
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'response' in error &&
+        typeof (error as { response: { statusCode?: number } }).response === 'object' &&
+        (error as { response: { statusCode?: number } }).response.statusCode === 409
+      ) {
+        logger.info(`StatefulSet already exists (409), skipping creation: ${sandboxName}`)
+        return
+      }
+      // Re-throw other errors
+      throw error
+    }
   }
 
   /**
