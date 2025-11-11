@@ -3,14 +3,21 @@
  *
  * Pure display component for terminal iframe
  * VSCode Dark Modern theme style
+ *
+ * Auto-scroll implementation:
+ * 1. ttyd serves custom HTML with injected autoscroll script
+ * 2. Script monitors xterm.js write events and forces scroll to bottom
+ * 3. Script sends status updates via postMessage
+ * 4. This component listens to postMessage for debugging/monitoring
  */
 
 'use client';
 
-import { useState } from 'react';
-import { AlertCircle, Terminal as TerminalIcon } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Activity, AlertCircle, Terminal as TerminalIcon } from 'lucide-react';
 
 import { Spinner } from '@/components/ui/spinner';
+import { cn } from '@/lib/utils';
 
 export interface TerminalDisplayProps {
   /** ttyd URL */
@@ -27,6 +34,42 @@ export interface TerminalDisplayProps {
  */
 export function TerminalDisplay({ ttydUrl, status, tabId }: TerminalDisplayProps) {
   const [iframeLoaded, setIframeLoaded] = useState(false);
+  const [scrollStatus, setScrollStatus] = useState<'ready' | 'streaming' | 'idle'>('idle');
+
+  // Listen to postMessage from ttyd iframe (autoscroll status updates)
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      // Security: Verify message format and origin
+      if (typeof event.data !== 'object' || !event.data) return;
+
+      // Verify message comes from ttyd iframe (check if origin matches ttydUrl)
+      if (ttydUrl) {
+        try {
+          const ttydOrigin = new URL(ttydUrl).origin;
+          if (event.origin !== ttydOrigin) {
+            // Silently ignore messages from other origins
+            return;
+          }
+        } catch {
+          // Invalid URL, skip origin check
+        }
+      }
+
+      // Handle autoscroll status updates
+      if (event.data.type === 'ttyd-scroll-status') {
+        const newStatus = event.data.status;
+        setScrollStatus(newStatus);
+
+        // Debug logging (disable in production)
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`[Terminal ${tabId}] Auto-scroll status:`, newStatus);
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [tabId, ttydUrl]);
 
   // Only show terminal iframe if status is RUNNING and URL is available
   if (status === 'RUNNING' && ttydUrl) {
@@ -38,6 +81,16 @@ export function TerminalDisplay({ ttydUrl, status, tabId }: TerminalDisplayProps
             <div className="flex items-center gap-3">
               <Spinner className="h-5 w-5 text-[#3794ff]" />
               <span className="text-sm text-[#cccccc]">Connecting to terminal...</span>
+            </div>
+          </div>
+        )}
+
+        {/* Auto-scroll status indicator (optional, only in development) */}
+        {process.env.NODE_ENV === 'development' && scrollStatus === 'streaming' && (
+          <div className="absolute top-3 right-3 z-20">
+            <div className="flex items-center gap-2 bg-[#3794ff]/20 text-[#3794ff] px-2 py-1 rounded text-xs backdrop-blur-sm">
+              <Activity className="h-3 w-3 animate-pulse" />
+              <span>Auto-scrolling</span>
             </div>
           </div>
         )}
@@ -64,7 +117,13 @@ export function TerminalDisplay({ ttydUrl, status, tabId }: TerminalDisplayProps
   return (
     <div className="h-full w-full bg-[#1e1e1e] flex items-center justify-center">
       <div className="flex items-center gap-3">
-        {renderStatusIcon(status)}
+        {shouldShowSpinner(status) ? (
+          <Spinner className={cn('h-5 w-5', getStatusIconColor(status))} />
+        ) : isErrorStatus(status) ? (
+          <AlertCircle className={cn('h-5 w-5', getStatusIconColor(status))} />
+        ) : (
+          <TerminalIcon className={cn('h-5 w-5', getStatusIconColor(status))} />
+        )}
         <span className="text-sm text-[#cccccc]">{getStatusMessage(status)}</span>
       </div>
     </div>
@@ -72,27 +131,43 @@ export function TerminalDisplay({ ttydUrl, status, tabId }: TerminalDisplayProps
 }
 
 /**
- * Render status icon with animation
+ * Get status icon color
  */
-function renderStatusIcon(status: string) {
+function getStatusIconColor(status: string): string {
   switch (status) {
     case 'CREATING':
     case 'STARTING':
-      return <Spinner className="h-5 w-5 text-[#3794ff]" />;
     case 'UPDATING':
-      return <Spinner className="h-5 w-5 text-[#3794ff]" />;
+      return 'text-[#3794ff]';
     case 'STOPPING':
-      return <Spinner className="h-5 w-5 text-[#f48771]" />;
     case 'TERMINATING':
-      return <Spinner className="h-5 w-5 text-[#f48771]" />;
     case 'ERROR':
-      return <AlertCircle className="h-5 w-5 text-[#f48771]" />;
+      return 'text-[#f48771]';
     case 'STOPPED':
     case 'TERMINATED':
-      return <TerminalIcon className="h-5 w-5 text-[#858585]" />;
     default:
-      return <TerminalIcon className="h-5 w-5 text-[#858585]" />;
+      return 'text-[#858585]';
   }
+}
+
+/**
+ * Check if should show spinner
+ */
+function shouldShowSpinner(status: string): boolean {
+  return (
+    status === 'CREATING' ||
+    status === 'STARTING' ||
+    status === 'UPDATING' ||
+    status === 'STOPPING' ||
+    status === 'TERMINATING'
+  );
+}
+
+/**
+ * Check if status is error
+ */
+function isErrorStatus(status: string): boolean {
+  return status === 'ERROR';
 }
 
 /**
