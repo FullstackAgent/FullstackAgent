@@ -11,6 +11,13 @@ import { useState } from 'react';
 import { AlertCircle, Terminal as TerminalIcon } from 'lucide-react';
 
 import { Spinner } from '@/components/ui/spinner';
+import {
+  getStatusIconColor,
+  getStatusMessage,
+  isErrorStatus,
+  shouldShowSpinner,
+} from '@/lib/util/status-colors';
+import { cn } from '@/lib/utils';
 
 export interface TerminalDisplayProps {
   /** ttyd URL */
@@ -64,61 +71,15 @@ export function TerminalDisplay({ ttydUrl, status, tabId }: TerminalDisplayProps
   return (
     <div className="h-full w-full bg-[#1e1e1e] flex items-center justify-center">
       <div className="flex items-center gap-3">
-        {renderStatusIcon(status)}
+        {shouldShowSpinner(status) ? (
+          <Spinner className={cn('h-5 w-5', getStatusIconColor(status))} />
+        ) : isErrorStatus(status) ? (
+          <AlertCircle className={cn('h-5 w-5', getStatusIconColor(status))} />
+        ) : (
+          <TerminalIcon className={cn('h-5 w-5', getStatusIconColor(status))} />
+        )}
         <span className="text-sm text-[#cccccc]">{getStatusMessage(status)}</span>
       </div>
     </div>
   );
-}
-
-/**
- * Render status icon with animation
- */
-function renderStatusIcon(status: string) {
-  switch (status) {
-    case 'CREATING':
-    case 'STARTING':
-      return <Spinner className="h-5 w-5 text-[#3794ff]" />;
-    case 'UPDATING':
-      return <Spinner className="h-5 w-5 text-[#3794ff]" />;
-    case 'STOPPING':
-      return <Spinner className="h-5 w-5 text-[#f48771]" />;
-    case 'TERMINATING':
-      return <Spinner className="h-5 w-5 text-[#f48771]" />;
-    case 'ERROR':
-      return <AlertCircle className="h-5 w-5 text-[#f48771]" />;
-    case 'STOPPED':
-    case 'TERMINATED':
-      return <TerminalIcon className="h-5 w-5 text-[#858585]" />;
-    default:
-      return <TerminalIcon className="h-5 w-5 text-[#858585]" />;
-  }
-}
-
-/**
- * Get human-readable status message
- */
-function getStatusMessage(status: string): string {
-  switch (status) {
-    case 'CREATING':
-      return 'Creating sandbox...';
-    case 'STARTING':
-      return 'Starting sandbox...';
-    case 'UPDATING':
-      return 'Updating sandbox configuration...';
-    case 'STOPPED':
-      return 'Sandbox stopped';
-    case 'STOPPING':
-      return 'Stopping sandbox...';
-    case 'TERMINATED':
-      return 'Sandbox terminated';
-    case 'TERMINATING':
-      return 'Terminating sandbox...';
-    case 'ERROR':
-      return 'Connection failed';
-    case 'PARTIAL':
-      return 'Resources not ready...';
-    default:
-      return 'Checking status...';
-  }
 }

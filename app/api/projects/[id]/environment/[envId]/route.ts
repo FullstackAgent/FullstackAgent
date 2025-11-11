@@ -4,7 +4,6 @@ import { NextResponse } from 'next/server'
 import { verifyProjectAccess, withAuth } from '@/lib/api-auth'
 import { prisma } from '@/lib/db'
 import { logger as baseLogger } from '@/lib/logger'
-import { canUpdateResource } from '@/lib/util/action'
 
 const logger = baseLogger.child({ module: 'api/projects/[id]/environment/[envId]' })
 
@@ -18,6 +17,14 @@ export const PUT = withAuth<PutEnvironmentResponse>(async (req, context, session
   try {
     // Verify project access
     await verifyProjectAccess(projectId, session.user.id)
+
+    // Parse request body first (before any validation that might return early)
+    const body = await req.json()
+    const { value } = body
+
+    if (value === undefined) {
+      return NextResponse.json({ error: 'Value is required' }, { status: 400 })
+    }
 
     // Verify the environment variable belongs to the project
     const envVar = await prisma.environment.findFirst({
@@ -45,27 +52,45 @@ export const PUT = withAuth<PutEnvironmentResponse>(async (req, context, session
       return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     }
 
-    // Check if all sandboxes can be updated
-    const nonUpdatableSandboxes = project.sandboxes.filter((sb) => !canUpdateResource(sb.status))
-
-    if (nonUpdatableSandboxes.length > 0) {
-      const statusList = nonUpdatableSandboxes.map((sb) => `${sb.name}: ${sb.status}`).join(', ')
+    // Check if project status is RUNNING
+    if (project.status !== 'RUNNING') {
       logger.warn(
-        `Cannot update environment variable for project ${projectId}: some sandboxes cannot be updated (${statusList})`
+        `Cannot update environment variable for project ${projectId}: project status is ${project.status}, not RUNNING`
       )
       return NextResponse.json(
         {
-          error: `Cannot update environment variable: some sandboxes are not in a state that allows updates. Only RUNNING sandboxes can be updated. Non-updatable sandboxes: ${statusList}`,
+          error: 'Environment variables can only be updated when the project is running.',
         },
         { status: 400 }
       )
     }
 
-    const body = await req.json()
-    const { value } = body
+    // Require all sandboxes to be RUNNING
+    if (project.sandboxes.length === 0) {
+      logger.warn(
+        `Cannot update environment variable for project ${projectId}: project has no sandboxes`
+      )
+      return NextResponse.json(
+        {
+          error: 'Environment variables can only be updated when the project is running.',
+        },
+        { status: 400 }
+      )
+    }
 
-    if (value === undefined) {
-      return NextResponse.json({ error: 'Value is required' }, { status: 400 })
+    // Check if ALL sandboxes are RUNNING
+    const nonRunningSandboxes = project.sandboxes.filter((sb) => sb.status !== 'RUNNING')
+
+    if (nonRunningSandboxes.length > 0) {
+      logger.warn(
+        `Cannot update environment variable for project ${projectId}: not all sandboxes are RUNNING`
+      )
+      return NextResponse.json(
+        {
+          error: 'Environment variables can only be updated when the project is running.',
+        },
+        { status: 400 }
+      )
     }
 
     // Update the environment variable in database
@@ -134,17 +159,42 @@ export const DELETE = withAuth<DeleteEnvironmentResponse>(async (_req, context, 
       return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     }
 
-    // Check if all sandboxes can be updated
-    const nonUpdatableSandboxes = project.sandboxes.filter((sb) => !canUpdateResource(sb.status))
-
-    if (nonUpdatableSandboxes.length > 0) {
-      const statusList = nonUpdatableSandboxes.map((sb) => `${sb.name}: ${sb.status}`).join(', ')
+    // Check if project status is RUNNING
+    if (project.status !== 'RUNNING') {
       logger.warn(
-        `Cannot delete environment variable for project ${projectId}: some sandboxes cannot be updated (${statusList})`
+        `Cannot delete environment variable for project ${projectId}: project status is ${project.status}, not RUNNING`
       )
       return NextResponse.json(
         {
-          error: `Cannot delete environment variable: some sandboxes are not in a state that allows updates. Only RUNNING sandboxes can be updated. Non-updatable sandboxes: ${statusList}`,
+          error: 'Environment variables can only be updated when the project is running.',
+        },
+        { status: 400 }
+      )
+    }
+
+    // Require all sandboxes to be RUNNING
+    if (project.sandboxes.length === 0) {
+      logger.warn(
+        `Cannot delete environment variable for project ${projectId}: project has no sandboxes`
+      )
+      return NextResponse.json(
+        {
+          error: 'Environment variables can only be updated when the project is running.',
+        },
+        { status: 400 }
+      )
+    }
+
+    // Check if ALL sandboxes are RUNNING
+    const nonRunningSandboxes = project.sandboxes.filter((sb) => sb.status !== 'RUNNING')
+
+    if (nonRunningSandboxes.length > 0) {
+      logger.warn(
+        `Cannot delete environment variable for project ${projectId}: not all sandboxes are RUNNING`
+      )
+      return NextResponse.json(
+        {
+          error: 'Environment variables can only be updated when the project is running.',
         },
         { status: 400 }
       )

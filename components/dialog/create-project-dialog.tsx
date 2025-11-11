@@ -47,7 +47,7 @@ export default function CreateProjectDialog({ open, onOpenChange }: CreateProjec
         description: description,
       });
 
-      toast.success('Project is being created!');
+      toast.success('Creating project...');
 
       // Reset form
       setProjectName('');
@@ -65,7 +65,7 @@ export default function CreateProjectDialog({ open, onOpenChange }: CreateProjec
       if (error instanceof FetchError && error.body) {
         const errorBody = error.body as { errorCode?: string; message?: string };
         if (errorBody.errorCode === 'KUBECONFIG_MISSING') {
-          toast.error(errorBody.message || 'Kubeconfig not configured', {
+          toast.error(errorBody.message || 'Kubeconfig is not configured', {
             duration: 6000,
           });
           setShowSettingsDialog(true);
@@ -108,8 +108,7 @@ export default function CreateProjectDialog({ open, onOpenChange }: CreateProjec
                 autoFocus
               />
               <p className="text-xs text-gray-500">
-                Choose a unique name for your project. Only lowercase letters, numbers, and hyphens
-                are allowed.
+                Use lowercase letters, numbers, and hyphens only.
               </p>
             </div>
 
@@ -127,7 +126,7 @@ export default function CreateProjectDialog({ open, onOpenChange }: CreateProjec
                 className="bg-[#1e1e1e] border-[#3e3e42] text-white placeholder:text-gray-500 disabled:opacity-50"
               />
               <p className="text-xs text-gray-500">
-                Provide a short description to help you identify this project later.
+                Optional. Add a brief description to help identify this project.
               </p>
             </div>
 

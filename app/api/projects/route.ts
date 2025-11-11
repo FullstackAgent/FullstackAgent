@@ -12,6 +12,42 @@ import { generateRandomString } from '@/lib/util/common'
 
 const logger = baseLogger.child({ module: 'api/projects' })
 
+/**
+ * Validate project name format
+ * Rules:
+ * - Only letters, numbers, spaces, and hyphens allowed
+ * - Must start with a letter
+ * - Must end with a letter
+ */
+function validateProjectName(name: string): { valid: boolean; error?: string } {
+  // Check if name is empty or only whitespace
+  if (!name || name.trim().length === 0) {
+    return { valid: false, error: 'Project name cannot be empty' }
+  }
+
+  // Check if name contains only allowed characters (letters, numbers, spaces, hyphens)
+  const allowedPattern = /^[a-zA-Z0-9\s-]+$/
+  if (!allowedPattern.test(name)) {
+    return {
+      valid: false,
+      error: 'Project name can only contain letters, numbers, spaces, and hyphens',
+    }
+  }
+
+  // Check if name starts with a letter
+  const trimmedName = name.trim()
+  if (!/^[a-zA-Z]/.test(trimmedName)) {
+    return { valid: false, error: 'Project name must start with a letter' }
+  }
+
+  // Check if name ends with a letter
+  if (!/[a-zA-Z]$/.test(trimmedName)) {
+    return { valid: false, error: 'Project name must end with a letter' }
+  }
+
+  return { valid: true }
+}
+
 type ProjectWithRelations = Project & {
   databases: Database[]
   sandboxes: Sandbox[]
@@ -65,7 +101,19 @@ export const POST = withAuth<PostProjectResponse>(async (req, _context, session)
   const { name, description } = body
 
   if (!name || typeof name !== 'string') {
-    throw NextResponse.json({ error: 'Project name is required' }, { status: 400 })
+    return NextResponse.json({ error: 'Project name is required' }, { status: 400 })
+  }
+
+  // Validate project name format
+  const nameValidation = validateProjectName(name)
+  if (!nameValidation.valid) {
+    return NextResponse.json(
+      {
+        error: nameValidation.error || 'Invalid project name format',
+        errorCode: 'INVALID_PROJECT_NAME',
+      },
+      { status: 400 }
+    )
   }
 
   logger.info(`Creating project: ${name} for user: ${session.user.id}`)

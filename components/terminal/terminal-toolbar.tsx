@@ -46,6 +46,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useProjectOperations } from '@/hooks/use-project-operations';
 import { getAvailableProjectActions } from '@/lib/util/action';
+import { getStatusBgClasses } from '@/lib/util/status-colors';
 import { cn } from '@/lib/utils';
 
 type Project = Prisma.ProjectGetPayload<{
@@ -156,20 +157,7 @@ export function TerminalToolbar({
         <div className="flex items-center gap-2">
           {/* Status Badge */}
           <div className="flex items-center gap-1.5 px-2 py-1 text-xs text-gray-300">
-            <div
-              className={cn(
-                'h-1.5 w-1.5 rounded-full',
-                project.status === 'RUNNING' && 'bg-green-500',
-                project.status === 'STOPPED' && 'bg-gray-500',
-                project.status === 'STARTING' && 'bg-yellow-500 animate-pulse',
-                project.status === 'STOPPING' && 'bg-yellow-500 animate-pulse',
-                project.status === 'CREATING' && 'bg-blue-500 animate-pulse',
-                project.status === 'UPDATING' && 'bg-cyan-500 animate-pulse',
-                project.status === 'TERMINATING' && 'bg-red-500 animate-pulse',
-                project.status === 'ERROR' && 'bg-red-500',
-                project.status === 'PARTIAL' && 'bg-orange-500'
-              )}
-            />
+            <div className={cn('h-1.5 w-1.5 rounded-full', getStatusBgClasses(project.status))} />
             <span>{project.status}</span>
           </div>
 

@@ -5,7 +5,6 @@ import { verifyProjectAccess, withAuth } from '@/lib/api-auth'
 import { EnvironmentCategory } from '@/lib/const'
 import { prisma } from '@/lib/db'
 import { logger as baseLogger } from '@/lib/logger'
-import { canUpdateResource } from '@/lib/util/action'
 
 const logger = baseLogger.child({ module: 'api/projects/[id]/environment' })
 
@@ -51,10 +50,7 @@ interface EnvironmentVariableInput {
   isSecret?: boolean
 }
 
-type PostEnvironmentResponse =
-  | { error: string }
-  | Environment
-  | { success: true; count: number }
+type PostEnvironmentResponse = { error: string } | Environment | { success: true; count: number }
 
 export const POST = withAuth<PostEnvironmentResponse>(async (req, context, session) => {
   const resolvedParams = await context.params
@@ -62,6 +58,9 @@ export const POST = withAuth<PostEnvironmentResponse>(async (req, context, sessi
 
   try {
     await verifyProjectAccess(projectId, session.user.id)
+
+    // Parse request body first (before any validation that might return early)
+    const body = await req.json()
 
     // Check if project sandboxes can be updated
     const project = await prisma.project.findUnique({
@@ -77,23 +76,46 @@ export const POST = withAuth<PostEnvironmentResponse>(async (req, context, sessi
       return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     }
 
-    // Check if all sandboxes can be updated
-    const nonUpdatableSandboxes = project.sandboxes.filter((sb) => !canUpdateResource(sb.status))
-
-    if (nonUpdatableSandboxes.length > 0) {
-      const statusList = nonUpdatableSandboxes.map((sb) => `${sb.name}: ${sb.status}`).join(', ')
+    // Check if project status is RUNNING
+    if (project.status !== 'RUNNING') {
       logger.warn(
-        `Cannot update environment variables for project ${projectId}: some sandboxes cannot be updated (${statusList})`
+        `Cannot update environment variables for project ${projectId}: project status is ${project.status}, not RUNNING`
       )
       return NextResponse.json(
         {
-          error: `Cannot update environment variables: some sandboxes are not in a state that allows updates. Only RUNNING sandboxes can be updated. Non-updatable sandboxes: ${statusList}`,
+          error: 'Environment variables can only be updated when the project is running.',
         },
         { status: 400 }
       )
     }
 
-    const body = await req.json()
+    // Require all sandboxes to be RUNNING
+    if (project.sandboxes.length === 0) {
+      logger.warn(
+        `Cannot update environment variables for project ${projectId}: project has no sandboxes`
+      )
+      return NextResponse.json(
+        {
+          error: 'Environment variables can only be updated when the project is running.',
+        },
+        { status: 400 }
+      )
+    }
+
+    // Check if ALL sandboxes are RUNNING
+    const nonRunningSandboxes = project.sandboxes.filter((sb) => sb.status !== 'RUNNING')
+
+    if (nonRunningSandboxes.length > 0) {
+      logger.warn(
+        `Cannot update environment variables for project ${projectId}: not all sandboxes are RUNNING`
+      )
+      return NextResponse.json(
+        {
+          error: 'Environment variables can only be updated when the project is running.',
+        },
+        { status: 400 }
+      )
+    }
 
     // Check if this is a single variable creation or batch update
     if (body.key && body.value !== undefined) {
@@ -132,7 +154,9 @@ export const POST = withAuth<PostEnvironmentResponse>(async (req, context, sessi
       // Determine the primary category for this batch update
       // If all variables have the same category, only delete that category
       // Otherwise, delete all to maintain backward compatibility
-      const categories = new Set((variables as EnvironmentVariableInput[]).map(v => v.category || 'general'))
+      const categories = new Set(
+        (variables as EnvironmentVariableInput[]).map((v) => v.category || 'general')
+      )
       const deleteByCategory = categories.size === 1
 
       if (deleteByCategory) {
@@ -141,7 +165,7 @@ export const POST = withAuth<PostEnvironmentResponse>(async (req, context, sessi
         await prisma.environment.deleteMany({
           where: {
             projectId,
-            category: targetCategory
+            category: targetCategory,
           },
         })
       } else {

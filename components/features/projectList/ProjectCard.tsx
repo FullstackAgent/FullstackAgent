@@ -3,6 +3,7 @@ import { Project } from '@prisma/client';
 import { Clock } from 'lucide-react';
 import Link from 'next/link';
 
+import { getStatusBgClasses } from '@/lib/util/status-colors';
 import { cn } from '@/lib/utils';
 
 interface ProjectCardProps {
@@ -16,28 +17,18 @@ const ProjectCard = memo(({ project }: ProjectCardProps) => {
         {/* Header */}
         <div className="flex items-start justify-between mb-2">
           <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-medium text-foreground truncate">
-              {project.name}
-            </h3>
+            <h3 className="text-sm font-medium text-foreground truncate">{project.name}</h3>
           </div>
           <div
             className={cn(
               'h-2 w-2 rounded-full shrink-0 ml-2 mt-1',
-              project.status === 'RUNNING' && 'bg-green-600 dark:bg-green-500',
-              project.status === 'STOPPED' && 'bg-muted-foreground',
-              project.status === 'STARTING' && 'bg-yellow-600 dark:bg-yellow-500 animate-pulse',
-              project.status === 'STOPPING' && 'bg-yellow-600 dark:bg-yellow-500 animate-pulse',
-              project.status === 'CREATING' && 'bg-blue-600 dark:bg-blue-500 animate-pulse',
-              project.status === 'UPDATING' && 'bg-cyan-600 dark:bg-cyan-500 animate-pulse',
-              project.status === 'TERMINATING' && 'bg-red-600 dark:bg-red-500 animate-pulse',
-              project.status === 'ERROR' && 'bg-destructive',
-              project.status === 'PARTIAL' && 'bg-orange-600 dark:bg-orange-500'
+              getStatusBgClasses(project.status)
             )}
           />
         </div>
 
         {/* Description */}
-        <p className="text-xs text-muted-foreground line-clamp-2 mb-3 min-h-[2.5rem]">
+        <p className="text-xs text-muted-foreground line-clamp-2 mb-3 min-h-10">
           {project.description || 'No description'}
         </p>
 
