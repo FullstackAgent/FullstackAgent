@@ -142,7 +142,7 @@ export default function SecretsPage() {
     // Check for valid key format
     secrets.forEach((secret) => {
       if (secret.key && !/^[A-Z][A-Z0-9_]*$/.test(secret.key)) {
-        errors.push(`Secret key "${secret.key}" must start with a letter and contain only uppercase letters, numbers, and underscores`);
+        errors.push(`Secret key "${secret.key}" must start with an uppercase letter and contain only uppercase letters, numbers, and underscores`);
       }
     });
 
