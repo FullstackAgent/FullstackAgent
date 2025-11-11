@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Terminal</title>
+    <link rel="icon" type="image/png" href="data:," />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body,
+      #terminal-container {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+    </style>
+    <!-- ttyd will inject its own CSS and xterm.js here -->
+  </head>
+  <body>
+    <div id="terminal-container"></div>
+
+    <!-- ttyd will inject xterm.js library and initialization code -->
+
+    <!-- Auto-scroll injection script - loaded after ttyd init -->
+    <script>
+      // Wait for ttyd to fully initialize before loading autoscroll script
+      (function() {
+        const loadAutoScroll = () => {
+          const script = document.createElement('script');
+          script.src = '/ttyd-autoscroll.js';
+          script.onerror = () => console.error('[ttyd] Failed to load autoscroll script');
+          script.onload = () => console.log('[ttyd] Autoscroll script loaded');
+          document.body.appendChild(script);
+        };
+
+        // Load after a short delay to ensure ttyd is ready
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', () => setTimeout(loadAutoScroll, 500));
+        } else {
+          setTimeout(loadAutoScroll, 500);
+        }
+      })();
+    </script>
+  </body>
+</html>

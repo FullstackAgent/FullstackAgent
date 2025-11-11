@@ -788,16 +788,17 @@ if [ ! -d /opt/next-template ]; then
   exit 1
 fi
 
-# Copy Next.js project template
+# Copy Next.js project template (excluding node_modules to prevent pnpm store conflicts)
 echo "→ Copying Next.js project template from /opt/next-template..."
 echo "  Source: /opt/next-template (agent:agent)"
 echo "  Target: /home/agent/next"
+echo "  Excluding: node_modules, .pnpm-store"
 echo "  This may take 10-30 seconds..."
 mkdir -p /home/agent/next
 
-# Copy with progress indicator and preserve timestamps
-# Using cp instead of rsync for simplicity (rsync is available but cp is sufficient)
-cp -rp /opt/next-template/. /home/agent/next 2>&1 || {
+# Copy all files except node_modules and .pnpm-store
+# Using rsync with exclude to prevent pnpm store path conflicts
+rsync -av --exclude='node_modules' --exclude='.pnpm-store' /opt/next-template/ /home/agent/next/ 2>&1 || {
   echo "✗ ERROR: Failed to copy template"
   exit 1
 }

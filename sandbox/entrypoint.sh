@@ -35,5 +35,9 @@ THEME='theme={
  "brightWhite":"#FFFFFF"
 }'
 
-# Start ttyd with authentication wrapper and theme
-ttyd -T xterm-256color -W -a -t "$THEME" /usr/local/bin/ttyd-auth.sh
+# Start ttyd with authentication wrapper, theme, and custom HTML for auto-scroll injection
+# -b: Set base path for serving static files (index.html and autoscroll script)
+# -I: Custom index.html path
+ttyd -T xterm-256color -W -a -t "$THEME" \
+  -b /usr/local/share/ttyd \
+  /usr/local/bin/ttyd-auth.sh
