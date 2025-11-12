@@ -82,6 +82,7 @@ export function XtermTerminal({
   onDisconnected,
 }: XtermTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const terminalRef = useRef<ITerminal | null>(null); // Expose terminal via ref
   const [isConnected, setIsConnected] = useState(false);
   const [hasNewContent, setHasNewContent] = useState(false);
   const [newLineCount, setNewLineCount] = useState(0);
@@ -331,6 +332,7 @@ export function XtermTerminal({
         };
 
         terminal = new xtermModule.Terminal(termOptions);
+        terminalRef.current = terminal; // Store in ref for external access
 
         // Load addons
         fitAddon = new fitAddonModule.FitAddon();
@@ -454,13 +456,20 @@ export function XtermTerminal({
       } catch {}
 
       terminal?.dispose();
+      terminalRef.current = null; // Clear ref
       setIsConnected(false);
     };
   }, [wsUrl]); // Only re-run when wsUrl changes
 
-  // Handle scroll to bottom
+  // Handle scroll to bottom button click
   const handleScrollToBottom = () => {
-    // This is handled internally now
+    const terminal = terminalRef.current;
+    if (terminal) {
+      // Actually scroll the terminal to bottom
+      terminal.scrollToBottom();
+      console.log('[terminal] User clicked scroll to bottom button');
+    }
+    // Clear the indicator
     setHasNewContent(false);
     setNewLineCount(0);
   };
