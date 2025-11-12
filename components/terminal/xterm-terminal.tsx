@@ -94,6 +94,31 @@ export function XtermTerminal({
   const textEncoder = useRef(new TextEncoder());
   const textDecoder = useRef(new TextDecoder());
 
+  // Track if user has scrolled away from bottom
+  // When true, we should auto-scroll on new output
+  const isAtBottomRef = useRef(true);
+
+  /**
+   * Check if terminal is scrolled to bottom (or very close)
+   * Returns true if viewport is showing the last line of the buffer
+   * Uses a small tolerance to handle edge cases with control sequences
+   */
+  const isTerminalAtBottom = (terminal: ITerminal): boolean => {
+    try {
+      const buffer = terminal.buffer.active;
+      // viewportY: current scroll position (0-based)
+      // baseY: the line number of the bottom of the viewport
+      // Use <= instead of === to be more forgiving
+      // This handles cases where content is being written with control sequences
+      const threshold = 2; // Allow up to 2 lines of tolerance
+      return buffer.viewportY >= buffer.baseY - threshold;
+    } catch (error) {
+      // Fallback: assume at bottom if we can't determine
+      console.warn('[terminal] Could not determine scroll position:', error);
+      return true;
+    }
+  };
+
   // Initialize terminal
   useEffect(() => {
     if (!containerRef.current) return;
@@ -216,11 +241,22 @@ export function XtermTerminal({
   const setupTerminalHandlers = (terminal: ITerminal, fitAddon: FitAddon) => {
     // Handle data input from user
     terminal.onData((data) => {
+      // When user types, they expect to see the bottom
+      // Auto-scroll to bottom and mark as being at bottom
+      if (!isAtBottomRef.current) {
+        terminal.scrollToBottom();
+        isAtBottomRef.current = true;
+      }
       sendData(data);
     });
 
     // Handle binary input
     terminal.onBinary((data) => {
+      // Same behavior for binary input
+      if (!isAtBottomRef.current) {
+        terminal.scrollToBottom();
+        isAtBottomRef.current = true;
+      }
       sendData(Uint8Array.from(data, (v) => v.charCodeAt(0)));
     });
 
@@ -233,6 +269,32 @@ export function XtermTerminal({
       }
     });
 
+    // Handle scroll events - track if user is at bottom
+    // This allows us to detect when user scrolls up to view history
+    terminal.onScroll(() => {
+      const wasAtBottom = isAtBottomRef.current;
+      const nowAtBottom = isTerminalAtBottom(terminal);
+
+      if (wasAtBottom !== nowAtBottom) {
+        isAtBottomRef.current = nowAtBottom;
+        console.log('[terminal] User scroll position:', nowAtBottom ? 'at bottom' : 'viewing history');
+      }
+    });
+
+    // Handle line feed events - this catches when new lines are added
+    // Critical for interactive prompts that use control sequences
+    let lineFeedTimeout: NodeJS.Timeout | null = null;
+    terminal.onLineFeed(() => {
+      // Debounce scrolling to avoid excessive calls
+      if (lineFeedTimeout) clearTimeout(lineFeedTimeout);
+
+      lineFeedTimeout = setTimeout(() => {
+        if (isAtBottomRef.current) {
+          terminal.scrollToBottom();
+        }
+      }, 10);
+    });
+
     // Handle window resize
     const handleWindowResize = () => {
       fitAddon.fit();
@@ -241,6 +303,7 @@ export function XtermTerminal({
 
     // Cleanup
     return () => {
+      if (lineFeedTimeout) clearTimeout(lineFeedTimeout);
       window.removeEventListener('resize', handleWindowResize);
     };
   };
@@ -352,8 +415,30 @@ export function XtermTerminal({
 
         switch (cmd) {
           case Command.OUTPUT:
-            // Write output to terminal
+            // Smart scroll behavior:
+            // 1. Check if user is at bottom BEFORE writing
+            const shouldAutoScroll = isAtBottomRef.current;
+
+            // 2. Write output to terminal
             terminal.write(new Uint8Array(data));
+
+            // 3. IMMEDIATELY scroll after write (synchronous)
+            // This is critical for interactive prompts (like Claude Code choices)
+            // that use cursor control sequences - we must scroll IMMEDIATELY
+            if (shouldAutoScroll) {
+              // Use requestAnimationFrame to ensure DOM has updated
+              requestAnimationFrame(() => {
+                terminal.scrollToBottom();
+
+                // Double-check: if we're still not at bottom, force scroll again
+                // This handles edge cases with complex control sequences
+                requestAnimationFrame(() => {
+                  if (!isTerminalAtBottom(terminal)) {
+                    terminal.scrollToBottom();
+                  }
+                });
+              });
+            }
             break;
           case Command.SET_WINDOW_TITLE:
             // Set window title
