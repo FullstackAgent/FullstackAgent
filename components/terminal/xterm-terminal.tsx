@@ -230,6 +230,8 @@ export function XtermTerminal({
       if (!socket || socket.readyState !== WebSocket.OPEN) return;
 
       if (typeof data === 'string') {
+        // Allocate buffer for UTF-8 encoding: each character may take up to 3 bytes in UTF-8.
+        // The extra byte (+1) is for the command code at the start of the buffer.
         const payload = new Uint8Array(data.length * 3 + 1);
         payload[0] = ClientCommand.INPUT.charCodeAt(0);
         const stats = textEncoder.encodeInto(data, payload.subarray(1));
