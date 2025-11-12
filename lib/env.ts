@@ -10,6 +10,25 @@ export const env = createEnv({
   server: {
     DATABASE_URL: z.url(),
     RUNTIME_IMAGE: z.string().optional(),
+    // Authentication provider feature flags
+    ENABLE_PASSWORD_AUTH: z
+      .string()
+      .optional()
+      .default('true')
+      .transform((val) => val !== 'false'),
+    ENABLE_GITHUB_AUTH: z
+      .string()
+      .optional()
+      .default('false')
+      .transform((val) => val === 'true'),
+    ENABLE_SEALOS_AUTH: z
+      .string()
+      .optional()
+      .default('false')
+      .transform((val) => val !== 'false'),
+    // GitHub OAuth credentials
+    GITHUB_CLIENT_ID: z.string().optional(),
+    GITHUB_CLIENT_SECRET: z.string().optional(),
   },
   /*
    * Environment variables available on the client (and server).
