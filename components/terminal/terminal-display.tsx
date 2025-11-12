@@ -7,7 +7,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { AlertCircle, Terminal as TerminalIcon } from 'lucide-react';
 
 import { Spinner } from '@/components/ui/spinner';
@@ -39,6 +39,22 @@ export function TerminalDisplay({ ttydUrl, status, tabId }: TerminalDisplayProps
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'error'>(
     'connecting'
   );
+
+  // Stable callback functions to prevent unnecessary re-renders of XtermTerminal
+  const handleReady = useCallback(() => {
+    console.log('[TerminalDisplay] Terminal ready');
+    setTerminalReady(true);
+  }, []);
+
+  const handleConnected = useCallback(() => {
+    console.log('[TerminalDisplay] Terminal WebSocket connected');
+    setConnectionStatus('connected');
+  }, []);
+
+  const handleDisconnected = useCallback(() => {
+    console.log('[TerminalDisplay] Terminal WebSocket disconnected');
+    setConnectionStatus('connecting');
+  }, []);
 
   // Only show terminal if status is RUNNING and ttyd URL is available
   if (status === 'RUNNING' && ttydUrl) {
@@ -85,18 +101,9 @@ export function TerminalDisplay({ ttydUrl, status, tabId }: TerminalDisplayProps
             fontSize={14}
             fontFamily="Consolas, Liberation Mono, Menlo, Courier, monospace"
             rendererType="webgl"
-            onReady={() => {
-              console.log('[TerminalDisplay] Terminal ready');
-              setTerminalReady(true);
-            }}
-            onConnected={() => {
-              console.log('[TerminalDisplay] Terminal WebSocket connected');
-              setConnectionStatus('connected');
-            }}
-            onDisconnected={() => {
-              console.log('[TerminalDisplay] Terminal WebSocket disconnected');
-              setConnectionStatus('connecting');
-            }}
+            onReady={handleReady}
+            onConnected={handleConnected}
+            onDisconnected={handleDisconnected}
           />
         </div>
 

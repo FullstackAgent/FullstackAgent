@@ -263,124 +263,173 @@ export function XtermTerminal({
     }
   };
 
-  // Connect to WebSocket
+  // Connect to WebSocket - runs once when wsUrl is provided
   useEffect(() => {
     if (!wsUrl || !terminalRef.current) return;
 
+    // Note: In React Strict Mode (development), this effect will run twice
+    // The cleanup function will properly close the first connection before the second one is created
+    // This is intentional behavior to help detect side effect issues
+    // In production builds, Strict Mode is disabled and this will only run once
+
     const terminal = terminalRef.current;
+    let socket: WebSocket | null = null;
+    let reconnectTimeoutId: NodeJS.Timeout | null = null;
+    let isCleaningUp = false;
 
     // Parse the ttyd URL and construct WebSocket URL
     // Important: Must preserve query parameters (?arg=TOKEN) for ttyd authentication
-    let wsFullUrl: string;
-    let token = '';
+    const parseUrl = (): { wsFullUrl: string; token: string } | null => {
+      try {
+        // ttydUrl format: https://xxx.usw.sealos.io?arg=TOKEN
+        const url = new URL(wsUrl);
+        const token = url.searchParams.get('arg') || '';
 
-    try {
-      // ttydUrl format: https://xxx.usw.sealos.io?arg=TOKEN
-      const url = new URL(wsUrl);
-      token = url.searchParams.get('arg') || '';
+        if (!token) {
+          console.error('[terminal] No authentication token found in URL');
+          return null;
+        }
 
-      // Create WebSocket URL: wss://xxx.usw.sealos.io/ws?arg=TOKEN
-      // NOTE: Query parameters MUST be included for ttyd -a authentication!
-      const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsPath = url.pathname.replace(/\/$/, '') + '/ws';
-      wsFullUrl = `${wsProtocol}//${url.host}${wsPath}${url.search}`;
+        // Create WebSocket URL: wss://xxx.usw.sealos.io/ws?arg=TOKEN
+        // NOTE: Query parameters MUST be included for ttyd -a authentication!
+        const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsPath = url.pathname.replace(/\/$/, '') + '/ws';
+        const wsFullUrl = `${wsProtocol}//${url.host}${wsPath}${url.search}`;
 
-      console.log('[terminal] Extracted token:', token ? '***' : 'EMPTY');
-      console.log('[terminal] Connecting to:', wsFullUrl.replace(token, '***'));
-    } catch (error) {
-      console.error('[terminal] Failed to parse ttyd URL:', error);
-      onDisconnected?.();
-      return;
-    }
+        console.log('[terminal] Extracted token:', token ? '***' : 'EMPTY');
+        console.log('[terminal] Connecting to:', wsFullUrl.replace(token, '***'));
 
-    if (!token) {
-      console.error('[terminal] No authentication token found in URL');
-      onDisconnected?.();
-      return;
-    }
-
-    // Connect to WebSocket with 'tty' protocol
-    const socket = new WebSocket(wsFullUrl, ['tty']);
-    socketRef.current = socket;
-    socket.binaryType = 'arraybuffer';
-
-    // WebSocket open handler
-    socket.onopen = () => {
-      console.log('[terminal] WebSocket connected');
-      setIsConnected(true);
-      onConnected?.();
-
-      // Send initial message with terminal size
-      // NOTE: ttyd with -a flag authenticates via URL parameter, not AuthToken
-      // But we still send this message for compatibility and terminal size
-      const authMsg = JSON.stringify({
-        AuthToken: token,
-        columns: terminal.cols,
-        rows: terminal.rows,
-      });
-
-      console.log('[terminal] Sending initial terminal size');
-      socket.send(textEncoder.current.encode(authMsg));
-
-      terminal.focus();
-    };
-
-    // WebSocket message handler
-    socket.onmessage = (event: MessageEvent) => {
-      const rawData = event.data as ArrayBuffer;
-      const cmd = String.fromCharCode(new Uint8Array(rawData)[0]);
-      const data = rawData.slice(1);
-
-      switch (cmd) {
-        case Command.OUTPUT:
-          // Write output to terminal
-          terminal.write(new Uint8Array(data));
-          break;
-        case Command.SET_WINDOW_TITLE:
-          // Set window title
-          const title = textDecoder.current.decode(data);
-          document.title = title;
-          break;
-        case Command.SET_PREFERENCES:
-          // Handle preferences (not implemented yet)
-          console.log('[terminal] Preferences received:', textDecoder.current.decode(data));
-          break;
-        default:
-          console.warn('[terminal] Unknown command:', cmd);
-          break;
+        return { wsFullUrl, token };
+      } catch (error) {
+        console.error('[terminal] Failed to parse ttyd URL:', error);
+        return null;
       }
     };
 
-    // WebSocket close handler
-    socket.onclose = (event: CloseEvent) => {
-      console.log('[terminal] WebSocket closed:', event.code);
-      setIsConnected(false);
+    const urlInfo = parseUrl();
+    if (!urlInfo) {
       onDisconnected?.();
+      return;
+    }
 
-      // Show reconnection message
-      terminal.write('\r\n\x1b[31mConnection closed\x1b[0m\r\n');
-      terminal.write('Press \x1b[32mEnter\x1b[0m to reconnect\r\n');
+    const { wsFullUrl, token } = urlInfo;
 
-      // Handle reconnection on Enter key
-      const reconnectHandler = terminal.onKey((e) => {
-        if (e.key === '\r') {
-          reconnectHandler.dispose();
-          terminal.clear();
-          // Trigger reconnection by changing wsUrl or using a reconnect function
+    // Connect to WebSocket
+    const connect = () => {
+      if (isCleaningUp) return;
+
+      console.log('[terminal] Connecting to WebSocket...');
+      socket = new WebSocket(wsFullUrl, ['tty']);
+      socketRef.current = socket;
+      socket.binaryType = 'arraybuffer';
+
+      // WebSocket open handler
+      socket.onopen = () => {
+        console.log('[terminal] WebSocket connected');
+        setIsConnected(true);
+        onConnected?.();
+
+        // Send initial message with terminal size
+        // NOTE: ttyd with -a flag authenticates via URL parameter, not AuthToken
+        // But we still send this message for compatibility and terminal size
+        const authMsg = JSON.stringify({
+          AuthToken: token,
+          columns: terminal.cols,
+          rows: terminal.rows,
+        });
+
+        console.log('[terminal] Sending initial terminal size');
+        socket?.send(textEncoder.current.encode(authMsg));
+
+        terminal.focus();
+      };
+
+      // WebSocket message handler
+      socket.onmessage = (event: MessageEvent) => {
+        const rawData = event.data as ArrayBuffer;
+        const cmd = String.fromCharCode(new Uint8Array(rawData)[0]);
+        const data = rawData.slice(1);
+
+        switch (cmd) {
+          case Command.OUTPUT:
+            // Write output to terminal
+            terminal.write(new Uint8Array(data));
+            break;
+          case Command.SET_WINDOW_TITLE:
+            // Set window title
+            const title = textDecoder.current.decode(data);
+            document.title = title;
+            break;
+          case Command.SET_PREFERENCES:
+            // Handle preferences (not implemented yet)
+            console.log('[terminal] Preferences received:', textDecoder.current.decode(data));
+            break;
+          default:
+            console.warn('[terminal] Unknown command:', cmd);
+            break;
         }
-      });
+      };
+
+      // WebSocket close handler
+      socket.onclose = (event: CloseEvent) => {
+        console.log('[terminal] WebSocket closed:', event.code, event.reason);
+        setIsConnected(false);
+        socketRef.current = null;
+        onDisconnected?.();
+
+        // Only attempt reconnection if not cleaning up and close was unexpected
+        if (!isCleaningUp && event.code !== 1000) {
+          terminal.write('\r\n\x1b[33m[Connection lost. Reconnecting in 3 seconds...]\x1b[0m\r\n');
+
+          // Auto-reconnect after 3 seconds
+          reconnectTimeoutId = setTimeout(() => {
+            if (!isCleaningUp) {
+              console.log('[terminal] Attempting to reconnect...');
+              connect();
+            }
+          }, 3000);
+        } else {
+          terminal.write('\r\n\x1b[31m[Connection closed]\x1b[0m\r\n');
+        }
+      };
+
+      // WebSocket error handler
+      socket.onerror = (error) => {
+        console.error('[terminal] WebSocket error:', error);
+      };
     };
 
-    // WebSocket error handler
-    socket.onerror = (error) => {
-      console.error('[terminal] WebSocket error:', error);
-    };
+    // Initial connection
+    connect();
 
-    // Cleanup
+    // Cleanup function
     return () => {
-      socket.close();
+      console.log('[terminal] Cleaning up WebSocket connection');
+      isCleaningUp = true;
+
+      // Clear reconnect timeout if exists
+      if (reconnectTimeoutId) {
+        clearTimeout(reconnectTimeoutId);
+        reconnectTimeoutId = null;
+      }
+
+      // Close socket if open
+      if (socket) {
+        socket.onclose = null; // Remove handler to prevent reconnect
+        socket.onerror = null;
+        socket.onmessage = null;
+        socket.onopen = null;
+
+        if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+          socket.close(1000, 'Component unmounted');
+        }
+        socket = null;
+        socketRef.current = null;
+      }
+
+      setIsConnected(false);
     };
-  }, [wsUrl]);
+  }, [wsUrl, onConnected, onDisconnected]); // Only reconnect when wsUrl or callbacks change
 
   return (
     <div
