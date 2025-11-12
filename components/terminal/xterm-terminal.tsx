@@ -8,15 +8,18 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { CanvasAddon } from '@xterm/addon-canvas';
-import { FitAddon } from '@xterm/addon-fit';
-import { WebLinksAddon } from '@xterm/addon-web-links';
-import { WebglAddon } from '@xterm/addon-webgl';
 import type { ITerminalOptions, Terminal as ITerminal } from '@xterm/xterm';
-import { Terminal } from '@xterm/xterm';
 
-// Import xterm CSS at component level
+// Import xterm CSS at component level (safe for SSR)
 import '@xterm/xterm/css/xterm.css';
+
+// Type declarations for dynamically imported modules
+// These will only be loaded on the client side to avoid SSR issues
+type Terminal = import('@xterm/xterm').Terminal;
+type FitAddon = import('@xterm/addon-fit').FitAddon;
+type WebLinksAddon = import('@xterm/addon-web-links').WebLinksAddon;
+type WebglAddon = import('@xterm/addon-webgl').WebglAddon;
+type CanvasAddon = import('@xterm/addon-canvas').CanvasAddon;
 
 // Command types matching ttyd protocol
 enum Command {
@@ -98,6 +101,10 @@ export function XtermTerminal({
   // When true, we should auto-scroll on new output
   const isAtBottomRef = useRef(true);
 
+  // Scroll indicator state - shows when new content arrives while user is viewing history
+  const [hasNewContent, setHasNewContent] = useState(false);
+  const [newLineCount, setNewLineCount] = useState(0);
+
   /**
    * Check if terminal is scrolled to bottom (or very close)
    * Returns true if viewport is showing the last line of the buffer
@@ -123,74 +130,106 @@ export function XtermTerminal({
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Terminal options
-    const termOptions: ITerminalOptions = {
-      fontSize,
-      fontFamily,
-      theme: theme || {
-        foreground: '#d2d2d2',
-        background: '#1e1e1e',
-        cursor: '#adadad',
-        black: '#000000',
-        red: '#d81e00',
-        green: '#5ea702',
-        yellow: '#cfae00',
-        blue: '#427ab3',
-        magenta: '#89658e',
-        cyan: '#00a7aa',
-        white: '#dbded8',
-        brightBlack: '#686a66',
-        brightRed: '#f54235',
-        brightGreen: '#99e343',
-        brightYellow: '#fdeb61',
-        brightBlue: '#84b0d8',
-        brightMagenta: '#bc94b7',
-        brightCyan: '#37e6e8',
-        brightWhite: '#f1f1f0',
-      },
-      cursorBlink: true,
-      cursorStyle: 'block',
-      allowProposedApi: true,
-      scrollback: 10000,
-      tabStopWidth: 8,
+    let terminal: ITerminal | null = null;
+    let fitAddon: FitAddon | null = null;
+    let isMounted = true;
+
+    // Dynamically load xterm and addons (client-side only)
+    const initTerminal = async () => {
+      try {
+        // Dynamic imports to avoid SSR issues with 'self is not defined'
+        const xtermModule = await import('@xterm/xterm');
+        const fitAddonModule = await import('@xterm/addon-fit');
+        const webLinksAddonModule = await import('@xterm/addon-web-links');
+
+        // Check if component is still mounted after async import
+        if (!isMounted || !containerRef.current) return;
+
+        // Terminal options
+        const termOptions: ITerminalOptions = {
+          fontSize,
+          fontFamily,
+          theme: theme || {
+            foreground: '#d2d2d2',
+            background: '#1e1e1e',
+            cursor: '#adadad',
+            black: '#000000',
+            red: '#d81e00',
+            green: '#5ea702',
+            yellow: '#cfae00',
+            blue: '#427ab3',
+            magenta: '#89658e',
+            cyan: '#00a7aa',
+            white: '#dbded8',
+            brightBlack: '#686a66',
+            brightRed: '#f54235',
+            brightGreen: '#99e343',
+            brightYellow: '#fdeb61',
+            brightBlue: '#84b0d8',
+            brightMagenta: '#bc94b7',
+            brightCyan: '#37e6e8',
+            brightWhite: '#f1f1f0',
+          },
+          cursorBlink: true,
+          cursorStyle: 'block',
+          allowProposedApi: true,
+          scrollback: 10000,
+          tabStopWidth: 8,
+        };
+
+        // Create terminal instance
+        terminal = new xtermModule.Terminal(termOptions);
+        terminalRef.current = terminal;
+
+        // Create and load fit addon
+        fitAddon = new fitAddonModule.FitAddon();
+        fitAddonRef.current = fitAddon;
+        terminal.loadAddon(fitAddon);
+
+        // Load web links addon
+        terminal.loadAddon(new webLinksAddonModule.WebLinksAddon());
+
+        // Open terminal in container
+        terminal.open(containerRef.current);
+
+        // Wait for next frame before calling fit() to ensure container has dimensions
+        // This prevents "Cannot read properties of undefined (reading 'dimensions')" error
+        requestAnimationFrame(() => {
+          if (!isMounted) return;
+          fitAddon?.fit();
+        });
+
+        // Apply renderer (async to allow terminal to initialize)
+        requestAnimationFrame(() => {
+          if (!isMounted) return;
+          applyRenderer(rendererType);
+        });
+
+        // Setup event handlers
+        setupTerminalHandlers(terminal, fitAddon);
+
+        // Call onReady callback
+        onReady?.();
+      } catch (error) {
+        console.error('[terminal] Failed to initialize terminal:', error);
+      }
     };
 
-    // Create terminal instance
-    const terminal = new Terminal(termOptions);
-    terminalRef.current = terminal;
-
-    // Create and load fit addon
-    const fitAddon = new FitAddon();
-    fitAddonRef.current = fitAddon;
-    terminal.loadAddon(fitAddon);
-
-    // Load web links addon
-    terminal.loadAddon(new WebLinksAddon());
-
-    // Open terminal in container
-    terminal.open(containerRef.current);
-    fitAddon.fit();
-
-    // Apply renderer
-    applyRenderer(rendererType);
-
-    // Setup event handlers
-    setupTerminalHandlers(terminal, fitAddon);
-
-    // Call onReady callback
-    onReady?.();
+    // Start initialization
+    initTerminal();
 
     // Cleanup
     return () => {
+      isMounted = false;
       socketRef.current?.close();
       webglAddonRef.current?.dispose();
       canvasAddonRef.current?.dispose();
-      terminal.dispose();
+      terminal?.dispose();
     };
   }, []);
 
-  // Apply renderer (webgl, canvas, or dom)
-  const applyRenderer = (type: 'dom' | 'canvas' | 'webgl') => {
+  // Apply renderer (webgl, canvas, or dom) - async to support dynamic imports
+  const applyRenderer = async (type: 'dom' | 'canvas' | 'webgl') => {
     const terminal = terminalRef.current;
     if (!terminal) return;
 
@@ -208,22 +247,24 @@ export function XtermTerminal({
       // ignore
     }
 
-    // Apply new renderer
+    // Apply new renderer with dynamic imports
     switch (type) {
       case 'webgl':
         try {
-          const webglAddon = new WebglAddon();
+          const webglAddonModule = await import('@xterm/addon-webgl');
+          const webglAddon = new webglAddonModule.WebglAddon();
           webglAddonRef.current = webglAddon;
           terminal.loadAddon(webglAddon);
           console.log('[terminal] WebGL renderer loaded');
         } catch (e) {
           console.log('[terminal] WebGL renderer failed, falling back to canvas', e);
-          applyRenderer('canvas');
+          await applyRenderer('canvas');
         }
         break;
       case 'canvas':
         try {
-          const canvasAddon = new CanvasAddon();
+          const canvasAddonModule = await import('@xterm/addon-canvas');
+          const canvasAddon = new canvasAddonModule.CanvasAddon();
           canvasAddonRef.current = canvasAddon;
           terminal.loadAddon(canvasAddon);
           console.log('[terminal] Canvas renderer loaded');
@@ -238,7 +279,7 @@ export function XtermTerminal({
   };
 
   // Setup terminal event handlers
-  const setupTerminalHandlers = (terminal: ITerminal, fitAddon: FitAddon) => {
+  const setupTerminalHandlers = (terminal: ITerminal, fitAddon: import('@xterm/addon-fit').FitAddon) => {
     // Handle data input from user
     terminal.onData((data) => {
       // When user types, they expect to see the bottom
@@ -246,6 +287,11 @@ export function XtermTerminal({
       if (!isAtBottomRef.current) {
         terminal.scrollToBottom();
         isAtBottomRef.current = true;
+      }
+      // Clear new content indicator when user types
+      if (hasNewContent) {
+        setHasNewContent(false);
+        setNewLineCount(0);
       }
       sendData(data);
     });
@@ -256,6 +302,11 @@ export function XtermTerminal({
       if (!isAtBottomRef.current) {
         terminal.scrollToBottom();
         isAtBottomRef.current = true;
+      }
+      // Clear new content indicator
+      if (hasNewContent) {
+        setHasNewContent(false);
+        setNewLineCount(0);
       }
       sendData(Uint8Array.from(data, (v) => v.charCodeAt(0)));
     });
@@ -277,7 +328,16 @@ export function XtermTerminal({
 
       if (wasAtBottom !== nowAtBottom) {
         isAtBottomRef.current = nowAtBottom;
-        console.log('[terminal] User scroll position:', nowAtBottom ? 'at bottom' : 'viewing history');
+        console.log(
+          '[terminal] User scroll position:',
+          nowAtBottom ? 'at bottom' : 'viewing history'
+        );
+
+        // Clear new content indicator when user scrolls to bottom
+        if (nowAtBottom && hasNewContent) {
+          setHasNewContent(false);
+          setNewLineCount(0);
+        }
       }
     });
 
@@ -291,6 +351,10 @@ export function XtermTerminal({
       lineFeedTimeout = setTimeout(() => {
         if (isAtBottomRef.current) {
           terminal.scrollToBottom();
+        } else {
+          // User is viewing history - increment new content counter
+          setHasNewContent(true);
+          setNewLineCount((prev) => prev + 1);
         }
       }, 10);
     });
@@ -516,13 +580,62 @@ export function XtermTerminal({
     };
   }, [wsUrl, onConnected, onDisconnected]); // Only reconnect when wsUrl or callbacks change
 
+  // Handle scroll to bottom button click
+  const handleScrollToBottom = () => {
+    const terminal = terminalRef.current;
+    if (terminal) {
+      terminal.scrollToBottom();
+      isAtBottomRef.current = true;
+      setHasNewContent(false);
+      setNewLineCount(0);
+    }
+  };
+
   return (
-    <div
-      ref={containerRef}
-      className="w-full h-full"
-      style={{
-        padding: '5px',
-      }}
-    />
+    <div className="relative w-full h-full">
+      {/* Terminal container */}
+      <div
+        ref={containerRef}
+        className="w-full h-full"
+        style={{
+          padding: '5px',
+        }}
+      />
+
+      {/* Scroll to bottom indicator - shows when new content arrives while viewing history */}
+      {hasNewContent && (
+        <button
+          onClick={handleScrollToBottom}
+          className="absolute bottom-4 right-4
+                     bg-blue-500 hover:bg-blue-600
+                     text-white text-sm font-medium
+                     px-4 py-2 rounded-full
+                     shadow-lg hover:shadow-xl
+                     transition-all duration-200
+                     flex items-center gap-2
+                     animate-fade-in
+                     z-10"
+          aria-label={`Scroll to bottom (${newLineCount} new lines)`}
+        >
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M19 14l-7 7m0 0l-7-7m7 7V3"
+            />
+          </svg>
+          <span>
+            {newLineCount} new {newLineCount === 1 ? 'line' : 'lines'}
+          </span>
+        </button>
+      )}
+    </div>
   );
 }
