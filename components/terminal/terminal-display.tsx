@@ -1,8 +1,14 @@
 /**
  * TerminalDisplay Component
  *
- * Display component for xterm.js terminal (no iframe)
- * Direct WebSocket connection to ttyd backend
+ * Wrapper component for XtermTerminal that manages connection states and loading UI.
+ * Displays appropriate status messages when terminal is not ready or sandbox is not running.
+ *
+ * Features:
+ * - Loading overlays during initialization and connection
+ * - Status-based conditional rendering
+ * - Connection status indicators
+ * - Automatic reconnection feedback
  */
 
 'use client';
@@ -21,58 +27,74 @@ import { cn } from '@/lib/utils';
 
 import { XtermTerminal } from './xterm-terminal';
 
+// ============================================================================
+// Types
+// ============================================================================
+
 export interface TerminalDisplayProps {
-  /** ttyd URL with authentication token */
   ttydUrl?: string | null;
-  /** Sandbox status */
   status: string;
-  /** Unique tab ID for this terminal instance */
   tabId: string;
 }
 
-/**
- * Display xterm.js terminal with direct WebSocket connection
- * Each terminal tab gets independent WebSocket connection
- */
-export function TerminalDisplay({ ttydUrl, status, tabId }: TerminalDisplayProps) {
-  const [terminalReady, setTerminalReady] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'error'>(
-    'connecting'
-  );
+type ConnectionStatus = 'connecting' | 'connected' | 'error';
 
-  // Stable callback functions to prevent unnecessary re-renders of XtermTerminal
+// ============================================================================
+// Component
+// ============================================================================
+
+export function TerminalDisplay({ ttydUrl, status, tabId }: TerminalDisplayProps) {
+  // =========================================================================
+  // State Management
+  // =========================================================================
+
+  const [terminalReady, setTerminalReady] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
+
+  // =========================================================================
+  // Event Handlers
+  // =========================================================================
+
   const handleReady = useCallback(() => {
-    console.log('[TerminalDisplay] Terminal ready');
+    console.log('[TerminalDisplay] Terminal initialized successfully');
     setTerminalReady(true);
   }, []);
 
   const handleConnected = useCallback(() => {
-    console.log('[TerminalDisplay] Terminal WebSocket connected');
+    console.log('[TerminalDisplay] WebSocket connection established');
     setConnectionStatus('connected');
   }, []);
 
   const handleDisconnected = useCallback(() => {
-    console.log('[TerminalDisplay] Terminal WebSocket disconnected');
+    console.log('[TerminalDisplay] WebSocket connection closed');
     setConnectionStatus('connecting');
   }, []);
 
-  // Only show terminal if status is RUNNING and ttyd URL is available
+  // =========================================================================
+  // Conditional Rendering Logic
+  // =========================================================================
+
+  // Only render terminal when sandbox is running and ttyd URL is available
   if (status === 'RUNNING' && ttydUrl) {
+    const isLoading = connectionStatus === 'connecting' || !terminalReady;
+    const showReconnectIndicator = connectionStatus === 'connecting' && terminalReady;
+    const showErrorIndicator = connectionStatus === 'error' && terminalReady;
+
     return (
       <div className="h-full w-full bg-[#1e1e1e] flex flex-col relative">
-        {/* Loading overlay - show until terminal is ready and connected */}
-        {(connectionStatus === 'connecting' || !terminalReady) && (
+        {/* Loading Overlay */}
+        {isLoading && (
           <div className="absolute inset-0 bg-[#1e1e1e] flex items-center justify-center z-10">
             <div className="flex items-center gap-3">
               <Spinner className="h-5 w-5 text-[#3794ff]" />
               <span className="text-sm text-[#cccccc]">
-                {!terminalReady ? 'Loading terminal...' : 'Connecting to terminal...'}
+                {!terminalReady ? 'Initializing terminal...' : 'Establishing connection...'}
               </span>
             </div>
           </div>
         )}
 
-        {/* XTerm Terminal Component */}
+        {/* Terminal Instance */}
         <div className="flex-1 w-full">
           <XtermTerminal
             key={`xterm-${tabId}`}
@@ -107,34 +129,39 @@ export function TerminalDisplay({ ttydUrl, status, tabId }: TerminalDisplayProps
           />
         </div>
 
-        {/* Connection status indicator (optional, can be removed) */}
-        {connectionStatus === 'connecting' && terminalReady && (
+        {/* Connection Status Indicators */}
+        {showReconnectIndicator && (
           <div className="absolute top-2 right-2 bg-yellow-500/10 border border-yellow-500/30 rounded px-2 py-1 flex items-center gap-2">
             <Spinner className="h-3 w-3 text-yellow-500" />
             <span className="text-xs text-yellow-500">Reconnecting...</span>
           </div>
         )}
-        {connectionStatus === 'error' && terminalReady && (
+
+        {showErrorIndicator && (
           <div className="absolute top-2 right-2 bg-red-500/10 border border-red-500/30 rounded px-2 py-1 flex items-center gap-2">
             <AlertCircle className="h-3 w-3 text-red-500" />
-            <span className="text-xs text-red-500">Connection error</span>
+            <span className="text-xs text-red-500">Connection failed</span>
           </div>
         )}
       </div>
     );
   }
 
-  // Show status message for non-running states
+  // =========================================================================
+  // Status Message Display
+  // =========================================================================
+
+  // Show appropriate status message when terminal is not available
+  const StatusIcon = shouldShowSpinner(status)
+    ? Spinner
+    : isErrorStatus(status)
+      ? AlertCircle
+      : TerminalIcon;
+
   return (
     <div className="h-full w-full bg-[#1e1e1e] flex items-center justify-center">
       <div className="flex items-center gap-3">
-        {shouldShowSpinner(status) ? (
-          <Spinner className={cn('h-5 w-5', getStatusIconColor(status))} />
-        ) : isErrorStatus(status) ? (
-          <AlertCircle className={cn('h-5 w-5', getStatusIconColor(status))} />
-        ) : (
-          <TerminalIcon className={cn('h-5 w-5', getStatusIconColor(status))} />
-        )}
+        <StatusIcon className={cn('h-5 w-5', getStatusIconColor(status))} />
         <span className="text-sm text-[#cccccc]">{getStatusMessage(status)}</span>
       </div>
     </div>

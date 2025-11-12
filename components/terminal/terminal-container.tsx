@@ -1,9 +1,14 @@
 /**
  * TerminalContainer Component
  *
- * Main container that combines toolbar and display
- * Manages tab state and renders separate terminal instances for each tab
- * Each tab gets its own iframe with independent WebSocket connection
+ * Root container component that manages terminal tabs and combines toolbar with display area.
+ * Implements multi-tab functionality where each tab maintains an independent terminal instance.
+ *
+ * Architecture:
+ * - Tab state management (add, close, switch)
+ * - Renders all tabs but only shows the active one (maintains state)
+ * - Passes project and sandbox data to child components
+ * - Each tab gets unique terminal instance with independent WebSocket
  */
 
 'use client';
@@ -13,6 +18,10 @@ import type { Prisma } from '@prisma/client';
 
 import { TerminalDisplay } from './terminal-display';
 import { type Tab, TerminalToolbar } from './terminal-toolbar';
+
+// ============================================================================
+// Types
+// ============================================================================
 
 type Project = Prisma.ProjectGetPayload<{
   include: {
@@ -24,24 +33,31 @@ type Project = Prisma.ProjectGetPayload<{
 type Sandbox = Prisma.SandboxGetPayload<object>;
 
 export interface TerminalContainerProps {
-  /** Project data */
   project: Project;
-  /** Sandbox data */
   sandbox: Sandbox | undefined;
 }
 
-/**
- * Terminal container with toolbar and display
- * Renders separate terminal instances for each tab to ensure independent WebSocket connections
- */
+// ============================================================================
+// Component
+// ============================================================================
+
 export function TerminalContainer({ project, sandbox }: TerminalContainerProps) {
-  // Tab management
+  // =========================================================================
+  // Tab State Management
+  // =========================================================================
+
   const [tabs, setTabs] = useState<Tab[]>([{ id: '1', name: 'Terminal 1' }]);
   const [activeTabId, setActiveTabId] = useState('1');
 
-  // Tab operations
+  // =========================================================================
+  // Tab Operations
+  // =========================================================================
+
+  /**
+   * Create and activate a new terminal tab
+   */
   const handleTabAdd = () => {
-    const newId = Date.now().toString(); // Use timestamp for unique ID
+    const newId = Date.now().toString();
     const newTab: Tab = {
       id: newId,
       name: `Terminal ${tabs.length + 1}`,
@@ -50,24 +66,36 @@ export function TerminalContainer({ project, sandbox }: TerminalContainerProps) 
     setActiveTabId(newId);
   };
 
+  /**
+   * Close a terminal tab
+   * Maintains at least one tab and switches to first tab if closing active tab
+   */
   const handleTabClose = (id: string) => {
-    if (tabs.length === 1) return; // Keep at least one terminal
+    if (tabs.length === 1) return;
 
-    const newTabs = tabs.filter((t) => t.id !== id);
-    setTabs(newTabs);
+    const remainingTabs = tabs.filter((t) => t.id !== id);
+    setTabs(remainingTabs);
 
+    // Switch to first tab if we're closing the active tab
     if (activeTabId === id) {
-      setActiveTabId(newTabs[0].id);
+      setActiveTabId(remainingTabs[0].id);
     }
   };
 
+  /**
+   * Switch to a different tab
+   */
   const handleTabSelect = (id: string) => {
     setActiveTabId(id);
   };
 
+  // =========================================================================
+  // Render
+  // =========================================================================
+
   return (
     <div className="flex flex-col h-full bg-[#1e1e1e]">
-      {/* Toolbar */}
+      {/* Toolbar with tabs and operations */}
       <TerminalToolbar
         project={project}
         sandbox={sandbox}
@@ -78,7 +106,7 @@ export function TerminalContainer({ project, sandbox }: TerminalContainerProps) 
         onTabAdd={handleTabAdd}
       />
 
-      {/* Terminal Displays - render all tabs but only show active one */}
+      {/* Terminal display area with tab switching */}
       <div className="flex-1 bg-black relative">
         {tabs.map((tab) => (
           <div
@@ -88,6 +116,7 @@ export function TerminalContainer({ project, sandbox }: TerminalContainerProps) 
               display: tab.id === activeTabId ? 'block' : 'none',
             }}
           >
+            {/* Each tab maintains its own terminal instance */}
             <TerminalDisplay
               key={tab.id}
               ttydUrl={sandbox?.ttydUrl}

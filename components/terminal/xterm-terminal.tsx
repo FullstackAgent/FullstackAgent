@@ -1,24 +1,32 @@
 /**
  * XtermTerminal Component
  *
- * Core xterm.js terminal component with WebSocket connection to ttyd backend
- * Based on ttyd's frontend implementation with proper SSR handling
+ * Terminal component built with xterm.js, supporting WebSocket connection to ttyd backend.
+ * Implements dynamic imports for SSR compatibility and proper lifecycle management.
+ *
+ * Features:
+ * - SSR-safe dynamic module loading
+ * - WebSocket auto-reconnection
+ * - Smart scroll behavior with indicator
+ * - Multiple renderer support (WebGL, Canvas, DOM)
+ * - Proper cleanup and memory management
  */
 
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ITerminalOptions, Terminal as ITerminal } from '@xterm/xterm';
 
-// Import xterm CSS at component level (safe for SSR)
 import '@xterm/xterm/css/xterm.css';
 
-// Type declarations for dynamically imported modules
+// ============================================================================
+// Type Definitions
+// ============================================================================
+
 type FitAddon = import('@xterm/addon-fit').FitAddon;
 type WebglAddon = import('@xterm/addon-webgl').WebglAddon;
 type CanvasAddon = import('@xterm/addon-canvas').CanvasAddon;
 
-// Command types matching ttyd protocol
 enum Command {
   OUTPUT = '0',
   SET_WINDOW_TITLE = '1',
@@ -33,9 +41,7 @@ enum ClientCommand {
 }
 
 export interface XtermTerminalProps {
-  /** WebSocket URL for ttyd connection */
   wsUrl: string;
-  /** Terminal theme */
   theme?: {
     foreground?: string;
     background?: string;
@@ -57,19 +63,17 @@ export interface XtermTerminalProps {
     brightCyan?: string;
     brightWhite?: string;
   };
-  /** Font size */
   fontSize?: number;
-  /** Font family */
   fontFamily?: string;
-  /** Renderer type */
   rendererType?: 'dom' | 'canvas' | 'webgl';
-  /** Callback when terminal is ready */
   onReady?: () => void;
-  /** Callback when connection opens */
   onConnected?: () => void;
-  /** Callback when connection closes */
   onDisconnected?: () => void;
 }
+
+// ============================================================================
+// Component
+// ============================================================================
 
 export function XtermTerminal({
   wsUrl,
@@ -81,17 +85,90 @@ export function XtermTerminal({
   onConnected,
   onDisconnected,
 }: XtermTerminalProps) {
+  // =========================================================================
+  // State & Refs
+  // =========================================================================
+
   const containerRef = useRef<HTMLDivElement>(null);
-  const terminalRef = useRef<ITerminal | null>(null); // Expose terminal via ref
-  const [isConnected, setIsConnected] = useState(false);
+  const terminalRef = useRef<ITerminal | null>(null);
+  const hasNewContentRef = useRef(false);
+  const newLineCountRef = useRef(0);
+
   const [hasNewContent, setHasNewContent] = useState(false);
   const [newLineCount, setNewLineCount] = useState(0);
 
-  // Single useEffect to manage entire component lifecycle
+  // =========================================================================
+  // Memoized Configuration
+  // =========================================================================
+
+  const terminalOptions: ITerminalOptions = useMemo(
+    () => ({
+      fontSize,
+      fontFamily,
+      theme: theme || {
+        foreground: '#d2d2d2',
+        background: '#1e1e1e',
+        cursor: '#adadad',
+        black: '#000000',
+        red: '#d81e00',
+        green: '#5ea702',
+        yellow: '#cfae00',
+        blue: '#427ab3',
+        magenta: '#89658e',
+        cyan: '#00a7aa',
+        white: '#dbded8',
+        brightBlack: '#686a66',
+        brightRed: '#f54235',
+        brightGreen: '#99e343',
+        brightYellow: '#fdeb61',
+        brightBlue: '#84b0d8',
+        brightMagenta: '#bc94b7',
+        brightCyan: '#37e6e8',
+        brightWhite: '#f1f1f0',
+      },
+      cursorBlink: true,
+      cursorStyle: 'block',
+      allowProposedApi: true,
+      scrollback: 10000,
+      tabStopWidth: 8,
+    }),
+    [fontSize, fontFamily, theme]
+  );
+
+  // =========================================================================
+  // Callbacks
+  // =========================================================================
+
+  const handleScrollToBottom = useCallback(() => {
+    const terminal = terminalRef.current;
+    if (terminal) {
+      terminal.scrollToBottom();
+      console.log('[terminal] User scrolled to bottom');
+    }
+    setHasNewContent(false);
+    setNewLineCount(0);
+  }, []);
+
+  // Wrap callbacks to ensure stability
+  const stableOnReady = useCallback(() => {
+    onReady?.();
+  }, [onReady]);
+
+  const stableOnConnected = useCallback(() => {
+    onConnected?.();
+  }, [onConnected]);
+
+  const stableOnDisconnected = useCallback(() => {
+    onDisconnected?.();
+  }, [onDisconnected]);
+
+  // =========================================================================
+  // Main Effect - Terminal Lifecycle Management
+  // =========================================================================
+
   useEffect(() => {
     if (!containerRef.current || !wsUrl) return;
 
-    // State tracking (using local variables to avoid stale closures)
     let terminal: ITerminal | null = null;
     let fitAddon: FitAddon | null = null;
     let socket: WebSocket | null = null;
@@ -104,7 +181,10 @@ export function XtermTerminal({
     const textEncoder = new TextEncoder();
     const textDecoder = new TextDecoder();
 
-    // Helper: Check if terminal is at bottom
+    // -----------------------------------------------------------------------
+    // Helper: Check if at bottom
+    // -----------------------------------------------------------------------
+
     const isTerminalAtBottom = (): boolean => {
       if (!terminal) return true;
       try {
@@ -116,7 +196,10 @@ export function XtermTerminal({
       }
     };
 
-    // Helper: Parse ttyd URL and extract token
+    // -----------------------------------------------------------------------
+    // Helper: Parse WebSocket URL
+    // -----------------------------------------------------------------------
+
     const parseUrl = (): { wsFullUrl: string; token: string } | null => {
       try {
         const url = new URL(wsUrl);
@@ -139,7 +222,10 @@ export function XtermTerminal({
       }
     };
 
+    // -----------------------------------------------------------------------
     // Helper: Send data to server
+    // -----------------------------------------------------------------------
+
     const sendData = (data: string | Uint8Array) => {
       if (!socket || socket.readyState !== WebSocket.OPEN) return;
 
@@ -156,10 +242,14 @@ export function XtermTerminal({
       }
     };
 
+    // -----------------------------------------------------------------------
     // Helper: Apply renderer
+    // -----------------------------------------------------------------------
+
     const applyRenderer = async (type: 'dom' | 'canvas' | 'webgl') => {
       if (!terminal) return;
 
+      // Cleanup existing renderers
       try {
         webglAddon?.dispose();
         webglAddon = null;
@@ -169,11 +259,12 @@ export function XtermTerminal({
         canvasAddon = null;
       } catch {}
 
+      // Apply new renderer
       switch (type) {
         case 'webgl':
           try {
-            const module = await import('@xterm/addon-webgl');
-            webglAddon = new module.WebglAddon();
+            const { WebglAddon: WebglAddonClass } = await import('@xterm/addon-webgl');
+            webglAddon = new WebglAddonClass();
             terminal.loadAddon(webglAddon);
             console.log('[terminal] WebGL renderer loaded');
           } catch (e) {
@@ -183,8 +274,8 @@ export function XtermTerminal({
           break;
         case 'canvas':
           try {
-            const module = await import('@xterm/addon-canvas');
-            canvasAddon = new module.CanvasAddon();
+            const { CanvasAddon: CanvasAddonClass } = await import('@xterm/addon-canvas');
+            canvasAddon = new CanvasAddonClass();
             terminal.loadAddon(canvasAddon);
             console.log('[terminal] Canvas renderer loaded');
           } catch (e) {
@@ -197,13 +288,16 @@ export function XtermTerminal({
       }
     };
 
+    // -----------------------------------------------------------------------
     // Helper: Connect WebSocket
+    // -----------------------------------------------------------------------
+
     const connectWebSocket = () => {
       if (!terminal || !isMounted) return;
 
       const urlInfo = parseUrl();
       if (!urlInfo) {
-        onDisconnected?.();
+        stableOnDisconnected();
         return;
       }
 
@@ -216,10 +310,8 @@ export function XtermTerminal({
       socket.onopen = () => {
         if (!isMounted) return;
         console.log('[terminal] WebSocket connected');
-        setIsConnected(true);
-        onConnected?.();
+        stableOnConnected();
 
-        // Send initial message with terminal size
         const authMsg = JSON.stringify({
           AuthToken: token,
           columns: terminal!.cols,
@@ -267,11 +359,9 @@ export function XtermTerminal({
         if (!isMounted) return;
 
         console.log('[terminal] WebSocket closed:', event.code, event.reason);
-        setIsConnected(false);
         socket = null;
-        onDisconnected?.();
+        stableOnDisconnected();
 
-        // Auto-reconnect if unexpected close
         if (event.code !== 1000) {
           terminal?.write('\r\n\x1b[33m[Connection lost. Reconnecting in 3s...]\x1b[0m\r\n');
           reconnectTimeout = setTimeout(() => {
@@ -287,10 +377,12 @@ export function XtermTerminal({
       };
     };
 
-    // Main initialization function
+    // -----------------------------------------------------------------------
+    // Main initialization
+    // -----------------------------------------------------------------------
+
     const init = async () => {
       try {
-        // Dynamic imports
         const [xtermModule, fitAddonModule, webLinksModule] = await Promise.all([
           import('@xterm/xterm'),
           import('@xterm/addon-fit'),
@@ -299,56 +391,20 @@ export function XtermTerminal({
 
         if (!isMounted || !containerRef.current) return;
 
-        // Create terminal
-        const termOptions: ITerminalOptions = {
-          fontSize,
-          fontFamily,
-          theme: theme || {
-            foreground: '#d2d2d2',
-            background: '#1e1e1e',
-            cursor: '#adadad',
-            black: '#000000',
-            red: '#d81e00',
-            green: '#5ea702',
-            yellow: '#cfae00',
-            blue: '#427ab3',
-            magenta: '#89658e',
-            cyan: '#00a7aa',
-            white: '#dbded8',
-            brightBlack: '#686a66',
-            brightRed: '#f54235',
-            brightGreen: '#99e343',
-            brightYellow: '#fdeb61',
-            brightBlue: '#84b0d8',
-            brightMagenta: '#bc94b7',
-            brightCyan: '#37e6e8',
-            brightWhite: '#f1f1f0',
-          },
-          cursorBlink: true,
-          cursorStyle: 'block',
-          allowProposedApi: true,
-          scrollback: 10000,
-          tabStopWidth: 8,
-        };
+        terminal = new xtermModule.Terminal(terminalOptions);
+        terminalRef.current = terminal;
 
-        terminal = new xtermModule.Terminal(termOptions);
-        terminalRef.current = terminal; // Store in ref for external access
-
-        // Load addons
         fitAddon = new fitAddonModule.FitAddon();
         terminal.loadAddon(fitAddon);
         terminal.loadAddon(new webLinksModule.WebLinksAddon());
 
-        // Open terminal
         terminal.open(containerRef.current);
 
-        // Fit terminal
         requestAnimationFrame(() => {
           if (!isMounted) return;
           fitAddon?.fit();
         });
 
-        // Apply renderer
         requestAnimationFrame(() => {
           if (!isMounted) return;
           applyRenderer(rendererType);
@@ -360,7 +416,9 @@ export function XtermTerminal({
             terminal?.scrollToBottom();
             isAtBottom = true;
           }
-          if (hasNewContent) {
+          if (hasNewContentRef.current) {
+            hasNewContentRef.current = false;
+            newLineCountRef.current = 0;
             setHasNewContent(false);
             setNewLineCount(0);
           }
@@ -372,7 +430,9 @@ export function XtermTerminal({
             terminal?.scrollToBottom();
             isAtBottom = true;
           }
-          if (hasNewContent) {
+          if (hasNewContentRef.current) {
+            hasNewContentRef.current = false;
+            newLineCountRef.current = 0;
             setHasNewContent(false);
             setNewLineCount(0);
           }
@@ -392,7 +452,9 @@ export function XtermTerminal({
 
           if (wasAtBottom !== nowAtBottom) {
             isAtBottom = nowAtBottom;
-            if (nowAtBottom && hasNewContent) {
+            if (nowAtBottom && hasNewContentRef.current) {
+              hasNewContentRef.current = false;
+              newLineCountRef.current = 0;
               setHasNewContent(false);
               setNewLineCount(0);
             }
@@ -406,20 +468,18 @@ export function XtermTerminal({
             if (isAtBottom) {
               terminal?.scrollToBottom();
             } else {
+              hasNewContentRef.current = true;
+              newLineCountRef.current += 1;
               setHasNewContent(true);
-              setNewLineCount((prev) => prev + 1);
+              setNewLineCount(newLineCountRef.current);
             }
           }, 10);
         });
 
-        // Handle window resize
         const handleResize = () => fitAddon?.fit();
         window.addEventListener('resize', handleResize);
 
-        // Call onReady callback
-        onReady?.();
-
-        // Connect WebSocket AFTER terminal is fully initialized
+        stableOnReady();
         connectWebSocket();
 
         console.log('[terminal] Initialization complete');
@@ -428,10 +488,12 @@ export function XtermTerminal({
       }
     };
 
-    // Start initialization
     init();
 
+    // -----------------------------------------------------------------------
     // Cleanup
+    // -----------------------------------------------------------------------
+
     return () => {
       console.log('[terminal] Cleaning up');
       isMounted = false;
@@ -456,23 +518,14 @@ export function XtermTerminal({
       } catch {}
 
       terminal?.dispose();
-      terminalRef.current = null; // Clear ref
-      setIsConnected(false);
+      terminalRef.current = null;
     };
-  }, [wsUrl]); // Only re-run when wsUrl changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wsUrl]);
 
-  // Handle scroll to bottom button click
-  const handleScrollToBottom = () => {
-    const terminal = terminalRef.current;
-    if (terminal) {
-      // Actually scroll the terminal to bottom
-      terminal.scrollToBottom();
-      console.log('[terminal] User clicked scroll to bottom button');
-    }
-    // Clear the indicator
-    setHasNewContent(false);
-    setNewLineCount(0);
-  };
+  // =========================================================================
+  // Render
+  // =========================================================================
 
   return (
     <div className="relative w-full h-full">

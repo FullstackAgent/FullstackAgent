@@ -151,6 +151,7 @@ export class SandboxManager {
       this.deleteStatefulSet(sandboxName, namespace),
       this.deleteService(sandboxName, namespace),
       this.deleteIngresses(sandboxName, namespace),
+      this.deletePVCs(sandboxName, namespace),
     ])
 
     logger.info(`Sandbox deleted: ${sandboxName}`)
@@ -619,6 +620,12 @@ export class SandboxManager {
           },
         },
         minReadySeconds: 10,
+        // Automatically delete PVCs when StatefulSet is deleted
+        // This prevents orphaned PVCs and storage costs
+        persistentVolumeClaimRetentionPolicy: {
+          whenDeleted: 'Delete', // Delete PVCs when StatefulSet is deleted
+          whenScaled: 'Retain', // Keep PVCs when scaling down (for potential scale-up)
+        },
         template: {
           metadata: {
             labels: {
@@ -1170,6 +1177,48 @@ echo "=== Init Container: Completed successfully ==="
         logger.error(`Failed to delete Ingress: ${ingressName} - ${errorMessage}`)
         throw error
       }
+    }
+  }
+
+  /**
+   * Delete PVCs associated with a StatefulSet
+   *
+   * StatefulSets create PVCs with names: {volumeClaimTemplate.name}-{statefulset.name}-{ordinal}
+   * For our case: vn-homevn-agent-{sandboxName}-0
+   *
+   * This method handles both:
+   * 1. Clusters with persistentVolumeClaimRetentionPolicy support (Kubernetes 1.23+)
+   * 2. Older clusters where PVCs need manual cleanup
+   *
+   * @param sandboxName - Sandbox name
+   * @param namespace - Kubernetes namespace
+   */
+  private async deletePVCs(sandboxName: string, namespace: string): Promise<void> {
+    try {
+      // List all PVCs in namespace that belong to this StatefulSet
+      // StatefulSet PVC naming: {volumeClaimTemplate.name}-{statefulset.name}-{ordinal}
+      const pvcName = `vn-homevn-agent-${sandboxName}-0`
+
+      try {
+        await this.k8sApi.deleteNamespacedPersistentVolumeClaim({
+          name: pvcName,
+          namespace,
+        })
+        logger.info(`Deleted PVC: ${pvcName}`)
+      } catch (error) {
+        if (isK8sNotFound(error)) {
+          logger.info(
+            `PVC not found (may have been auto-deleted by persistentVolumeClaimRetentionPolicy): ${pvcName}`
+          )
+        } else {
+          throw error
+        }
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      logger.error(`Failed to delete PVCs for sandbox: ${sandboxName} - ${errorMessage}`)
+      // Don't throw - PVC deletion failure shouldn't block sandbox cleanup
+      // The PVCs might have already been deleted by K8s retention policy
     }
   }
 }

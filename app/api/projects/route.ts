@@ -57,21 +57,70 @@ type ProjectWithRelations = Project & {
 type GetProjectsResponse = ProjectWithRelations[]
 
 export const GET = withAuth<GetProjectsResponse>(async (req, _context, session) => {
-  // Get optional namespace filter from query params
+  // Get query parameters for filtering
   const { searchParams } = new URL(req.url)
-  const namespace = searchParams.get('namespace')
+  const allParam = searchParams.get('all')
+  const keywordParam = searchParams.get('keyword')
+  const createdFromParam = searchParams.get('createdFrom')
+  const createdToParam = searchParams.get('createdTo')
 
   // Build where clause
   const whereClause: Prisma.ProjectWhereInput = {
     userId: session.user.id,
   }
 
-  // Add namespace filter if provided (filter projects by sandbox namespace)
-  if (namespace) {
-    whereClause.sandboxes = {
-      some: {
-        k8sNamespace: namespace,
+  // Add keyword filter if provided (searches in both name and description)
+  if (keywordParam) {
+    whereClause.OR = [
+      {
+        name: {
+          contains: keywordParam,
+          mode: 'insensitive',
+        },
       },
+      {
+        description: {
+          contains: keywordParam,
+          mode: 'insensitive',
+        },
+      },
+    ]
+  }
+
+  // Add createdAt date filters if provided
+  const createdAtFilter: { gte?: Date; lte?: Date } = {}
+  if (createdFromParam) {
+    const createdFrom = new Date(createdFromParam)
+    if (!isNaN(createdFrom.getTime())) {
+      createdAtFilter.gte = createdFrom
+    }
+  }
+  if (createdToParam) {
+    const createdTo = new Date(createdToParam)
+    if (!isNaN(createdTo.getTime())) {
+      createdAtFilter.lte = createdTo
+    }
+  }
+  if (Object.keys(createdAtFilter).length > 0) {
+    whereClause.createdAt = createdAtFilter
+  }
+
+  // Add namespace filter from user's kubeconfig (unless 'all' parameter is provided)
+  if (allParam !== 'true') {
+    try {
+      const k8sService = await getK8sServiceForUser(session.user.id)
+      const namespace = k8sService.getDefaultNamespace()
+      whereClause.sandboxes = {
+        some: {
+          k8sNamespace: namespace,
+        },
+      }
+    } catch {
+      // If user doesn't have kubeconfig configured, log warning but don't fail
+      // Return empty array instead of filtering by namespace
+      logger.warn(
+        `User ${session.user.id} does not have KUBECONFIG configured, returning all projects`
+      )
     }
   }
 
@@ -88,7 +137,7 @@ export const GET = withAuth<GetProjectsResponse>(async (req, _context, session) 
   })
 
   logger.info(
-    `Fetched ${projects.length} projects for user ${session.user.id}${namespace ? ` in namespace ${namespace}` : ''}`
+    `Fetched ${projects.length} projects for user ${session.user.id}${allParam === 'true' ? ' (all namespaces)' : ''}`
   )
 
   return NextResponse.json(projects)
