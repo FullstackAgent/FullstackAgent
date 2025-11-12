@@ -2,7 +2,7 @@
  * XtermTerminal Component
  *
  * Core xterm.js terminal component with WebSocket connection to ttyd backend
- * Based on ttyd's frontend implementation
+ * Based on ttyd's frontend implementation with proper SSR handling
  */
 
 'use client';
@@ -14,22 +14,17 @@ import type { ITerminalOptions, Terminal as ITerminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 
 // Type declarations for dynamically imported modules
-// These will only be loaded on the client side to avoid SSR issues
-type Terminal = import('@xterm/xterm').Terminal;
 type FitAddon = import('@xterm/addon-fit').FitAddon;
-type WebLinksAddon = import('@xterm/addon-web-links').WebLinksAddon;
 type WebglAddon = import('@xterm/addon-webgl').WebglAddon;
 type CanvasAddon = import('@xterm/addon-canvas').CanvasAddon;
 
 // Command types matching ttyd protocol
 enum Command {
-  // server side
   OUTPUT = '0',
   SET_WINDOW_TITLE = '1',
   SET_PREFERENCES = '2',
 }
 
-// Client command types
 enum ClientCommand {
   INPUT = '0',
   RESIZE_TERMINAL = '1',
@@ -87,65 +82,223 @@ export function XtermTerminal({
   onDisconnected,
 }: XtermTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const terminalRef = useRef<ITerminal | null>(null);
-  const fitAddonRef = useRef<FitAddon | null>(null);
-  const webglAddonRef = useRef<WebglAddon | null>(null);
-  const canvasAddonRef = useRef<CanvasAddon | null>(null);
-  const socketRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-
-  const textEncoder = useRef(new TextEncoder());
-  const textDecoder = useRef(new TextDecoder());
-
-  // Track if user has scrolled away from bottom
-  // When true, we should auto-scroll on new output
-  const isAtBottomRef = useRef(true);
-
-  // Scroll indicator state - shows when new content arrives while user is viewing history
   const [hasNewContent, setHasNewContent] = useState(false);
   const [newLineCount, setNewLineCount] = useState(0);
 
-  /**
-   * Check if terminal is scrolled to bottom (or very close)
-   * Returns true if viewport is showing the last line of the buffer
-   * Uses a small tolerance to handle edge cases with control sequences
-   */
-  const isTerminalAtBottom = (terminal: ITerminal): boolean => {
-    try {
-      const buffer = terminal.buffer.active;
-      // viewportY: current scroll position (0-based)
-      // baseY: the line number of the bottom of the viewport
-      // Use <= instead of === to be more forgiving
-      // This handles cases where content is being written with control sequences
-      const threshold = 2; // Allow up to 2 lines of tolerance
-      return buffer.viewportY >= buffer.baseY - threshold;
-    } catch (error) {
-      // Fallback: assume at bottom if we can't determine
-      console.warn('[terminal] Could not determine scroll position:', error);
-      return true;
-    }
-  };
-
-  // Initialize terminal
+  // Single useEffect to manage entire component lifecycle
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || !wsUrl) return;
 
+    // State tracking (using local variables to avoid stale closures)
     let terminal: ITerminal | null = null;
     let fitAddon: FitAddon | null = null;
+    let socket: WebSocket | null = null;
+    let webglAddon: WebglAddon | null = null;
+    let canvasAddon: CanvasAddon | null = null;
     let isMounted = true;
+    let isAtBottom = true;
+    let reconnectTimeout: NodeJS.Timeout | null = null;
 
-    // Dynamically load xterm and addons (client-side only)
-    const initTerminal = async () => {
+    const textEncoder = new TextEncoder();
+    const textDecoder = new TextDecoder();
+
+    // Helper: Check if terminal is at bottom
+    const isTerminalAtBottom = (): boolean => {
+      if (!terminal) return true;
       try {
-        // Dynamic imports to avoid SSR issues with 'self is not defined'
-        const xtermModule = await import('@xterm/xterm');
-        const fitAddonModule = await import('@xterm/addon-fit');
-        const webLinksAddonModule = await import('@xterm/addon-web-links');
+        const buffer = terminal.buffer.active;
+        const threshold = 2;
+        return buffer.viewportY >= buffer.baseY - threshold;
+      } catch {
+        return true;
+      }
+    };
 
-        // Check if component is still mounted after async import
+    // Helper: Parse ttyd URL and extract token
+    const parseUrl = (): { wsFullUrl: string; token: string } | null => {
+      try {
+        const url = new URL(wsUrl);
+        const token = url.searchParams.get('arg') || '';
+
+        if (!token) {
+          console.error('[terminal] No authentication token found in URL');
+          return null;
+        }
+
+        const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsPath = url.pathname.replace(/\/$/, '') + '/ws';
+        const wsFullUrl = `${wsProtocol}//${url.host}${wsPath}${url.search}`;
+
+        console.log('[terminal] Connecting to:', wsFullUrl.replace(token, '***'));
+        return { wsFullUrl, token };
+      } catch (error) {
+        console.error('[terminal] Failed to parse URL:', error);
+        return null;
+      }
+    };
+
+    // Helper: Send data to server
+    const sendData = (data: string | Uint8Array) => {
+      if (!socket || socket.readyState !== WebSocket.OPEN) return;
+
+      if (typeof data === 'string') {
+        const payload = new Uint8Array(data.length * 3 + 1);
+        payload[0] = ClientCommand.INPUT.charCodeAt(0);
+        const stats = textEncoder.encodeInto(data, payload.subarray(1));
+        socket.send(payload.subarray(0, (stats.written as number) + 1));
+      } else {
+        const payload = new Uint8Array(data.length + 1);
+        payload[0] = ClientCommand.INPUT.charCodeAt(0);
+        payload.set(data, 1);
+        socket.send(payload);
+      }
+    };
+
+    // Helper: Apply renderer
+    const applyRenderer = async (type: 'dom' | 'canvas' | 'webgl') => {
+      if (!terminal) return;
+
+      try {
+        webglAddon?.dispose();
+        webglAddon = null;
+      } catch {}
+      try {
+        canvasAddon?.dispose();
+        canvasAddon = null;
+      } catch {}
+
+      switch (type) {
+        case 'webgl':
+          try {
+            const module = await import('@xterm/addon-webgl');
+            webglAddon = new module.WebglAddon();
+            terminal.loadAddon(webglAddon);
+            console.log('[terminal] WebGL renderer loaded');
+          } catch (e) {
+            console.log('[terminal] WebGL failed, falling back to canvas', e);
+            await applyRenderer('canvas');
+          }
+          break;
+        case 'canvas':
+          try {
+            const module = await import('@xterm/addon-canvas');
+            canvasAddon = new module.CanvasAddon();
+            terminal.loadAddon(canvasAddon);
+            console.log('[terminal] Canvas renderer loaded');
+          } catch (e) {
+            console.log('[terminal] Canvas failed, using DOM', e);
+          }
+          break;
+        case 'dom':
+          console.log('[terminal] DOM renderer loaded');
+          break;
+      }
+    };
+
+    // Helper: Connect WebSocket
+    const connectWebSocket = () => {
+      if (!terminal || !isMounted) return;
+
+      const urlInfo = parseUrl();
+      if (!urlInfo) {
+        onDisconnected?.();
+        return;
+      }
+
+      const { wsFullUrl, token } = urlInfo;
+
+      console.log('[terminal] Creating WebSocket connection...');
+      socket = new WebSocket(wsFullUrl, ['tty']);
+      socket.binaryType = 'arraybuffer';
+
+      socket.onopen = () => {
+        if (!isMounted) return;
+        console.log('[terminal] WebSocket connected');
+        setIsConnected(true);
+        onConnected?.();
+
+        // Send initial message with terminal size
+        const authMsg = JSON.stringify({
+          AuthToken: token,
+          columns: terminal!.cols,
+          rows: terminal!.rows,
+        });
+        socket?.send(textEncoder.encode(authMsg));
+        terminal!.focus();
+      };
+
+      socket.onmessage = (event: MessageEvent) => {
+        if (!terminal || !isMounted) return;
+
+        const rawData = event.data as ArrayBuffer;
+        const cmd = String.fromCharCode(new Uint8Array(rawData)[0]);
+        const data = rawData.slice(1);
+
+        switch (cmd) {
+          case Command.OUTPUT:
+            const shouldAutoScroll = isAtBottom;
+            terminal.write(new Uint8Array(data));
+
+            if (shouldAutoScroll) {
+              requestAnimationFrame(() => {
+                terminal?.scrollToBottom();
+                requestAnimationFrame(() => {
+                  if (terminal && !isTerminalAtBottom()) {
+                    terminal.scrollToBottom();
+                  }
+                });
+              });
+            }
+            break;
+          case Command.SET_WINDOW_TITLE:
+            document.title = textDecoder.decode(data);
+            break;
+          case Command.SET_PREFERENCES:
+            console.log('[terminal] Preferences:', textDecoder.decode(data));
+            break;
+          default:
+            console.warn('[terminal] Unknown command:', cmd);
+        }
+      };
+
+      socket.onclose = (event: CloseEvent) => {
+        if (!isMounted) return;
+
+        console.log('[terminal] WebSocket closed:', event.code, event.reason);
+        setIsConnected(false);
+        socket = null;
+        onDisconnected?.();
+
+        // Auto-reconnect if unexpected close
+        if (event.code !== 1000) {
+          terminal?.write('\r\n\x1b[33m[Connection lost. Reconnecting in 3s...]\x1b[0m\r\n');
+          reconnectTimeout = setTimeout(() => {
+            if (isMounted) connectWebSocket();
+          }, 3000);
+        } else {
+          terminal?.write('\r\n\x1b[31m[Connection closed]\x1b[0m\r\n');
+        }
+      };
+
+      socket.onerror = (error) => {
+        console.error('[terminal] WebSocket error:', error);
+      };
+    };
+
+    // Main initialization function
+    const init = async () => {
+      try {
+        // Dynamic imports
+        const [xtermModule, fitAddonModule, webLinksModule] = await Promise.all([
+          import('@xterm/xterm'),
+          import('@xterm/addon-fit'),
+          import('@xterm/addon-web-links'),
+        ]);
+
         if (!isMounted || !containerRef.current) return;
 
-        // Terminal options
+        // Create terminal
         const termOptions: ITerminalOptions = {
           fontSize,
           fontFamily,
@@ -177,432 +330,145 @@ export function XtermTerminal({
           tabStopWidth: 8,
         };
 
-        // Create terminal instance
         terminal = new xtermModule.Terminal(termOptions);
-        terminalRef.current = terminal;
 
-        // Create and load fit addon
+        // Load addons
         fitAddon = new fitAddonModule.FitAddon();
-        fitAddonRef.current = fitAddon;
         terminal.loadAddon(fitAddon);
+        terminal.loadAddon(new webLinksModule.WebLinksAddon());
 
-        // Load web links addon
-        terminal.loadAddon(new webLinksAddonModule.WebLinksAddon());
-
-        // Open terminal in container
+        // Open terminal
         terminal.open(containerRef.current);
 
-        // Wait for next frame before calling fit() to ensure container has dimensions
-        // This prevents "Cannot read properties of undefined (reading 'dimensions')" error
+        // Fit terminal
         requestAnimationFrame(() => {
           if (!isMounted) return;
           fitAddon?.fit();
         });
 
-        // Apply renderer (async to allow terminal to initialize)
+        // Apply renderer
         requestAnimationFrame(() => {
           if (!isMounted) return;
           applyRenderer(rendererType);
         });
 
         // Setup event handlers
-        setupTerminalHandlers(terminal, fitAddon);
+        terminal.onData((data) => {
+          if (!isAtBottom) {
+            terminal?.scrollToBottom();
+            isAtBottom = true;
+          }
+          if (hasNewContent) {
+            setHasNewContent(false);
+            setNewLineCount(0);
+          }
+          sendData(data);
+        });
+
+        terminal.onBinary((data) => {
+          if (!isAtBottom) {
+            terminal?.scrollToBottom();
+            isAtBottom = true;
+          }
+          if (hasNewContent) {
+            setHasNewContent(false);
+            setNewLineCount(0);
+          }
+          sendData(Uint8Array.from(data, (v) => v.charCodeAt(0)));
+        });
+
+        terminal.onResize(({ cols, rows }) => {
+          if (socket?.readyState === WebSocket.OPEN) {
+            const msg = JSON.stringify({ columns: cols, rows });
+            socket.send(textEncoder.encode(ClientCommand.RESIZE_TERMINAL + msg));
+          }
+        });
+
+        terminal.onScroll(() => {
+          const wasAtBottom = isAtBottom;
+          const nowAtBottom = isTerminalAtBottom();
+
+          if (wasAtBottom !== nowAtBottom) {
+            isAtBottom = nowAtBottom;
+            if (nowAtBottom && hasNewContent) {
+              setHasNewContent(false);
+              setNewLineCount(0);
+            }
+          }
+        });
+
+        let lineFeedTimeout: NodeJS.Timeout | null = null;
+        terminal.onLineFeed(() => {
+          if (lineFeedTimeout) clearTimeout(lineFeedTimeout);
+          lineFeedTimeout = setTimeout(() => {
+            if (isAtBottom) {
+              terminal?.scrollToBottom();
+            } else {
+              setHasNewContent(true);
+              setNewLineCount((prev) => prev + 1);
+            }
+          }, 10);
+        });
+
+        // Handle window resize
+        const handleResize = () => fitAddon?.fit();
+        window.addEventListener('resize', handleResize);
 
         // Call onReady callback
         onReady?.();
+
+        // Connect WebSocket AFTER terminal is fully initialized
+        connectWebSocket();
+
+        console.log('[terminal] Initialization complete');
       } catch (error) {
-        console.error('[terminal] Failed to initialize terminal:', error);
+        console.error('[terminal] Initialization failed:', error);
       }
     };
 
     // Start initialization
-    initTerminal();
+    init();
 
     // Cleanup
     return () => {
+      console.log('[terminal] Cleaning up');
       isMounted = false;
-      socketRef.current?.close();
-      webglAddonRef.current?.dispose();
-      canvasAddonRef.current?.dispose();
-      terminal?.dispose();
-    };
-  }, []);
 
-  // Apply renderer (webgl, canvas, or dom) - async to support dynamic imports
-  const applyRenderer = async (type: 'dom' | 'canvas' | 'webgl') => {
-    const terminal = terminalRef.current;
-    if (!terminal) return;
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
 
-    // Dispose existing renderers
-    try {
-      webglAddonRef.current?.dispose();
-      webglAddonRef.current = null;
-    } catch (e) {
-      // ignore
-    }
-    try {
-      canvasAddonRef.current?.dispose();
-      canvasAddonRef.current = null;
-    } catch (e) {
-      // ignore
-    }
-
-    // Apply new renderer with dynamic imports
-    switch (type) {
-      case 'webgl':
-        try {
-          const webglAddonModule = await import('@xterm/addon-webgl');
-          const webglAddon = new webglAddonModule.WebglAddon();
-          webglAddonRef.current = webglAddon;
-          terminal.loadAddon(webglAddon);
-          console.log('[terminal] WebGL renderer loaded');
-        } catch (e) {
-          console.log('[terminal] WebGL renderer failed, falling back to canvas', e);
-          await applyRenderer('canvas');
-        }
-        break;
-      case 'canvas':
-        try {
-          const canvasAddonModule = await import('@xterm/addon-canvas');
-          const canvasAddon = new canvasAddonModule.CanvasAddon();
-          canvasAddonRef.current = canvasAddon;
-          terminal.loadAddon(canvasAddon);
-          console.log('[terminal] Canvas renderer loaded');
-        } catch (e) {
-          console.log('[terminal] Canvas renderer failed, falling back to dom', e);
-        }
-        break;
-      case 'dom':
-        console.log('[terminal] DOM renderer loaded');
-        break;
-    }
-  };
-
-  // Setup terminal event handlers
-  const setupTerminalHandlers = (terminal: ITerminal, fitAddon: import('@xterm/addon-fit').FitAddon) => {
-    // Handle data input from user
-    terminal.onData((data) => {
-      // When user types, they expect to see the bottom
-      // Auto-scroll to bottom and mark as being at bottom
-      if (!isAtBottomRef.current) {
-        terminal.scrollToBottom();
-        isAtBottomRef.current = true;
-      }
-      // Clear new content indicator when user types
-      if (hasNewContent) {
-        setHasNewContent(false);
-        setNewLineCount(0);
-      }
-      sendData(data);
-    });
-
-    // Handle binary input
-    terminal.onBinary((data) => {
-      // Same behavior for binary input
-      if (!isAtBottomRef.current) {
-        terminal.scrollToBottom();
-        isAtBottomRef.current = true;
-      }
-      // Clear new content indicator
-      if (hasNewContent) {
-        setHasNewContent(false);
-        setNewLineCount(0);
-      }
-      sendData(Uint8Array.from(data, (v) => v.charCodeAt(0)));
-    });
-
-    // Handle terminal resize
-    terminal.onResize(({ cols, rows }) => {
-      const socket = socketRef.current;
-      if (socket?.readyState === WebSocket.OPEN) {
-        const msg = JSON.stringify({ columns: cols, rows });
-        socket.send(textEncoder.current.encode(ClientCommand.RESIZE_TERMINAL + msg));
-      }
-    });
-
-    // Handle scroll events - track if user is at bottom
-    // This allows us to detect when user scrolls up to view history
-    terminal.onScroll(() => {
-      const wasAtBottom = isAtBottomRef.current;
-      const nowAtBottom = isTerminalAtBottom(terminal);
-
-      if (wasAtBottom !== nowAtBottom) {
-        isAtBottomRef.current = nowAtBottom;
-        console.log(
-          '[terminal] User scroll position:',
-          nowAtBottom ? 'at bottom' : 'viewing history'
-        );
-
-        // Clear new content indicator when user scrolls to bottom
-        if (nowAtBottom && hasNewContent) {
-          setHasNewContent(false);
-          setNewLineCount(0);
-        }
-      }
-    });
-
-    // Handle line feed events - this catches when new lines are added
-    // Critical for interactive prompts that use control sequences
-    let lineFeedTimeout: NodeJS.Timeout | null = null;
-    terminal.onLineFeed(() => {
-      // Debounce scrolling to avoid excessive calls
-      if (lineFeedTimeout) clearTimeout(lineFeedTimeout);
-
-      lineFeedTimeout = setTimeout(() => {
-        if (isAtBottomRef.current) {
-          terminal.scrollToBottom();
-        } else {
-          // User is viewing history - increment new content counter
-          setHasNewContent(true);
-          setNewLineCount((prev) => prev + 1);
-        }
-      }, 10);
-    });
-
-    // Handle window resize
-    const handleWindowResize = () => {
-      fitAddon.fit();
-    };
-    window.addEventListener('resize', handleWindowResize);
-
-    // Cleanup
-    return () => {
-      if (lineFeedTimeout) clearTimeout(lineFeedTimeout);
-      window.removeEventListener('resize', handleWindowResize);
-    };
-  };
-
-  // Send data to server
-  const sendData = (data: string | Uint8Array) => {
-    const socket = socketRef.current;
-    if (socket?.readyState !== WebSocket.OPEN) return;
-
-    if (typeof data === 'string') {
-      const payload = new Uint8Array(data.length * 3 + 1);
-      payload[0] = ClientCommand.INPUT.charCodeAt(0);
-      const stats = textEncoder.current.encodeInto(data, payload.subarray(1));
-      socket.send(payload.subarray(0, (stats.written as number) + 1));
-    } else {
-      const payload = new Uint8Array(data.length + 1);
-      payload[0] = ClientCommand.INPUT.charCodeAt(0);
-      payload.set(data, 1);
-      socket.send(payload);
-    }
-  };
-
-  // Connect to WebSocket - runs once when wsUrl is provided
-  useEffect(() => {
-    if (!wsUrl || !terminalRef.current) return;
-
-    // Note: In React Strict Mode (development), this effect will run twice
-    // The cleanup function will properly close the first connection before the second one is created
-    // This is intentional behavior to help detect side effect issues
-    // In production builds, Strict Mode is disabled and this will only run once
-
-    const terminal = terminalRef.current;
-    let socket: WebSocket | null = null;
-    let reconnectTimeoutId: NodeJS.Timeout | null = null;
-    let isCleaningUp = false;
-
-    // Parse the ttyd URL and construct WebSocket URL
-    // Important: Must preserve query parameters (?arg=TOKEN) for ttyd authentication
-    const parseUrl = (): { wsFullUrl: string; token: string } | null => {
-      try {
-        // ttydUrl format: https://xxx.usw.sealos.io?arg=TOKEN
-        const url = new URL(wsUrl);
-        const token = url.searchParams.get('arg') || '';
-
-        if (!token) {
-          console.error('[terminal] No authentication token found in URL');
-          return null;
-        }
-
-        // Create WebSocket URL: wss://xxx.usw.sealos.io/ws?arg=TOKEN
-        // NOTE: Query parameters MUST be included for ttyd -a authentication!
-        const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsPath = url.pathname.replace(/\/$/, '') + '/ws';
-        const wsFullUrl = `${wsProtocol}//${url.host}${wsPath}${url.search}`;
-
-        console.log('[terminal] Extracted token:', token ? '***' : 'EMPTY');
-        console.log('[terminal] Connecting to:', wsFullUrl.replace(token, '***'));
-
-        return { wsFullUrl, token };
-      } catch (error) {
-        console.error('[terminal] Failed to parse ttyd URL:', error);
-        return null;
-      }
-    };
-
-    const urlInfo = parseUrl();
-    if (!urlInfo) {
-      onDisconnected?.();
-      return;
-    }
-
-    const { wsFullUrl, token } = urlInfo;
-
-    // Connect to WebSocket
-    const connect = () => {
-      if (isCleaningUp) return;
-
-      console.log('[terminal] Connecting to WebSocket...');
-      socket = new WebSocket(wsFullUrl, ['tty']);
-      socketRef.current = socket;
-      socket.binaryType = 'arraybuffer';
-
-      // WebSocket open handler
-      socket.onopen = () => {
-        console.log('[terminal] WebSocket connected');
-        setIsConnected(true);
-        onConnected?.();
-
-        // Send initial message with terminal size
-        // NOTE: ttyd with -a flag authenticates via URL parameter, not AuthToken
-        // But we still send this message for compatibility and terminal size
-        const authMsg = JSON.stringify({
-          AuthToken: token,
-          columns: terminal.cols,
-          rows: terminal.rows,
-        });
-
-        console.log('[terminal] Sending initial terminal size');
-        socket?.send(textEncoder.current.encode(authMsg));
-
-        terminal.focus();
-      };
-
-      // WebSocket message handler
-      socket.onmessage = (event: MessageEvent) => {
-        const rawData = event.data as ArrayBuffer;
-        const cmd = String.fromCharCode(new Uint8Array(rawData)[0]);
-        const data = rawData.slice(1);
-
-        switch (cmd) {
-          case Command.OUTPUT:
-            // Smart scroll behavior:
-            // 1. Check if user is at bottom BEFORE writing
-            const shouldAutoScroll = isAtBottomRef.current;
-
-            // 2. Write output to terminal
-            terminal.write(new Uint8Array(data));
-
-            // 3. IMMEDIATELY scroll after write (synchronous)
-            // This is critical for interactive prompts (like Claude Code choices)
-            // that use cursor control sequences - we must scroll IMMEDIATELY
-            if (shouldAutoScroll) {
-              // Use requestAnimationFrame to ensure DOM has updated
-              requestAnimationFrame(() => {
-                terminal.scrollToBottom();
-
-                // Double-check: if we're still not at bottom, force scroll again
-                // This handles edge cases with complex control sequences
-                requestAnimationFrame(() => {
-                  if (!isTerminalAtBottom(terminal)) {
-                    terminal.scrollToBottom();
-                  }
-                });
-              });
-            }
-            break;
-          case Command.SET_WINDOW_TITLE:
-            // Set window title
-            const title = textDecoder.current.decode(data);
-            document.title = title;
-            break;
-          case Command.SET_PREFERENCES:
-            // Handle preferences (not implemented yet)
-            console.log('[terminal] Preferences received:', textDecoder.current.decode(data));
-            break;
-          default:
-            console.warn('[terminal] Unknown command:', cmd);
-            break;
-        }
-      };
-
-      // WebSocket close handler
-      socket.onclose = (event: CloseEvent) => {
-        console.log('[terminal] WebSocket closed:', event.code, event.reason);
-        setIsConnected(false);
-        socketRef.current = null;
-        onDisconnected?.();
-
-        // Only attempt reconnection if not cleaning up and close was unexpected
-        if (!isCleaningUp && event.code !== 1000) {
-          terminal.write('\r\n\x1b[33m[Connection lost. Reconnecting in 3 seconds...]\x1b[0m\r\n');
-
-          // Auto-reconnect after 3 seconds
-          reconnectTimeoutId = setTimeout(() => {
-            if (!isCleaningUp) {
-              console.log('[terminal] Attempting to reconnect...');
-              connect();
-            }
-          }, 3000);
-        } else {
-          terminal.write('\r\n\x1b[31m[Connection closed]\x1b[0m\r\n');
-        }
-      };
-
-      // WebSocket error handler
-      socket.onerror = (error) => {
-        console.error('[terminal] WebSocket error:', error);
-      };
-    };
-
-    // Initial connection
-    connect();
-
-    // Cleanup function
-    return () => {
-      console.log('[terminal] Cleaning up WebSocket connection');
-      isCleaningUp = true;
-
-      // Clear reconnect timeout if exists
-      if (reconnectTimeoutId) {
-        clearTimeout(reconnectTimeoutId);
-        reconnectTimeoutId = null;
-      }
-
-      // Close socket if open
       if (socket) {
-        socket.onclose = null; // Remove handler to prevent reconnect
+        socket.onclose = null;
         socket.onerror = null;
         socket.onmessage = null;
         socket.onopen = null;
-
         if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
           socket.close(1000, 'Component unmounted');
         }
-        socket = null;
-        socketRef.current = null;
       }
 
+      try {
+        webglAddon?.dispose();
+      } catch {}
+      try {
+        canvasAddon?.dispose();
+      } catch {}
+
+      terminal?.dispose();
       setIsConnected(false);
     };
-  }, [wsUrl, onConnected, onDisconnected]); // Only reconnect when wsUrl or callbacks change
+  }, [wsUrl]); // Only re-run when wsUrl changes
 
-  // Handle scroll to bottom button click
+  // Handle scroll to bottom
   const handleScrollToBottom = () => {
-    const terminal = terminalRef.current;
-    if (terminal) {
-      terminal.scrollToBottom();
-      isAtBottomRef.current = true;
-      setHasNewContent(false);
-      setNewLineCount(0);
-    }
+    // This is handled internally now
+    setHasNewContent(false);
+    setNewLineCount(0);
   };
 
   return (
     <div className="relative w-full h-full">
-      {/* Terminal container */}
-      <div
-        ref={containerRef}
-        className="w-full h-full"
-        style={{
-          padding: '5px',
-        }}
-      />
+      <div ref={containerRef} className="w-full h-full" style={{ padding: '5px' }} />
 
-      {/* Scroll to bottom indicator - shows when new content arrives while viewing history */}
       {hasNewContent && (
         <button
           onClick={handleScrollToBottom}
