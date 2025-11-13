@@ -82,7 +82,7 @@ export function HomePage() {
       <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center">
         <div className="max-w-4xl mx-auto px-4 text-center">
           <h1 className="text-6xl font-bold mb-6 bg-linear-to-r from-white to-gray-500 bg-clip-text text-transparent">
-            Fulling Agent
+            Fulling
           </h1>
           <p className="text-xl text-gray-400 mb-12">AI-Powered Full-Stack Development Platform</p>
           <p className="text-lg text-gray-300 mb-8 max-w-2xl mx-auto">

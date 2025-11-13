@@ -197,7 +197,7 @@ export function TerminalToolbar({
                   ) : (
                     <>
                       <Play className="mr-2 h-3 w-3" />
-                      Start Sandbox
+                      Start
                     </>
                   )}
                 </DropdownMenuItem>
@@ -216,7 +216,7 @@ export function TerminalToolbar({
                   ) : (
                     <>
                       <Square className="mr-2 h-3 w-3" />
-                      Stop Project
+                      Stop
                     </>
                   )}
                 </DropdownMenuItem>
@@ -230,7 +230,7 @@ export function TerminalToolbar({
                     className="text-xs cursor-pointer focus:bg-[#37373d] focus:text-white"
                   >
                     <Trash2 className="mr-2 h-3 w-3" />
-                    Delete Project
+                    Delete
                   </DropdownMenuItem>
                 </>
               )}
