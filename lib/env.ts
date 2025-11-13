@@ -29,6 +29,10 @@ export const env = createEnv({
     // GitHub OAuth credentials
     GITHUB_CLIENT_ID: z.string().optional(),
     GITHUB_CLIENT_SECRET: z.string().optional(),
+    ANTHROPIC_BASE_URL: z.string().optional(),
+    AIPROXY_ENDPOINT: z.string().optional(),
+    ANTHROPIC_SMALL_FAST_MODEL: z.string().optional(),
+    ANTHROPIC_MODEL: z.string().optional(),
   },
   /*
    * Environment variables available on the client (and server).

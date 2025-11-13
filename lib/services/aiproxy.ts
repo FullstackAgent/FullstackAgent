@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db'
+import { env } from '@/lib/env'
 import { logger as baseLogger } from '@/lib/logger'
 
 const logger = baseLogger.child({ module: 'lib/services/aiproxy' })
@@ -20,6 +21,8 @@ type AiproxyResponse = {
 type AiproxyTokenResponse = {
   token: TokenInfo
   anthropicBaseUrl: string
+  anthropicModel?: string
+  anthropicSmallFastModel?: string
 }
 
 /**
@@ -33,8 +36,8 @@ export async function createAiproxyToken(
   kubeconfig: string
 ): Promise<AiproxyTokenResponse | null> {
   // Check if required environment variables are set
-  const aiproxyEndpoint = process.env.AIPROXY_ENDPOINT
-  const anthropicBaseUrl = process.env.ANTHROPIC_BASE_URL
+  const aiproxyEndpoint = env.AIPROXY_ENDPOINT
+  const anthropicBaseUrl = env.ANTHROPIC_BASE_URL
 
   if (!aiproxyEndpoint || !anthropicBaseUrl) {
     logger.warn('AIPROXY_ENDPOINT or ANTHROPIC_BASE_URL not configured, skipping token creation')
@@ -71,6 +74,8 @@ export async function createAiproxyToken(
     return {
       token: result.data,
       anthropicBaseUrl: anthropicBaseUrl,
+      anthropicModel: env.ANTHROPIC_MODEL,
+      anthropicSmallFastModel: env.ANTHROPIC_SMALL_FAST_MODEL,
     }
   } catch (error) {
     logger.error(`Error creating aiproxy token: ${error}`)
