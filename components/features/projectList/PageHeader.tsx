@@ -12,7 +12,8 @@ import { useSession } from 'next-auth/react';
 
 import CreateProjectDialog from '@/components/dialog/create-project-dialog';
 import SettingsDialog from '@/components/dialog/settings-dialog';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
 interface PageHeaderProps {
@@ -38,17 +39,17 @@ const PageHeader = memo(({ projectsCount, className }: PageHeaderProps) => {
   return (
     <>
       <div
-        className={`h-14 bg-card border-b border-border flex items-center justify-between px-4 ${className || ''}`}
+        className={`h-14 bg-card border-b border-border flex items-center justify-between px-8 ${className || ''}`}
       >
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <Folder className="h-4 w-4" />
-            <h1 className="text-base font-mono font-bold text-foreground uppercase">Projects</h1>
+            <Folder className="h-5 w-5 text-muted-foreground" />
+            <h1 className="text-base font-mono font-semibold text-foreground uppercase">Projects</h1>
           </div>
 
-          <span className="text-xs text-foreground bg-[#4D4D4D] rounded-full px-2 py-0.5">
+          <Badge variant="secondary" className="bg-[#4D4D4D]">
             {projectsCount}
-          </span>
+          </Badge>
         </div>
 
         <div className="flex items-center gap-3">
@@ -56,25 +57,26 @@ const PageHeader = memo(({ projectsCount, className }: PageHeaderProps) => {
           <Button
             size="sm"
             onClick={() => setShowCreateProject(true)}
-            className="h-7 bg-primary hover:bg-primary-hover text-primary-foreground text-xs px-3"
+            className="bg-primary hover:bg-primary-hover text-primary-foreground"
           >
             <Plus className="mr-1 h-3 w-3" />
             New Project
           </Button>
 
           {/* User Avatar */}
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => setShowSettings(true)}
-            className="relative rounded-full hover:ring-2 hover:ring-primary hover:ring-offset-2 hover:ring-offset-background transition-all"
+            className="relative rounded-full hover:ring-2 hover:ring-primary hover:ring-offset-2 hover:ring-offset-background transition-all p-0 w-8 h-8"
             title="Settings"
           >
             <Avatar className="h-8 w-8">
-              <AvatarImage src={undefined} alt={session?.user?.name || 'User'} />
               <AvatarFallback className="bg-primary text-primary-foreground text-xs font-medium">
                 {getUserInitials()}
               </AvatarFallback>
             </Avatar>
-          </button>
+          </Button>
         </div>
       </div>
 
