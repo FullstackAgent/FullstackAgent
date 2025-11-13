@@ -38,12 +38,17 @@ const PageHeader = memo(({ projectsCount, className }: PageHeaderProps) => {
   return (
     <>
       <div
-        className={`h-12 bg-card border-b border-border flex items-center justify-between px-4 ${className || ''}`}
+        className={`h-14 bg-card border-b border-border flex items-center justify-between px-4 ${className || ''}`}
       >
         <div className="flex items-center gap-3">
-          <Folder className="h-4 w-4 text-muted-foreground" />
-          <h1 className="text-sm font-medium text-foreground">Projects</h1>
-          <span className="text-xs text-muted-foreground">({projectsCount})</span>
+          <div className="flex items-center gap-2">
+            <Folder className="h-4 w-4" />
+            <h1 className="text-base font-mono font-bold text-foreground uppercase">Projects</h1>
+          </div>
+
+          <span className="text-xs text-foreground bg-[#4D4D4D] rounded-full px-2 py-0.5">
+            {projectsCount}
+          </span>
         </div>
 
         <div className="flex items-center gap-3">
@@ -51,7 +56,7 @@ const PageHeader = memo(({ projectsCount, className }: PageHeaderProps) => {
           <Button
             size="sm"
             onClick={() => setShowCreateProject(true)}
-            className="h-7 bg-primary hover:bg-primary/90 text-primary-foreground text-xs px-3"
+            className="h-7 bg-primary hover:bg-primary-hover text-primary-foreground text-xs px-3"
           >
             <Plus className="mr-1 h-3 w-3" />
             New Project
