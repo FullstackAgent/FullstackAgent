@@ -58,9 +58,9 @@ function SecretsPageContent() {
           <h3 className="text-xs font-medium text-[#cccccc] mb-2">Security Best Practices</h3>
           <ul className="text-xs text-[#858585] space-y-1 list-disc list-inside">
             <li>All secret values are masked by default for security</li>
-            <li>Never commit secrets to version control</li>
+            <li>Never commit secrets to Git</li>
             <li>Rotate secrets regularly to maintain security</li>
-            <li>Use different secrets for development and production environments</li>
+            {/*<li>Use different secrets for development and production environments</li>*/}
             <li>Limit access to secrets to only those who need them</li>
           </ul>
         </div>

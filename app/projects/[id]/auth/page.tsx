@@ -89,7 +89,7 @@ function AuthPageContent() {
   return (
     <ConfigLayout
       title="Authentication Configuration"
-      description="Configure OAuth providers and authentication settings"
+      description="Configure OAuth providers and other authentication settings"
       loading={envLoading || projectLoading}
     >
       <div className="space-y-8">

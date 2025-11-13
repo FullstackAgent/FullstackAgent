@@ -1,4 +1,4 @@
-# FullStack Agent - AI-Powered Full-Stack Development Platform
+# Fulling - AI-Powered Full-Stack Development Platform
 
 <div align="center">
   <img src="https://img.shields.io/badge/Next.js-15.5.4-black?style=for-the-badge&logo=next.js" alt="Next.js"/>
@@ -10,13 +10,13 @@
 
 ## 🚀 Overview
 
-You only need to create a sandbox, and then you can start coding with Claude Code; FullstackAgent has already taken care of everything else for you.
+Fulling provides a sandboxed environment with Claude Code and PostgreSQL — everything you need to vibe code full-stack apps.
 
-This includes: 
-* Creating a Next.js and shadcn/ui coding environment.
-* Creating a PostgreSQL database, configuring the database connection information environment variable.
-* Configuring all necessary Claude Code environment variables
-* And creating an accessible domain name.
+Fulling automatically sets up the following for your project, ready in a minute:
+• Next.js environment with shadcn/ui
+• Dedicated PostgreSQL (pre-configured)
+• Claude Code (pre-configured)
+• A live domain
 
 <img width="1511" height="775" alt="image" src="https://github.com/user-attachments/assets/4683a22c-800b-45b7-91a3-6ed5114ea3c9" />
 
@@ -25,7 +25,7 @@ This includes:
 
 ### ✨ Key Features
 
-The FullstackAgent project is designed to streamline the entire full-stack development lifecycle using an AI-centric approach. Its core capabilities are delivered through a highly orchestrated, self-contained development sandbox:
+Fulling is designed to streamline the entire full-stack development lifecycle using an AI-centric approach. Its core capabilities are delivered through a highly orchestrated, self-contained development sandbox:
 
 * **Pre-Configured AI Development Environment:**
     * A complete, immediately usable development environment is provisioned, featuring **Next.js**, **shadcn/ui**, and the **Claude Code CLI**.
@@ -55,7 +55,7 @@ The FullstackAgent project is designed to streamline the entire full-stack devel
     * Projects can be automatically deployed from the development sandbox to a high-availability production environment, leveraging the underlying **Kubernetes** infrastructure.
     * This aims to abstract away the complexities of deployment, allowing the AI to manage the transition from development to live application.
 
-## Star FullstackAgent on GitHub can get the latest released information.
+## Star Fulling on GitHub can get the latest released information.
 
 ![star-demo](https://github.com/user-attachments/assets/bc497e0b-bd23-4ded-a231-1e382d56f92e)
 
@@ -70,7 +70,7 @@ The FullstackAgent project is designed to streamline the entire full-stack devel
                                                                                 │                                           
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐  
 │                 │     │                 │     │                 │     │  Sandbox Pods   │  
-│   Web Browser   │────▶│ FullstackAgent  │────▶│   Kubernetes    │────▶│  (with Claude)  │  
+│   Web Browser   │────▶│     Fulling     │────▶│   Kubernetes    │────▶│  (with Claude)  │  
 │                 │     │                 │     │     Cluster     │     └─────────────────┘
 └─────────────────┘     └─────────────────┘     └─────────────────┘             │                       
                                │                         │                      │                      
@@ -119,14 +119,13 @@ The FullstackAgent project is designed to streamline the entire full-stack devel
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/FullstackAgent/FullstackAgent.git
-cd FullstackAgent
+git clone https://github.com/FullstackAgent/fulling.git
+cd fulling
 ```
 
 2. Install dependencies:
 ```bash
-cd fullstack-agent
-npm install
+pnpm install
 ```
 
 3. Set up environment variables:
@@ -136,33 +135,42 @@ Create `.env.local` file:
 # Database
 DATABASE_URL="postgresql://user:password@localhost:5432/fullstackagent"
 
-# GitHub OAuth
-GITHUB_CLIENT_ID="your-github-client-id"
-GITHUB_CLIENT_SECRET="your-github-client-secret"
-
 # NextAuth
 NEXTAUTH_URL="http://localhost:3000"
 NEXTAUTH_SECRET="your-nextauth-secret"
+AUTH_TRUST_HOST=""
 
-# Kubernetes
-KUBECONFIG_PATH="./.secret/kubeconfig"
+# GitHub OAuth (replace with your actual values)
+GITHUB_CLIENT_ID=""
+GITHUB_CLIENT_SECRET=""
+
+# Sealos OAuth
+SEALOS_JWT_SECRET=""
+
+# job
+DATABASE_LOCK_DURATION_SECONDS=""
+MAX_DATABASES_PER_RECONCILE=""
+
+SANDBOX_LOCK_DURATION_SECONDS=""
+MAX_SANDBOXES_PER_RECONCILE=""
+
+# k8s resource
+RUNTIME_IMAGE=""
+
+# aiproxy
+AIPROXY_ENDPOINT=""
+ANTHROPIC_BASE_URL=""
+
+# Log
+LOG_LEVEL="info"
+
+# login
+ENABLE_PASSWORD_AUTH=""
+ENABLE_PASSWORD_AUTH=""
+ENABLE_SEALOS_AUTH=""
 ```
 
-4. Set up Kubernetes configuration:
-
-Place your kubeconfig file in `.secret/kubeconfig`
-
-5. Set up Claude Code environment:
-
-Create `.secret/.env` file with your Anthropic API credentials:
-```env
-ANTHROPIC_AUTH_TOKEN="your-anthropic-api-key"
-ANTHROPIC_BASE_URL="your-anthropic-api-url"
-
-CLAUDE_AUTO_STARTED=0
-```
-
-6. Initialize the database:
+6. Initialize database:
 ```bash
 npx prisma generate
 npx prisma db push
@@ -170,55 +178,14 @@ npx prisma db push
 
 7. Run the development server:
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to access the application.
 
 ### Database Schema
 
-```prisma
-model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  name          String?
-  image         String?
-  githubId      String    @unique
-  accessToken   String?   // Encrypted
-  projects      Project[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-}
-
-model Project {
-  id                   String                @id @default(cuid())
-  name                 String
-  description          String?
-  githubRepo           String?
-  status               String                @default("active")
-  databaseUrl          String?
-  userId               String
-  user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sandboxes            Sandbox[]
-  environmentVariables EnvironmentVariable[]
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-}
-
-model Sandbox {
-  id                String   @id @default(cuid())
-  projectId         String
-  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  k8sNamespace      String
-  k8sDeploymentName String
-  k8sServiceName    String
-  publicUrl         String?
-  ttydUrl           String?
-  status            String
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-}
-```
+prisma/schema.prisma
 
 ## 🚢 Deployment
 
@@ -365,5 +332,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 <div align="center">
-100% AI-generated code. Prompted by fanux. Thanks for Claude code & Opus & Sonnet 4.5 & GLM 
+100% AI-generated code. Prompted by fanux. Thanks for Claude code & Opus & Sonnet 4.5 & GLM & Kimi K2 Thinking
 </div>

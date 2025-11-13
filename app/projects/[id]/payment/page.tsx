@@ -82,7 +82,7 @@ function PaymentPageContent() {
   return (
     <ConfigLayout
       title="Payment Configuration"
-      description="Configure payment processing providers for your application"
+      description="Configure payment providers for your application"
       loading={envLoading || projectLoading}
     >
       <div className="space-y-8">

@@ -293,7 +293,7 @@ export function EnvVarSection({
           {/* Empty State */}
           {variables.length === 0 && (
             <div className="py-8 text-center text-sm text-[#858585]">
-              No environment variables configured
+              No secrets configured yet.
             </div>
           )}
         </div>

@@ -38,13 +38,13 @@ function EnvironmentPageContent() {
   return (
     <ConfigLayout
       title="Environment Variables"
-      description="Configure custom environment variables for your application"
+      description="Configure environment variables for your application"
       loading={envLoading || projectLoading}
     >
       <div className="space-y-6">
         {/* Environment Variables Section */}
         <EnvVarSection
-          title="Custom Variables"
+          title="Environment Variables"
           description="Add application-specific environment variables"
           variables={generalVars}
           sandboxes={project?.sandboxes || []}

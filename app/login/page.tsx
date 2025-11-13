@@ -50,9 +50,9 @@ export default function LoginPage() {
     <div className="min-h-screen bg-black text-white flex items-center justify-center">
       <Card className="w-full max-w-md bg-gray-900 border-gray-800">
         <CardHeader>
-          <CardTitle className="text-2xl text-white">Welcome to FullStack Agent</CardTitle>
+          <CardTitle className="text-2xl text-white">Welcome to Fulling</CardTitle>
           <CardDescription className="text-gray-400">
-            Sign in to get started. New users will be automatically registered.
+            You&apos;re one click away from creating your own full-stack app.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -101,8 +101,8 @@ export default function LoginPage() {
             </Button>
 
             <p className="text-xs text-gray-500 text-center">
-              Don&apos;t have an account? Just enter your desired credentials and we&apos;ll create
-              one for&apos; you.
+              Don&apos;t have an account? Just enter your credentials and we&apos;ll create
+              one for you.
             </p>
           </form>
 
