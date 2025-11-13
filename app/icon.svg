@@ -1,52 +1,16 @@
-<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <!-- Glow effect filter for the center rectangle -->
-    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="20" result="coloredBlur"/>
-      <feMerge>
-        <feMergeNode in="coloredBlur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
-  </defs>
-  
-  <!-- Background rounded rectangle -->
-  <rect width="1024" height="1024" rx="230" fill="#4A4A4A"/>
-  
-  <!-- Black outer border -->
-  <rect x="15" y="15" width="994" height="994" rx="220" stroke="#000000" stroke-width="30" fill="none"/>
-  
-  <!-- Double circle (outer) -->
-  <circle cx="512" cy="512" r="370" stroke="#FFFFFF" stroke-width="8" fill="none"/>
-  
-  <!-- Double circle (inner) -->
-  <circle cx="512" cy="512" r="352" stroke="#FFFFFF" stroke-width="8" fill="none"/>
-  
-  <!-- Left curly brace { -->
-  <path d="M 355 390 
-           Q 330 390 330 415 
-           L 330 470 
-           Q 330 492 310 500 
-           Q 330 508 330 530 
-           L 330 585 
-           Q 330 610 355 610" 
-        stroke="#FFFFFF" 
-        stroke-width="28" 
-        fill="none" 
-        stroke-linecap="round" 
-        stroke-linejoin="round"/>
-  
-  <!-- Center rectangle (code block) with glow -->
-  <rect x="410" y="445" width="105" height="110" fill="#FFFFFF" rx="4" filter="url(#glow)"/>
-  
-  <!-- Right code lines - only 3 lines total -->
-  <!-- Line 1: Two short segments (first line, separated) -->
-  <rect x="540" y="450" width="70" height="16" fill="#FFFFFF" rx="8"/>
-  <rect x="630" y="450" width="70" height="16" fill="#FFFFFF" rx="8"/>
-  
-  <!-- Line 2: One long segment (second line, longest) -->
-  <rect x="540" y="492" width="190" height="16" fill="#FFFFFF" rx="8"/>
-  
-  <!-- Line 3: One medium segment (third line) -->
-  <rect x="540" y="534" width="120" height="16" fill="#FFFFFF" rx="8"/>
+<svg width="78" height="78" viewBox="0 0 78 78" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="78" height="78" fill="black"/>
+<rect width="78" height="78" fill="black"/>
+<rect x="50.1216" y="22.1101" width="5.71006" height="5.70695" rx="2.85348" fill="#737373"/>
+<rect width="19.501" height="5.70695" rx="2.85348" transform="matrix(-1 0 0 1 48.7505 15.1687)" fill="#E5E5E5"/>
+<rect width="5.71006" height="5.70695" rx="2.85348" transform="matrix(-1 0 0 1 27.9087 22.1101)" fill="#737373"/>
+<rect x="55.8286" y="50.0325" width="5.71006" height="5.70695" rx="2.85348" transform="rotate(90 55.8286 50.0325)" fill="#737373"/>
+<rect width="19.5649" height="5.70695" rx="2.85348" transform="matrix(0 -1 -1 -4.37114e-08 62.7705 48.7246)" fill="#E5E5E5"/>
+<rect width="6.63038" height="6.62677" rx="3.31339" transform="matrix(0 -1 -1 -4.37114e-08 58.541 26.0271)" fill="#E5E5E5"/>
+<rect x="48.75" y="62.6814" width="19.5327" height="5.70695" rx="2.85348" transform="rotate(-180 48.75 62.6814)" fill="#E5E5E5"/>
+<rect x="27.877" y="55.7397" width="5.71006" height="5.70695" rx="2.85348" transform="rotate(-180 27.877 55.7397)" fill="#737373"/>
+<rect width="6.63038" height="6.62677" rx="3.31339" transform="matrix(1 8.74228e-08 8.74228e-08 -1 51.8779 58.4473)" fill="#E5E5E5"/>
+<rect x="19.4585" y="26.0645" width="6.63038" height="6.62677" rx="3.31339" transform="rotate(-90 19.4585 26.0645)" fill="#E5E5E5"/>
+<rect width="19.5323" height="5.70695" rx="2.85348" transform="matrix(0 1 1 -4.37114e-08 15.2295 29.1926)" fill="#E5E5E5"/>
+<rect width="6.63038" height="6.62677" rx="3.31339" transform="matrix(0 1 1 -4.37114e-08 19.4585 51.8574)" fill="#E5E5E5"/>
 </svg>

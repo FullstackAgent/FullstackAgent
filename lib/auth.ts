@@ -182,53 +182,80 @@ const buildProviders = () => {
             // This will automatically clear the cached service instance
             await updateUserKubeconfig(existingIdentity.user.id, sealosKubeconfig)
 
-            // Create aiproxy token
+            // Create aiproxy token if not already configured
             try {
-              const tokenInfo = await createAiproxyToken(
-                `fullstackagent-${sealosUserId}`,
-                sealosKubeconfig
-              )
+              // Check if all four configs already exist
+              const existingConfigs = await prisma.userConfig.findMany({
+                where: {
+                  userId: existingIdentity.user.id,
+                  key: {
+                    in: ['ANTHROPIC_API_KEY', 'ANTHROPIC_API', 'ANTHROPIC_MODEL', 'ANTHROPIC_SMALL_FAST_MODEL'],
+                  },
+                },
+              })
 
-              if (tokenInfo?.token?.key && tokenInfo.anthropicBaseUrl) {
-                // Store ANTHROPIC_API_KEY in UserConfig
-                await prisma.userConfig.upsert({
-                  where: {
-                    userId_key: {
-                      userId: existingIdentity.user.id,
-                      key: 'ANTHROPIC_API_KEY',
-                    },
-                  },
-                  create: {
-                    userId: existingIdentity.user.id,
-                    key: 'ANTHROPIC_API_KEY',
-                    value: tokenInfo.token.key,
-                    category: 'anthropic',
-                    isSecret: true,
-                  },
-                  update: {
-                    value: tokenInfo.token.key,
-                  },
-                })
+              const existingKeys = new Set(existingConfigs.map(config => config.key))
 
-                // Store ANTHROPIC_API (base URL) in UserConfig
-                await prisma.userConfig.upsert({
-                  where: {
-                    userId_key: {
-                      userId: existingIdentity.user.id,
-                      key: 'ANTHROPIC_API',
-                    },
-                  },
-                  create: {
-                    userId: existingIdentity.user.id,
-                    key: 'ANTHROPIC_API',
-                    value: tokenInfo.anthropicBaseUrl,
-                    category: 'anthropic',
-                    isSecret: false,
-                  },
-                  update: {
-                    value: tokenInfo.anthropicBaseUrl,
-                  },
-                })
+              // Only create token if at least one config is missing
+              if (existingKeys.size < 4) {
+                const tokenInfo = await createAiproxyToken(
+                  `fullstackagent-${sealosUserId}`,
+                  sealosKubeconfig
+                )
+
+                if (tokenInfo?.token?.key && tokenInfo.anthropicBaseUrl) {
+                  // Create ANTHROPIC_API_KEY only if not exists
+                  if (!existingKeys.has('ANTHROPIC_API_KEY')) {
+                    await prisma.userConfig.create({
+                      data: {
+                        userId: existingIdentity.user.id,
+                        key: 'ANTHROPIC_API_KEY',
+                        value: tokenInfo.token.key,
+                        category: 'anthropic',
+                        isSecret: true,
+                      },
+                    })
+                  }
+
+                  // Create ANTHROPIC_API only if not exists
+                  if (!existingKeys.has('ANTHROPIC_API')) {
+                    await prisma.userConfig.create({
+                      data: {
+                        userId: existingIdentity.user.id,
+                        key: 'ANTHROPIC_API',
+                        value: tokenInfo.anthropicBaseUrl,
+                        category: 'anthropic',
+                        isSecret: false,
+                      },
+                    })
+                  }
+
+                  // Create ANTHROPIC_MODEL only if not exists and value is provided
+                  if (!existingKeys.has('ANTHROPIC_MODEL') && tokenInfo.anthropicModel) {
+                    await prisma.userConfig.create({
+                      data: {
+                        userId: existingIdentity.user.id,
+                        key: 'ANTHROPIC_MODEL',
+                        value: tokenInfo.anthropicModel,
+                        category: 'anthropic',
+                        isSecret: false,
+                      },
+                    })
+                  }
+
+                  // Create ANTHROPIC_SMALL_FAST_MODEL only if not exists and value is provided
+                  if (!existingKeys.has('ANTHROPIC_SMALL_FAST_MODEL') && tokenInfo.anthropicSmallFastModel) {
+                    await prisma.userConfig.create({
+                      data: {
+                        userId: existingIdentity.user.id,
+                        key: 'ANTHROPIC_SMALL_FAST_MODEL',
+                        value: tokenInfo.anthropicSmallFastModel,
+                        category: 'anthropic',
+                        isSecret: false,
+                      },
+                    })
+                  }
+                }
               }
             } catch (error) {
               logger.error(`Failed to create aiproxy token for user ${sealosUserId}: ${error}`)
@@ -275,6 +302,25 @@ const buildProviders = () => {
                 category: 'anthropic',
                 isSecret: false,
               })
+
+              // Add model configs if provided
+              if (aiproxyTokenInfo.anthropicModel) {
+                configs.push({
+                  key: 'ANTHROPIC_MODEL',
+                  value: aiproxyTokenInfo.anthropicModel,
+                  category: 'anthropic',
+                  isSecret: false,
+                })
+              }
+
+              if (aiproxyTokenInfo.anthropicSmallFastModel) {
+                configs.push({
+                  key: 'ANTHROPIC_SMALL_FAST_MODEL',
+                  value: aiproxyTokenInfo.anthropicSmallFastModel,
+                  category: 'anthropic',
+                  isSecret: false,
+                })
+              }
             }
 
             const newUser = await prisma.user.create({
