@@ -1,16 +1,24 @@
 <svg width="78" height="78" viewBox="0 0 78 78" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="78" height="78" fill="black"/>
-<rect width="78" height="78" fill="black"/>
-<rect x="50.1216" y="22.1101" width="5.71006" height="5.70695" rx="2.85348" fill="#737373"/>
-<rect width="19.501" height="5.70695" rx="2.85348" transform="matrix(-1 0 0 1 48.7505 15.1687)" fill="#E5E5E5"/>
-<rect width="5.71006" height="5.70695" rx="2.85348" transform="matrix(-1 0 0 1 27.9087 22.1101)" fill="#737373"/>
-<rect x="55.8286" y="50.0325" width="5.71006" height="5.70695" rx="2.85348" transform="rotate(90 55.8286 50.0325)" fill="#737373"/>
-<rect width="19.5649" height="5.70695" rx="2.85348" transform="matrix(0 -1 -1 -4.37114e-08 62.7705 48.7246)" fill="#E5E5E5"/>
-<rect width="6.63038" height="6.62677" rx="3.31339" transform="matrix(0 -1 -1 -4.37114e-08 58.541 26.0271)" fill="#E5E5E5"/>
-<rect x="48.75" y="62.6814" width="19.5327" height="5.70695" rx="2.85348" transform="rotate(-180 48.75 62.6814)" fill="#E5E5E5"/>
-<rect x="27.877" y="55.7397" width="5.71006" height="5.70695" rx="2.85348" transform="rotate(-180 27.877 55.7397)" fill="#737373"/>
-<rect width="6.63038" height="6.62677" rx="3.31339" transform="matrix(1 8.74228e-08 8.74228e-08 -1 51.8779 58.4473)" fill="#E5E5E5"/>
-<rect x="19.4585" y="26.0645" width="6.63038" height="6.62677" rx="3.31339" transform="rotate(-90 19.4585 26.0645)" fill="#E5E5E5"/>
-<rect width="19.5323" height="5.70695" rx="2.85348" transform="matrix(0 1 1 -4.37114e-08 15.2295 29.1926)" fill="#E5E5E5"/>
-<rect width="6.63038" height="6.62677" rx="3.31339" transform="matrix(0 1 1 -4.37114e-08 19.4585 51.8574)" fill="#E5E5E5"/>
+<g clip-path="url(#clip0_15256_10236)">
+<rect width="78" height="78" fill="white"/>
+<rect width="78" height="78" fill="url(#paint0_linear_15256_10236)"/>
+<rect x="48.583" y="22.7083" width="6.70844" height="6.70844" fill="#666666"/>
+<rect x="29.4165" y="55.2917" width="6.70844" height="6.70844" transform="rotate(180 29.4165 55.2917)" fill="#666666"/>
+<rect width="6.70844" height="6.70844" transform="matrix(1 0 0 -1 48.583 55.2917)" fill="#666666"/>
+<rect x="22.708" y="29.4165" width="6.70844" height="6.70844" transform="rotate(-90 22.708 29.4165)" fill="#666666"/>
+<path d="M49.5415 61.9998H28.4575V55.2917H49.5415V61.9998ZM27.4995 57.2087H20.7915V50.4998H27.4995V57.2087ZM57.2085 57.2087H50.4995V50.4998H57.2085V57.2087ZM22.7085 49.5417H15.9995V28.4578H22.7085V49.5417ZM62.0005 49.5417H55.2915L55.2925 28.4587H62.0005V49.5417ZM27.4995 27.4998H20.7915V20.7908H27.5005L27.4995 27.4998ZM57.2085 27.4998H50.4995V20.7908H57.2085V27.4998ZM49.5415 22.7078L28.4575 22.7087V15.9998H49.5415V22.7078Z" fill="url(#paint1_linear_15256_10236)"/>
+</g>
+<defs>
+<linearGradient id="paint0_linear_15256_10236" x1="78" y1="0" x2="0" y2="78" gradientUnits="userSpaceOnUse">
+<stop stop-color="#4C4C4C"/>
+<stop offset="1" stop-color="#050505"/>
+</linearGradient>
+<linearGradient id="paint1_linear_15256_10236" x1="39" y1="15.9998" x2="39" y2="61.9998" gradientUnits="userSpaceOnUse">
+<stop stop-color="#FCFCFC"/>
+<stop offset="1" stop-color="#C6C6C6"/>
+</linearGradient>
+<clipPath id="clip0_15256_10236">
+<rect width="78" height="78" fill="white"/>
+</clipPath>
+</defs>
 </svg>
