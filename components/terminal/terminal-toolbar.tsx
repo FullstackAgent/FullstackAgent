@@ -217,25 +217,6 @@ export function TerminalToolbar({
           {/*          <>*/}
           {/*            <Square className="mr-2 h-3 w-3" />*/}
           {/*            Stop*/}
-          {/*          </>*/}
-          {/*        )}*/}
-          {/*      </DropdownMenuItem>*/}
-          {/*    )}*/}
-          {/*    {availableActions.includes('DELETE') && (*/}
-          {/*      <>*/}
-          {/*        <DropdownMenuSeparator className="bg-[#3e3e42]" />*/}
-          {/*        <DropdownMenuItem*/}
-          {/*          onClick={handleDeleteClick}*/}
-          {/*          disabled={loading !== null}*/}
-          {/*          className="text-xs cursor-pointer focus:bg-[#37373d] focus:text-white"*/}
-          {/*        >*/}
-          {/*          <Trash2 className="mr-2 h-3 w-3" />*/}
-          {/*          Delete*/}
-          {/*        </DropdownMenuItem>*/}
-          {/*      </>*/}
-          {/*    )}*/}
-          {/*  </DropdownMenuContent>*/}
-          {/*</DropdownMenu>*/}
         </div>
       </div>
 
