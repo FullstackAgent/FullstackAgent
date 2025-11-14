@@ -126,7 +126,7 @@ export function HomePage() {
             <Button
               size="lg"
               variant="outline"
-              className=" hover:bg-accent"
+              className="hover:bg-accent"
               title="Learn more about FullStack Agent (Coming Soon)"
             >
               Learn More
