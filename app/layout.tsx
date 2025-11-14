@@ -1,16 +1,17 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Geist } from 'next/font/google';
 
 import { Toaster } from '@/components/ui/sonner';
 import { Providers } from '@/provider/providers';
 
 import './globals.css';
 
-const inter = Inter({ subsets: ['latin'] });
+const geist = Geist({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'FullStack Agent - AI-Powered Development Platform',
-  description: 'Create, develop, and deploy full-stack applications with AI',
+  title: 'Fulling - AI-Powered Full-Stack Development',
+  description: 'Create, develop, and deploy production-ready web applications using natural language. Powered by ' +
+    'Claude Code in isolated sandbox environments.',
 };
 
 export default function RootLayout({
@@ -20,21 +21,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
-      <body className={`${inter.className} bg-black text-white antialiased`}>
+      <body className={`${geist.className} bg-background antialiased`}>
         <Providers>{children}</Providers>
         <Toaster
           position="top-right"
           theme="dark"
           toastOptions={{
-            style: {
-              background: '#2d2d30',
-              border: '1px solid #454545',
-              color: '#cccccc',
-              borderRadius: '4px',
-              padding: '12px 16px',
-              fontSize: '13px',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
-            },
             classNames: {
               toast: 'group',
               title: 'text-[#cccccc] font-normal text-[13px]',

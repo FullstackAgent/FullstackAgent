@@ -9,14 +9,14 @@
 import { useState } from 'react';
 import type { Prisma } from '@prisma/client';
 import {
-  ChevronDown,
-  Loader2,
+  // ChevronDown,
+  // Loader2,
   Network,
-  Play,
+  // Play,
   Plus,
-  Square,
+  // Square,
   Terminal as TerminalIcon,
-  Trash2,
+  // Trash2,
   X,
 } from 'lucide-react';
 
@@ -37,13 +37,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+// import {
+//   DropdownMenu,
+//   DropdownMenuContent,
+//   DropdownMenuItem,
+//   DropdownMenuSeparator,
+//   DropdownMenuTrigger,
+// } from '@/components/ui/dropdown-menu';
 import { useProjectOperations } from '@/hooks/use-project-operations';
 import { getAvailableProjectActions } from '@/lib/util/action';
 import { getStatusBgClasses } from '@/lib/util/status-colors';
@@ -172,70 +172,70 @@ export function TerminalToolbar({
           </button>
 
           {/* Operations Dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="px-2 py-1 text-xs text-gray-300 hover:text-white hover:bg-[#37373d] rounded transition-colors flex items-center gap-1">
-                <span>Operations</span>
-                <ChevronDown className="h-3 w-3" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="bg-[#252526] border-[#3e3e42] text-white min-w-[160px]"
-            >
-              {availableActions.includes('START') && (
-                <DropdownMenuItem
-                  onClick={() => executeOperation('START')}
-                  disabled={loading !== null}
-                  className="text-xs cursor-pointer focus:bg-[#37373d] focus:text-white"
-                >
-                  {loading === 'START' ? (
-                    <>
-                      <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                      Starting...
-                    </>
-                  ) : (
-                    <>
-                      <Play className="mr-2 h-3 w-3" />
-                      Start
-                    </>
-                  )}
-                </DropdownMenuItem>
-              )}
-              {availableActions.includes('STOP') && (
-                <DropdownMenuItem
-                  onClick={() => executeOperation('STOP')}
-                  disabled={loading !== null}
-                  className="text-xs cursor-pointer focus:bg-[#37373d] focus:text-white"
-                >
-                  {loading === 'STOP' ? (
-                    <>
-                      <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                      Stopping...
-                    </>
-                  ) : (
-                    <>
-                      <Square className="mr-2 h-3 w-3" />
-                      Stop
-                    </>
-                  )}
-                </DropdownMenuItem>
-              )}
-              {availableActions.includes('DELETE') && (
-                <>
-                  <DropdownMenuSeparator className="bg-[#3e3e42]" />
-                  <DropdownMenuItem
-                    onClick={handleDeleteClick}
-                    disabled={loading !== null}
-                    className="text-xs cursor-pointer focus:bg-[#37373d] focus:text-white"
-                  >
-                    <Trash2 className="mr-2 h-3 w-3" />
-                    Delete
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/*<DropdownMenu> TODO: delete after Nov 18 */}
+          {/*  <DropdownMenuTrigger asChild>*/}
+          {/*    <button className="px-2 py-1 text-xs text-gray-300 hover:text-white hover:bg-[#37373d] rounded transition-colors flex items-center gap-1">*/}
+          {/*      <span>Operations</span>*/}
+          {/*      <ChevronDown className="h-3 w-3" />*/}
+          {/*    </button>*/}
+          {/*  </DropdownMenuTrigger>*/}
+          {/*  <DropdownMenuContent*/}
+          {/*    align="end"*/}
+          {/*    className="bg-[#252526] border-[#3e3e42] text-white min-w-[160px]"*/}
+          {/*  >*/}
+          {/*    {availableActions.includes('START') && (*/}
+          {/*      <DropdownMenuItem*/}
+          {/*        onClick={() => executeOperation('START')}*/}
+          {/*        disabled={loading !== null}*/}
+          {/*        className="text-xs cursor-pointer focus:bg-[#37373d] focus:text-white"*/}
+          {/*      >*/}
+          {/*        {loading === 'START' ? (*/}
+          {/*          <>*/}
+          {/*            <Loader2 className="mr-2 h-3 w-3 animate-spin" />*/}
+          {/*            Starting...*/}
+          {/*          </>*/}
+          {/*        ) : (*/}
+          {/*          <>*/}
+          {/*            <Play className="mr-2 h-3 w-3" />*/}
+          {/*            Start*/}
+          {/*          </>*/}
+          {/*        )}*/}
+          {/*      </DropdownMenuItem>*/}
+          {/*    )}*/}
+          {/*    {availableActions.includes('STOP') && (*/}
+          {/*      <DropdownMenuItem*/}
+          {/*        onClick={() => executeOperation('STOP')}*/}
+          {/*        disabled={loading !== null}*/}
+          {/*        className="text-xs cursor-pointer focus:bg-[#37373d] focus:text-white"*/}
+          {/*      >*/}
+          {/*        {loading === 'STOP' ? (*/}
+          {/*          <>*/}
+          {/*            <Loader2 className="mr-2 h-3 w-3 animate-spin" />*/}
+          {/*            Stopping...*/}
+          {/*          </>*/}
+          {/*        ) : (*/}
+          {/*          <>*/}
+          {/*            <Square className="mr-2 h-3 w-3" />*/}
+          {/*            Stop*/}
+          {/*          </>*/}
+          {/*        )}*/}
+          {/*      </DropdownMenuItem>*/}
+          {/*    )}*/}
+          {/*    {availableActions.includes('DELETE') && (*/}
+          {/*      <>*/}
+          {/*        <DropdownMenuSeparator className="bg-[#3e3e42]" />*/}
+          {/*        <DropdownMenuItem*/}
+          {/*          onClick={handleDeleteClick}*/}
+          {/*          disabled={loading !== null}*/}
+          {/*          className="text-xs cursor-pointer focus:bg-[#37373d] focus:text-white"*/}
+          {/*        >*/}
+          {/*          <Trash2 className="mr-2 h-3 w-3" />*/}
+          {/*          Delete*/}
+          {/*        </DropdownMenuItem>*/}
+          {/*      </>*/}
+          {/*    )}*/}
+          {/*  </DropdownMenuContent>*/}
+          {/*</DropdownMenu>*/}
         </div>
       </div>
 

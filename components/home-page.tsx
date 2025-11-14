@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback,useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 
@@ -27,6 +28,9 @@ export function HomePage() {
 
   // Determine button action based on environment and auth status
   const handleGetStarted = async () => {
+    // Clear previous errors on retry
+    setAuthError(null);
+
     // Already authenticated - go to projects
     if (status === 'authenticated') {
       router.push('/projects');
@@ -46,7 +50,6 @@ export function HomePage() {
     }
 
     setIsAuthenticating(true);
-    setAuthError(null);
 
     try {
       const result = await authenticateWithSealos(sealosToken, sealosKubeconfig);
@@ -65,12 +68,12 @@ export function HomePage() {
     }
   };
 
-  const getButtonText = () => {
+  const getButtonText = useCallback(() => {
     if (status === 'authenticated') {
       return 'Go to Projects';
     }
     return 'Get Started';
-  };
+  }, [status]);
 
   // Show minimal loading during initialization
   const isInitializing = !isInitialized || isLoading;
@@ -79,38 +82,52 @@ export function HomePage() {
   return (
     <>
       {/* Base marketing page - always visible */}
-      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center">
+      <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-start pt-40">
         <div className="max-w-4xl mx-auto px-4 text-center">
-          <h1 className="text-6xl font-bold mb-6 bg-linear-to-r from-white to-gray-500 bg-clip-text text-transparent">
-            Fulling
-          </h1>
-          <p className="text-xl text-gray-400 mb-12">AI-Powered Full-Stack Development Platform</p>
-          <p className="text-lg text-gray-300 mb-8 max-w-2xl mx-auto">
+          <div className="flex items-center justify-center gap-4 md:gap-6 mb-6 -ml-8">
+            <Image
+              src="/icon-transparent.svg"
+              alt="Fulling Logo"
+              width={80}
+              height={80}
+              className="w-16 h-16 md:w-20 md:h-20"
+            />
+            <h1 className="text-4xl md:text-6xl lg:text-8xl font-bold tracking-tight bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text leading-normal text-transparent">
+              Fulling
+            </h1>
+          </div>
+          <p className="text-xl text-muted-foreground mb-12">AI-Powered Full-Stack Development Platform</p>
+          <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
             Create, develop, and deploy production-ready web applications using natural language.
             Powered by Claude Code in isolated sandbox environments.
           </p>
 
-          {/* Error message */}
+          {/* Error message - with aria attributes for accessibility */}
           {authError && (
-            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/50 rounded text-red-400 text-sm max-w-md mx-auto">
+            <div
+              className="mb-4 p-3 bg-destructive/10 border border-destructive/50 rounded text-destructive text-sm max-w-md mx-auto"
+              role="alert"
+              aria-live="polite"
+            >
               {authError}
             </div>
           )}
 
-          <div className="flex gap-4 justify-center">
+          <div className="flex gap-8 justify-center">
             <Button
               size="lg"
               onClick={handleGetStarted}
               disabled={isButtonDisabled}
-              className="bg-white text-black hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-busy={isAuthenticating}
             >
               {getButtonText()}
             </Button>
             <Button
               size="lg"
               variant="outline"
-              disabled
-              className="border-gray-700 text-white hover:bg-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+              className=" hover:bg-accent"
+              title="Learn more about FullStack Agent (Coming Soon)"
             >
               Learn More
             </Button>
@@ -120,10 +137,15 @@ export function HomePage() {
 
       {/* Authentication overlay - shown during Sealos auth process */}
       {isAuthenticating && (
-        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50">
+        <div
+          className="fixed inset-0 bg-background/90 flex items-center justify-center z-50"
+          role="dialog"
+          aria-label="Authentication in progress"
+          aria-modal="true"
+        >
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-            <p className="text-gray-400 text-sm">Authenticating with Sealos...</p>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-foreground mx-auto mb-4"></div>
+            <p className="text-muted-foreground text-sm">Authenticating with Sealos...</p>
           </div>
         </div>
       )}
