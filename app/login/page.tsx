@@ -47,18 +47,18 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center">
-      <Card className="w-full max-w-md bg-gray-900 border-gray-800">
+    <div className="min-h-screen bg-[#151515] text-foreground flex items-center justify-center">
+      <Card className="w-full max-w-md bg-card border-border">
         <CardHeader>
-          <CardTitle className="text-2xl text-white">Welcome to Fulling</CardTitle>
-          <CardDescription className="text-gray-400">
+          <CardTitle className="text-2xl text-card-foreground mx-auto">Welcome to Fulling</CardTitle>
+          <CardDescription className="text-muted-foreground text-center">
             You&apos;re one click away from creating your own full-stack app.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <form onSubmit={handleCredentialsLogin} className="space-y-4">
-            <div>
-              <Label htmlFor="username" className="text-gray-200">
+            <div className="space-y-2">
+              <Label htmlFor="username" className="text-secondary-foreground">
                 Username
               </Label>
               <Input
@@ -68,12 +68,12 @@ export default function LoginPage() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
-                className="bg-gray-800 border-gray-700 text-white"
+                className="bg-secondary border-input text-foreground"
               />
             </div>
 
-            <div>
-              <Label htmlFor="password" className="text-gray-200">
+            <div className="space-y-2">
+              <Label htmlFor="password" className="text-secondary-foreground">
                 Password
               </Label>
               <Input
@@ -84,23 +84,23 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={6}
-                className="bg-gray-800 border-gray-700 text-white"
+                className="bg-secondary border-input text-foreground"
               />
             </div>
 
-            {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+            {error && <p className="text-destructive text-sm text-center">{error}</p>}
 
             <Button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+              className="w-full bg-primary hover:bg-primary-hover text-primary-foreground"
               size="lg"
             >
               <User className="mr-2 h-5 w-5" />
               {isLoading ? 'Signing in...' : 'Sign in / Register'}
             </Button>
 
-            <p className="text-xs text-gray-500 text-center">
+            <p className="text-xs text-muted-foreground text-center">
               Don&apos;t have an account? Just enter your credentials and we&apos;ll create
               one for you.
             </p>
@@ -108,16 +108,16 @@ export default function LoginPage() {
 
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-gray-700" />
+              <span className="w-full border-t border-border" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-gray-900 px-2 text-gray-400">Or</span>
+              <span className="bg-card px-2 text-muted-foreground">Or</span>
             </div>
           </div>
 
           <Button
             onClick={() => signIn('github', { callbackUrl: '/projects' })}
-            className="w-full bg-white text-black hover:bg-gray-200"
+            className="w-full bg-secondary text-secondary-foreground hover:bg-muted"
             size="lg"
             variant="outline"
           >
