@@ -1,41 +1,72 @@
+/**
+ * ProjectCard Component
+ *
+ * Displays a single project card with status, metadata, and action menu
+ */
+
 import { memo } from 'react';
-import { Project } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import { Clock } from 'lucide-react';
 import Link from 'next/link';
 
-import { getStatusBgClasses } from '@/lib/util/status-colors';
+import { Badge } from '@/components/ui/badge';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { getStatusBgClasses, getStatusTextColor } from '@/lib/util/status-colors';
 import { cn } from '@/lib/utils';
 
+import ProjectCardDropdown from './ProjectCardDropdown';
+
+type ProjectWithResources = Prisma.ProjectGetPayload<{
+  include: {
+    sandboxes: true;
+    databases: true;
+    environments: true;
+  };
+}>;
+
 interface ProjectCardProps {
-  project: Project;
+  project: ProjectWithResources;
 }
 
 const ProjectCard = memo(({ project }: ProjectCardProps) => {
   return (
-    <Link href={`/projects/${project.id}`}>
-      <div className="group bg-card border border-border hover:border-primary rounded-lg transition-all cursor-pointer p-3">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-2">
-          <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-medium text-foreground truncate">{project.name}</h3>
+    <Link href={`/projects/${project.id}`} className="block">
+      <Card className="transition-all hover:border-primary cursor-pointer h-full">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="line-clamp-1 flex-1 text-left">
+            {project.name}
+          </CardTitle>
+
+          <ProjectCardDropdown project={project} />
+        </CardHeader>
+
+        <CardContent>
+          <CardDescription className="line-clamp-2 min-h-8">
+            {project.description || 'No description'}
+          </CardDescription>
+        </CardContent>
+
+        <CardFooter className="flex items-center justify-between pt-2 border-t border-border">
+          <div className="flex items-center gap-x-2">
+            <Badge
+              className={cn(
+                "h-2 w-2 p-0 border-0",
+                getStatusBgClasses(project.status)
+              )}
+            />
+            <span className={cn('text-xs', getStatusTextColor(project.status))}>
+              {project.status}
+            </span>
           </div>
-          <div
-            className={cn(
-              'h-2 w-2 rounded-full shrink-0 ml-2 mt-1',
-              getStatusBgClasses(project.status)
-            )}
-          />
-        </div>
 
-        {/* Description */}
-        <p className="text-xs text-muted-foreground line-clamp-2 mb-3 min-h-10">
-          {project.description || 'No description'}
-        </p>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between pt-2 border-t border-border">
-          <span className="text-xs text-muted-foreground">{project.status}</span>
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Clock className="h-3 w-3" />
             <span>
               {new Date(project.updatedAt).toLocaleDateString('en-US', {
@@ -44,8 +75,8 @@ const ProjectCard = memo(({ project }: ProjectCardProps) => {
               })}
             </span>
           </div>
-        </div>
-      </div>
+        </CardFooter>
+      </Card>
     </Link>
   );
 });

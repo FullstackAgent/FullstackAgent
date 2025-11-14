@@ -4,10 +4,18 @@
  * Provides automatic caching, refetching, and state synchronization
  */
 
-import type { Project } from '@prisma/client'
+import type { Prisma } from '@prisma/client'
 import { useQuery } from '@tanstack/react-query'
 
 import { GET } from '@/lib/fetch-client'
+
+type ProjectWithRelations = Prisma.ProjectGetPayload<{
+  include: {
+    sandboxes: true
+    databases: true
+    environments: true
+  }
+}>
 
 interface UseProjectsOptions {
   /** Enable automatic refetching every 3 seconds */
@@ -67,7 +75,7 @@ export function useProjects(options: UseProjectsOptions = {}) {
       const queryString = params.toString()
       const url = queryString ? `/api/projects?${queryString}` : '/api/projects'
 
-      return GET<Project[]>(url)
+      return GET<ProjectWithRelations[]>(url)
     },
     refetchInterval,
     refetchOnWindowFocus,

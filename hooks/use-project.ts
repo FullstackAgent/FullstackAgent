@@ -13,6 +13,7 @@ type Project = Prisma.ProjectGetPayload<{
   include: {
     sandboxes: true;
     databases: true;
+    environments: true;
   };
 }>;
 
