@@ -143,7 +143,7 @@ export default function ProjectCardDropdown({ project }: ProjectCardDropdownProp
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteConfirm}
-              className="bg-red-600 hover:bg-red-700 text-white"
+              className="bg-destructive hover:bg-destructive/90 text-white"
             >
               Delete
             </AlertDialogAction>
