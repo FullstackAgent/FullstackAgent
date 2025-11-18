@@ -1245,6 +1245,17 @@ echo "=== Init Container: Completed successfully ==="
           'nginx.ingress.kubernetes.io/proxy-buffer-size': '64k',
           'nginx.ingress.kubernetes.io/proxy-send-timeout': '300',
           'nginx.ingress.kubernetes.io/proxy-read-timeout': '300',
+          // CORS configuration for TUS resumable file uploads from browser
+          'nginx.ingress.kubernetes.io/enable-cors': 'true',
+          'nginx.ingress.kubernetes.io/cors-allow-origin': '*',
+          'nginx.ingress.kubernetes.io/cors-allow-methods':
+            'GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS',
+          'nginx.ingress.kubernetes.io/cors-allow-headers':
+            'DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization,X-Auth,Upload-Length,Upload-Offset,Tus-Resumable,Upload-Metadata,Upload-Defer-Length,Upload-Concat',
+          'nginx.ingress.kubernetes.io/cors-expose-headers':
+            'Upload-Offset,Location,Upload-Length,Tus-Version,Tus-Resumable,Tus-Max-Size,Tus-Extension,Upload-Metadata',
+          'nginx.ingress.kubernetes.io/cors-allow-credentials': 'true',
+          'nginx.ingress.kubernetes.io/cors-max-age': '1728000',
           'nginx.ingress.kubernetes.io/server-snippet':
             'client_header_buffer_size 64k;\nlarge_client_header_buffers 4 128k;',
         },

@@ -27,6 +27,7 @@ type Project = Prisma.ProjectGetPayload<{
   include: {
     sandboxes: true;
     databases: true;
+    environments: true;
   };
 }>;
 
@@ -48,6 +49,22 @@ export function TerminalContainer({ project, sandbox }: TerminalContainerProps) 
 
   const [tabs, setTabs] = useState<Tab[]>([{ id: '1', name: 'Terminal 1' }]);
   const [activeTabId, setActiveTabId] = useState('1');
+
+  // =========================================================================
+  // Extract FileBrowser Credentials
+  // =========================================================================
+
+  const fileBrowserCredentials = (() => {
+    const username = project.environments?.find((env) => env.key === 'FILE_BROWSER_USERNAME')
+      ?.value;
+    const password = project.environments?.find((env) => env.key === 'FILE_BROWSER_PASSWORD')
+      ?.value;
+
+    if (username && password) {
+      return { username, password };
+    }
+    return undefined;
+  })();
 
   // =========================================================================
   // Tab Operations
@@ -104,6 +121,7 @@ export function TerminalContainer({ project, sandbox }: TerminalContainerProps) 
         onTabSelect={handleTabSelect}
         onTabClose={handleTabClose}
         onTabAdd={handleTabAdd}
+        fileBrowserCredentials={fileBrowserCredentials}
       />
 
       {/* Terminal display area with tab switching */}
@@ -122,6 +140,9 @@ export function TerminalContainer({ project, sandbox }: TerminalContainerProps) 
               ttydUrl={sandbox?.ttydUrl}
               status={sandbox?.status ?? 'CREATING'}
               tabId={tab.id}
+              fileBrowserUrl={sandbox?.fileBrowserUrl}
+              fileBrowserUsername={fileBrowserCredentials?.username}
+              fileBrowserPassword={fileBrowserCredentials?.password}
             />
           </div>
         ))}

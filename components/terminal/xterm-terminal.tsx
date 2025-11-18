@@ -10,12 +10,25 @@
  * - Smart scroll behavior with indicator
  * - Multiple renderer support (WebGL, Canvas, DOM)
  * - Proper cleanup and memory management
+ * - Seamless file upload via drag & drop or paste (Ctrl+V)
+ * - Integration with FileBrowser
+ *
+ * File Upload UX:
+ * - Global paste support (works even when terminal has focus)
+ * - Background upload without blocking terminal interaction
+ * - Toast notifications for progress and status
+ * - No intrusive overlays
  */
 
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ITerminalOptions, Terminal as ITerminal } from '@xterm/xterm';
+import { Upload } from 'lucide-react';
+import { toast } from 'sonner';
+
+import { useFileDrop } from './hooks/use-file-drop';
+import { useFileUpload } from './hooks/use-file-upload';
 
 import '@xterm/xterm/css/xterm.css';
 
@@ -69,6 +82,11 @@ export interface XtermTerminalProps {
   onReady?: () => void;
   onConnected?: () => void;
   onDisconnected?: () => void;
+  // FileBrowser upload support
+  fileBrowserUrl?: string;
+  fileBrowserUsername?: string;
+  fileBrowserPassword?: string;
+  enableFileUpload?: boolean;
 }
 
 // ============================================================================
@@ -84,6 +102,10 @@ export function XtermTerminal({
   onReady,
   onConnected,
   onDisconnected,
+  fileBrowserUrl,
+  fileBrowserUsername,
+  fileBrowserPassword,
+  enableFileUpload = true,
 }: XtermTerminalProps) {
   // =========================================================================
   // State & Refs
@@ -96,6 +118,49 @@ export function XtermTerminal({
 
   const [hasNewContent, setHasNewContent] = useState(false);
   const [newLineCount, setNewLineCount] = useState(0);
+
+  // =========================================================================
+  // File Upload Integration
+  // =========================================================================
+
+  // Setup file upload hook
+  const { uploadFiles, isUploading, isConfigured } = useFileUpload({
+    fileBrowserUrl,
+    fileBrowserUsername,
+    fileBrowserPassword,
+    enabled: enableFileUpload,
+  });
+
+  // Handle file drop and paste events
+  const handleFilesReceived = useCallback(
+    async (files: File[], source: 'drop' | 'paste') => {
+      if (files.length === 0) return;
+
+      // Show quick info toast
+      toast.info(`${source === 'paste' ? 'Pasted' : 'Dropped'} ${files.length} file(s)`, {
+        description: 'Starting upload...',
+        duration: 2000,
+      });
+
+      // Upload in background
+      try {
+        await uploadFiles(files, {
+          showToast: true,
+          copyToClipboard: true,
+        });
+      } catch (error) {
+        console.error('[XtermTerminal] Upload failed:', error);
+      }
+    },
+    [uploadFiles]
+  );
+
+  // Setup drag and drop / paste event handling
+  const { isDragging } = useFileDrop({
+    enabled: isConfigured && !isUploading,
+    onFilesDropped: (files) => handleFilesReceived(files, 'drop'),
+    onFilesPasted: (files) => handleFilesReceived(files, 'paste'),
+  });
 
   // =========================================================================
   // Memoized Configuration
@@ -143,7 +208,7 @@ export function XtermTerminal({
     const terminal = terminalRef.current;
     if (terminal) {
       terminal.scrollToBottom();
-      console.log('[terminal] User scrolled to bottom');
+      console.log('[XtermTerminal] User scrolled to bottom');
     }
     setHasNewContent(false);
     setNewLineCount(0);
@@ -206,7 +271,7 @@ export function XtermTerminal({
         const token = url.searchParams.get('arg') || '';
 
         if (!token) {
-          console.error('[terminal] No authentication token found in URL');
+          console.error('[XtermTerminal] No authentication token found in URL');
           return null;
         }
 
@@ -214,10 +279,10 @@ export function XtermTerminal({
         const wsPath = url.pathname.replace(/\/$/, '') + '/ws';
         const wsFullUrl = `${wsProtocol}//${url.host}${wsPath}${url.search}`;
 
-        console.log('[terminal] Connecting to:', wsFullUrl.replace(token, '***'));
+        console.log('[XtermTerminal] Connecting to:', wsFullUrl.replace(token, '***'));
         return { wsFullUrl, token };
       } catch (error) {
-        console.error('[terminal] Failed to parse URL:', error);
+        console.error('[XtermTerminal] Failed to parse URL:', error);
         return null;
       }
     };
@@ -268,9 +333,9 @@ export function XtermTerminal({
             const { WebglAddon: WebglAddonClass } = await import('@xterm/addon-webgl');
             webglAddon = new WebglAddonClass();
             terminal.loadAddon(webglAddon);
-            console.log('[terminal] WebGL renderer loaded');
+            console.log('[XtermTerminal] WebGL renderer loaded');
           } catch (e) {
-            console.log('[terminal] WebGL failed, falling back to canvas', e);
+            console.log('[XtermTerminal] WebGL failed, falling back to canvas', e);
             await applyRenderer('canvas');
           }
           break;
@@ -279,13 +344,13 @@ export function XtermTerminal({
             const { CanvasAddon: CanvasAddonClass } = await import('@xterm/addon-canvas');
             canvasAddon = new CanvasAddonClass();
             terminal.loadAddon(canvasAddon);
-            console.log('[terminal] Canvas renderer loaded');
+            console.log('[XtermTerminal] Canvas renderer loaded');
           } catch (e) {
-            console.log('[terminal] Canvas failed, using DOM', e);
+            console.log('[XtermTerminal] Canvas failed, using DOM', e);
           }
           break;
         case 'dom':
-          console.log('[terminal] DOM renderer loaded');
+          console.log('[XtermTerminal] DOM renderer loaded');
           break;
       }
     };
@@ -305,13 +370,13 @@ export function XtermTerminal({
 
       const { wsFullUrl, token } = urlInfo;
 
-      console.log('[terminal] Creating WebSocket connection...');
+      console.log('[XtermTerminal] Creating WebSocket connection...');
       socket = new WebSocket(wsFullUrl, ['tty']);
       socket.binaryType = 'arraybuffer';
 
       socket.onopen = () => {
         if (!isMounted) return;
-        console.log('[terminal] WebSocket connected');
+        console.log('[XtermTerminal] WebSocket connected');
         stableOnConnected();
 
         const authMsg = JSON.stringify({
@@ -350,17 +415,17 @@ export function XtermTerminal({
             document.title = textDecoder.decode(data);
             break;
           case Command.SET_PREFERENCES:
-            console.log('[terminal] Preferences:', textDecoder.decode(data));
+            console.log('[XtermTerminal] Preferences:', textDecoder.decode(data));
             break;
           default:
-            console.warn('[terminal] Unknown command:', cmd);
+            console.warn('[XtermTerminal] Unknown command:', cmd);
         }
       };
 
       socket.onclose = (event: CloseEvent) => {
         if (!isMounted) return;
 
-        console.log('[terminal] WebSocket closed:', event.code, event.reason);
+        console.log('[XtermTerminal] WebSocket closed:', event.code, event.reason);
         socket = null;
         stableOnDisconnected();
 
@@ -375,7 +440,7 @@ export function XtermTerminal({
       };
 
       socket.onerror = (error) => {
-        console.error('[terminal] WebSocket error:', error);
+        console.error('[XtermTerminal] WebSocket error:', error);
       };
     };
 
@@ -484,9 +549,9 @@ export function XtermTerminal({
         stableOnReady();
         connectWebSocket();
 
-        console.log('[terminal] Initialization complete');
+        console.log('[XtermTerminal] Initialization complete');
       } catch (error) {
-        console.error('[terminal] Initialization failed:', error);
+        console.error('[XtermTerminal] Initialization failed:', error);
       }
     };
 
@@ -497,7 +562,7 @@ export function XtermTerminal({
     // -----------------------------------------------------------------------
 
     return () => {
-      console.log('[terminal] Cleaning up');
+      console.log('[XtermTerminal] Cleaning up');
       isMounted = false;
 
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
@@ -533,6 +598,7 @@ export function XtermTerminal({
     <div className="relative w-full h-full">
       <div ref={containerRef} className="w-full h-full" style={{ padding: '5px' }} />
 
+      {/* Scroll to bottom button */}
       {hasNewContent && (
         <button
           onClick={handleScrollToBottom}
@@ -565,6 +631,62 @@ export function XtermTerminal({
             {newLineCount} new {newLineCount === 1 ? 'line' : 'lines'}
           </span>
         </button>
+      )}
+
+      {/* Subtle drag indicator - only shown when dragging files */}
+      {isConfigured && isDragging && (
+        <div
+          className="absolute top-4 left-1/2 -translate-x-1/2
+                     bg-blue-600/95 text-white
+                     px-4 py-2 rounded-lg
+                     shadow-lg
+                     flex items-center gap-2
+                     z-50
+                     pointer-events-none
+                     animate-fade-in"
+        >
+          <Upload className="w-4 h-4" />
+          <span className="text-sm font-medium">Drop files to upload</span>
+        </div>
+      )}
+
+      {/* Upload progress indicator - shown as floating badge */}
+      {isUploading && (
+        <div
+          className="absolute top-4 right-4
+                     bg-gray-900/95 text-white
+                     px-4 py-2 rounded-lg
+                     shadow-lg border border-gray-700
+                     flex items-center gap-2
+                     z-50
+                     pointer-events-none
+                     animate-fade-in"
+        >
+          <div className="animate-spin">
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              />
+            </svg>
+          </div>
+          <span className="text-sm font-medium">Uploading...</span>
+        </div>
       )}
     </div>
   );
