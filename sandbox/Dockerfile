@@ -7,7 +7,7 @@ FROM ubuntu:24.04 AS base
 LABEL maintainer="FullstackAgent" \
       version="1.0.0" \
       description="Full-stack web development runtime with Next.js, shadcn/ui, Claude Code CLI, and container tools" \
-      org.opencontainers.image.source="https://github.com/your-repo/FullstackAgent" \
+      org.opencontainers.image.source="https://github.com/FullstackAgent/fulling" \
       org.opencontainers.image.licenses="MIT"
 
 # Environment variables for build configuration
@@ -20,7 +20,7 @@ LABEL maintainer="FullstackAgent" \
 ENV DEBIAN_FRONTEND=noninteractive \
     NODE_VERSION=22.x \
     CLAUDE_CODE_VERSION=latest \
-    PATH="/root/.local/bin:/home/agent/.local/bin:$PATH" \
+    PATH="/root/.local/bin:/home/fulling/.local/bin:$PATH" \
     TERM=xterm-256color \
     COLORTERM=truecolor \
     ANTHROPIC_BASE_URL="" \
@@ -89,9 +89,9 @@ RUN npm install -g \
 # Create non-root user for security best practices
 # agent user (UID 1001) with sudo privileges for development flexibility
 # -----------------------------------------------------------------------------
-RUN groupadd -g 1001 agent \
-    && useradd -u 1001 -g 1001 -m -s /bin/bash agent \
-    && echo 'agent ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+RUN groupadd -g 1001 fulling \
+    && useradd -u 1001 -g 1001 -m -s /bin/bash fulling \
+    && echo 'fulling ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
 # -----------------------------------------------------------------------------
 # Install container tools (Buildah, Podman, Skopeo) for rootless container operations
@@ -113,13 +113,13 @@ RUN apt-get update \
 # Configure Buildah and Podman for rootless operation
 # Sets up storage, runtime, and registry configurations
 # -----------------------------------------------------------------------------
-RUN mkdir -p /etc/containers /home/agent/.local/share/containers /home/agent/.config/containers \
+RUN mkdir -p /etc/containers /home/fulling/.local/share/containers /home/fulling/.config/containers \
     # Storage configuration (VFS driver for simplicity and compatibility)
     && { \
         echo '[storage]'; \
         echo 'driver = "vfs"'; \
         echo 'runroot = "/run/user/1001/containers"'; \
-        echo 'graphroot = "/home/agent/.local/share/containers/storage"'; \
+        echo 'graphroot = "/home/fulling/.local/share/containers/storage"'; \
         echo '[storage.options]'; \
         echo 'mount_program = "/usr/bin/fuse-overlayfs"'; \
     } > /etc/containers/storage.conf \
@@ -136,8 +136,8 @@ RUN mkdir -p /etc/containers /home/agent/.local/share/containers /home/agent/.co
         echo '[registries.search]'; \
         echo 'registries = ["docker.io", "quay.io"]'; \
     } > /etc/containers/registries.conf \
-    # Set proper ownership for agent user directories
-    && chown -R agent:agent /home/agent/.local /home/agent/.config
+    # Set proper ownership for fulling user directories
+    && chown -R fulling:fulling /home/fulling/.local /home/fulling/.config
 
 # -----------------------------------------------------------------------------
 # Install development tools, GitHub CLI, and modern CLI utilities
@@ -189,7 +189,7 @@ RUN set -eux; \
     ttyd --version || true
 
 # Set working directory for application
-WORKDIR /home/agent
+WORKDIR /home/fulling
 
 # -----------------------------------------------------------------------------
 # Copy configuration files (placed before user switch for better caching)
@@ -260,8 +260,8 @@ RUN set -eux; \
     rm -rf node_modules .next; \
     echo "=== Cleaning up pnpm cache ==="; \
     pnpm store prune; \
-    echo "=== Setting ownership to agent user (1001:1001) ==="; \
-    chown -R agent:agent "$TEMPLATE_DIR"; \
+    echo "=== Setting ownership to fulling user (1001:1001) ==="; \
+    chown -R fulling:fulling "$TEMPLATE_DIR"; \
     echo "=== Final verification ==="; \
     ls -la "$TEMPLATE_DIR"; \
     if [ ! -f "$TEMPLATE_DIR/package.json" ]; then \
@@ -272,7 +272,7 @@ RUN set -eux; \
         echo "ERROR: node_modules should have been removed"; \
         exit 1; \
     fi; \
-    echo "✓ Template ready at $TEMPLATE_DIR (owned by agent:agent)"; \
+    echo "✓ Template ready at $TEMPLATE_DIR (owned by fulling:fulling)"; \
     echo "✓ node_modules removed - user will install dependencies as needed"
 
 # =============================================================================

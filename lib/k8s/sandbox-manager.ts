@@ -642,8 +642,8 @@ export class SandboxManager {
                 args: [this.generateInitContainerScript()],
                 volumeMounts: [
                   {
-                    name: 'vn-homevn-agent',
-                    mountPath: '/home/agent',
+                    name: 'vn-homevn-fulling',
+                    mountPath: '/home/fulling',
                   },
                 ],
                 securityContext: {
@@ -686,8 +686,8 @@ export class SandboxManager {
                 imagePullPolicy: 'Always',
                 volumeMounts: [
                   {
-                    name: 'vn-homevn-agent',
-                    mountPath: '/home/agent',
+                    name: 'vn-homevn-fulling',
+                    mountPath: '/home/fulling',
                   },
                 ],
               },
@@ -699,10 +699,10 @@ export class SandboxManager {
           {
             metadata: {
               annotations: {
-                path: '/home/agent',
+                path: '/home/fulling',
                 value: VERSIONS.STORAGE.SANDBOX_SIZE.replace('Gi', ''),
               },
-              name: 'vn-homevn-agent',
+              name: 'vn-homevn-fulling',
             },
             spec: {
               accessModes: ['ReadWriteOnce'],
@@ -739,7 +739,7 @@ export class SandboxManager {
   /**
    * Generate init container script
    *
-   * Purpose: Initialize /home/agent PVC with necessary files on first run
+   * Purpose: Initialize /home/fulling PVC with necessary files on first run
    *
    * What gets initialized:
    * 1. .bashrc - Shell configuration (only if doesn't exist, never overwrite user changes)
@@ -761,14 +761,14 @@ echo "=== Init Container: Home Directory Initialization ==="
 # Step 1: Initialize .bashrc (if not exists)
 # Rationale: User may customize .bashrc, so we never overwrite existing file
 # -----------------------------------------------------------------------------
-if [ -f /home/agent/.bashrc ]; then
+if [ -f /home/fulling/.bashrc ]; then
   echo "✓ .bashrc already exists (preserving user configuration)"
 else
   if [ -f /etc/skel/.bashrc ]; then
     echo "→ Copying default .bashrc configuration..."
-    cp /etc/skel/.bashrc /home/agent/.bashrc
-    chown 1001:1001 /home/agent/.bashrc
-    chmod 644 /home/agent/.bashrc
+    cp /etc/skel/.bashrc /home/fulling/.bashrc
+    chown 1001:1001 /home/fulling/.bashrc
+    chmod 644 /home/fulling/.bashrc
     echo "✓ .bashrc initialized"
   else
     echo "⚠ Warning: /etc/skel/.bashrc not found in image"
@@ -779,25 +779,25 @@ fi
 # Step 2: Initialize Next.js project (if not exists or empty)
 # Rationale: ANY file in next/ indicates user work - must not overwrite
 # -----------------------------------------------------------------------------
-if [ -d /home/agent/next ]; then
+if [ -d /home/fulling/next ]; then
   # Directory exists, check if it contains any files (including hidden files)
-  if [ -n "$(ls -A /home/agent/next 2>/dev/null)" ]; then
+  if [ -n "$(ls -A /home/fulling/next 2>/dev/null)" ]; then
     echo "✓ Next.js project already exists (preserving user project)"
-    echo "  Location: /home/agent/next"
+    echo "  Location: /home/fulling/next"
     
     # Skip to end - all initialization done
     echo ""
     echo "=== Initialization Summary ==="
-    echo "✓ .bashrc: $([ -f /home/agent/.bashrc ] && echo 'ready' || echo 'missing')"
+    echo "✓ .bashrc: $([ -f /home/fulling/.bashrc ] && echo 'ready' || echo 'missing')"
     echo "✓ Next.js project: ready (existing)"
     echo "✓ All user data preserved"
     echo ""
     echo "=== Init Container: Completed successfully ==="
     exit 0
   else
-    echo "→ /home/agent/next exists but is empty"
+    echo "→ /home/fulling/next exists but is empty"
     echo "→ Removing empty directory and proceeding with initialization"
-    rmdir /home/agent/next
+    rmdir /home/fulling/next
   fi
 fi
 
@@ -815,22 +815,22 @@ fi
 # Copy Next.js project template (without node_modules)
 echo "→ Copying Next.js project template from /opt/next-template..."
 echo "  Source: /opt/next-template (agent:agent)"
-echo "  Target: /home/agent/next"
+echo "  Target: /home/fulling/next"
 echo "  Note: node_modules NOT included - run 'pnpm install' to install dependencies"
 echo "  This may take 5-10 seconds..."
-mkdir -p /home/agent/next
+mkdir -p /home/fulling/next
 
 # Copy project files (node_modules already removed from image)
 # Using cp instead of rsync for simplicity (rsync is available but cp is sufficient)
-cp -rp /opt/next-template/. /home/agent/next 2>&1 || {
+cp -rp /opt/next-template/. /home/fulling/next 2>&1 || {
   echo "✗ ERROR: Failed to copy template"
   exit 1
 }
 
 # Verify copy was successful
-if [ ! -f /home/agent/next/package.json ]; then
+if [ ! -f /home/fulling/next/package.json ]; then
   echo "✗ ERROR: Project copy incomplete - package.json not found"
-  ls -la /home/agent/next 2>&1 || true
+  ls -la /home/fulling/next 2>&1 || true
   exit 1
 fi
 
@@ -840,22 +840,22 @@ echo "✓ Next.js project template copied successfully"
 # Note: Even though source files are agent:agent in the image,
 # cp creates new files owned by the current user (root in init container)
 echo "→ Setting ownership (agent:1001) and permissions..."
-chown -R 1001:1001 /home/agent/next 2>&1 || {
+chown -R 1001:1001 /home/fulling/next 2>&1 || {
   echo "⚠ Warning: Failed to set ownership, but continuing..."
 }
-chmod -R u+rwX,g+rX,o+rX /home/agent/next 2>&1 || {
+chmod -R u+rwX,g+rX,o+rX /home/fulling/next 2>&1 || {
   echo "⚠ Warning: Failed to set permissions, but continuing..."
 }
 
 # Count files for verification
-FILE_COUNT=$(find /home/agent/next -type f | wc -l)
+FILE_COUNT=$(find /home/fulling/next -type f | wc -l)
 echo "✓ Copied $FILE_COUNT files"
 
 echo ""
 echo "=== Initialization Summary ==="
-echo "✓ .bashrc: $([ -f /home/agent/.bashrc ] && echo 'ready' || echo 'missing')"
+echo "✓ .bashrc: $([ -f /home/fulling/.bashrc ] && echo 'ready' || echo 'missing')"
 echo "✓ Next.js project: ready (newly created)"
-echo "✓ Location: /home/agent/next"
+echo "✓ Location: /home/fulling/next"
 echo "✓ Ownership: agent (1001:1001)"
 echo "✓ Files copied: $FILE_COUNT"
 echo "⚠ node_modules not included - run 'pnpm install' to install dependencies"
@@ -1187,7 +1187,7 @@ echo "=== Init Container: Completed successfully ==="
    * Delete PVCs associated with a StatefulSet
    *
    * StatefulSets create PVCs with names: {volumeClaimTemplate.name}-{statefulset.name}-{ordinal}
-   * For our case: vn-homevn-agent-{sandboxName}-0
+   * For our case: vn-homevn-fulling-{sandboxName}-0
    *
    * This method handles both:
    * 1. Clusters with persistentVolumeClaimRetentionPolicy support (Kubernetes 1.23+)
@@ -1200,7 +1200,7 @@ echo "=== Init Container: Completed successfully ==="
     try {
       // List all PVCs in namespace that belong to this StatefulSet
       // StatefulSet PVC naming: {volumeClaimTemplate.name}-{statefulset.name}-{ordinal}
-      const pvcName = `vn-homevn-agent-${sandboxName}-0`
+      const pvcName = `vn-homevn-fulling-${sandboxName}-0`
 
       try {
         await this.k8sApi.deleteNamespacedPersistentVolumeClaim({
