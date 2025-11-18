@@ -117,7 +117,7 @@ export const GET = withAuth<GetProjectsResponse>(async (req, _context, session) 
       }
     } catch {
       // If user doesn't have kubeconfig configured, log warning but don't fail
-      // Return empty array instead of filtering by namespace
+      // Skip namespace filtering and return all projects for the user
       logger.warn(
         `User ${session.user.id} does not have KUBECONFIG configured, returning all projects`
       )
@@ -194,6 +194,8 @@ export const POST = withAuth<PostProjectResponse>(async (req, _context, session)
   const k8sProjectName = KubernetesUtils.toK8sProjectName(name)
   const randomSuffix = KubernetesUtils.generateRandomString()
   const ttydAuthToken = generateRandomString()
+  const fileBrowserUsername = `fb-${randomSuffix}` // filebrowser username
+  const fileBrowserPassword = generateRandomString(16) // 16 char random password
   const databaseName = `${k8sProjectName}-${randomSuffix}`
   const sandboxName = `${k8sProjectName}-${randomSuffix}`
 
@@ -246,7 +248,7 @@ export const POST = withAuth<PostProjectResponse>(async (req, _context, session)
     })
 
     // 4. Create Environment record for ttyd access token
-    const environment = await tx.environment.create({
+    const ttydEnv = await tx.environment.create({
       data: {
         projectId: project.id,
         key: 'TTYD_ACCESS_TOKEN',
@@ -256,11 +258,39 @@ export const POST = withAuth<PostProjectResponse>(async (req, _context, session)
       },
     })
 
-    return { project, database, sandbox, environment }
+    // 5. Create Environment records for filebrowser credentials
+    const fileBrowserUsernameEnv = await tx.environment.create({
+      data: {
+        projectId: project.id,
+        key: 'FILE_BROWSER_USERNAME',
+        value: fileBrowserUsername,
+        category: EnvironmentCategory.FILE_BROWSER,
+        isSecret: false,
+      },
+    })
+
+    const fileBrowserPasswordEnv = await tx.environment.create({
+      data: {
+        projectId: project.id,
+        key: 'FILE_BROWSER_PASSWORD',
+        value: fileBrowserPassword,
+        category: EnvironmentCategory.FILE_BROWSER,
+        isSecret: true, // Mark as secret since it's a password
+      },
+    })
+
+    return {
+      project,
+      database,
+      sandbox,
+      ttydEnv,
+      fileBrowserUsernameEnv,
+      fileBrowserPasswordEnv,
+    }
   })
 
   logger.info(
-    `Project created: ${result.project.id} with database: ${result.database.id}, sandbox: ${result.sandbox.id}, and environment: ${result.environment.id}`
+    `Project created: ${result.project.id} with database: ${result.database.id}, sandbox: ${result.sandbox.id}, ttyd env: ${result.ttydEnv.id}, filebrowser username env: ${result.fileBrowserUsernameEnv.id}, filebrowser password env: ${result.fileBrowserPasswordEnv.id}`
   )
 
   return NextResponse.json(result.project)

@@ -20,6 +20,8 @@ export interface SandboxInfo {
   publicUrl: string
   /** Terminal access URL */
   ttydUrl: string
+  /** File browser access URL */
+  fileBrowserUrl: string
 }
 
 /**
@@ -127,11 +129,15 @@ export class SandboxManager {
     const ttydAccessToken = envVars['TTYD_ACCESS_TOKEN']
     const ttydUrl = ttydAccessToken ? `${baseTtydUrl}?arg=${ttydAccessToken}` : baseTtydUrl
 
+    // Build fileBrowserUrl (no token in URL, uses standard login)
+    const fileBrowserUrl = `https://${sandboxName}-filebrowser.${ingressDomain}`
+
     return {
       statefulSetName: sandboxName,
       serviceName: serviceName,
       publicUrl: `https://${sandboxName}-app.${ingressDomain}`,
       ttydUrl: ttydUrl,
+      fileBrowserUrl: fileBrowserUrl,
     }
   }
 
@@ -544,6 +550,13 @@ export class SandboxManager {
   }
 
   /**
+   * Get FileBrowser Ingress name
+   */
+  private getFileBrowserIngressName(sandboxName: string): string {
+    return `${sandboxName}-filebrowser-ingress`
+  }
+
+  /**
    * Find StatefulSet by exact match
    *
    * @param sandboxName - Sandbox name
@@ -691,8 +704,91 @@ export class SandboxManager {
                   },
                 ],
               },
+              {
+                name: 'filebrowser',
+                image: 'filebrowser/filebrowser:latest',
+                command: ['/bin/sh', '-c'],
+                args: [
+                  `
+set -e
+
+echo "=== FileBrowser Initialization ==="
+
+# Only initialize if database doesn't exist
+if [ ! -f /database/filebrowser.db ]; then
+  echo "→ Database not found, initializing..."
+
+  # Initialize config and database
+  filebrowser config init \
+    --database /database/filebrowser.db \
+    --root /srv \
+    --address 0.0.0.0 \
+    --port 8080
+
+  echo "✓ Config initialized"
+
+  # Add user with plaintext password (filebrowser will hash it)
+  filebrowser users add "$FILE_BROWSER_USERNAME" "$FILE_BROWSER_PASSWORD" \
+    --database /database/filebrowser.db \
+    --perm.admin
+
+  echo "✓ User created: $FILE_BROWSER_USERNAME"
+else
+  echo "✓ Database already exists, skipping initialization"
+fi
+
+echo "→ Starting FileBrowser..."
+# Start filebrowser
+exec filebrowser --database /database/filebrowser.db
+                  `.trim(),
+                ],
+                env: [
+                  {
+                    name: 'FILE_BROWSER_USERNAME',
+                    value: containerEnv['FILE_BROWSER_USERNAME'] || 'admin',
+                  },
+                  {
+                    name: 'FILE_BROWSER_PASSWORD',
+                    value: containerEnv['FILE_BROWSER_PASSWORD'] || 'admin',
+                  },
+                ],
+                ports: [{ containerPort: 8080, name: 'port-8080' }],
+                resources: {
+                  requests: {
+                    cpu: '50m',
+                    memory: '64Mi',
+                  },
+                  limits: {
+                    cpu: '500m',
+                    memory: '256Mi',
+                  },
+                },
+                volumeMounts: [
+                  {
+                    name: 'vn-homevn-agent',
+                    mountPath: '/srv',
+                  },
+                  {
+                    name: 'filebrowser-database',
+                    mountPath: '/database',
+                  },
+                  {
+                    name: 'filebrowser-config',
+                    mountPath: '/config',
+                  },
+                ],
+              },
             ],
-            volumes: [],
+            volumes: [
+              {
+                name: 'filebrowser-database',
+                emptyDir: {},
+              },
+              {
+                name: 'filebrowser-config',
+                emptyDir: {},
+              },
+            ],
           },
         },
         volumeClaimTemplates: [
@@ -908,6 +1004,7 @@ echo "=== Init Container: Completed successfully ==="
         ports: [
           { port: 3000, targetPort: 3000, name: 'port-3000', protocol: 'TCP' },
           { port: 7681, targetPort: 7681, name: 'port-7681', protocol: 'TCP' },
+          { port: 8080, targetPort: 8080, name: 'port-8080', protocol: 'TCP' },
         ],
         selector: {
           app: sandboxName,
@@ -919,7 +1016,7 @@ echo "=== Init Container: Completed successfully ==="
   }
 
   /**
-   * Create Ingresses (App and Ttyd) - idempotent
+   * Create Ingresses (App, Ttyd, and FileBrowser) - idempotent
    */
   private async createIngresses(
     sandboxName: string,
@@ -930,6 +1027,7 @@ echo "=== Init Container: Completed successfully ==="
   ): Promise<void> {
     const appIngressName = this.getAppIngressName(sandboxName)
     const ttydIngressName = this.getTtydIngressName(sandboxName)
+    const fileBrowserIngressName = this.getFileBrowserIngressName(sandboxName)
 
     const appIngress = this.createAppIngress(
       sandboxName,
@@ -945,10 +1043,18 @@ echo "=== Init Container: Completed successfully ==="
       serviceName,
       ingressDomain
     )
+    const fileBrowserIngress = this.createFileBrowserIngress(
+      sandboxName,
+      k8sProjectName,
+      namespace,
+      serviceName,
+      ingressDomain
+    )
 
     await Promise.all([
       this.createIngressIfNotExists(appIngressName, namespace, appIngress),
       this.createIngressIfNotExists(ttydIngressName, namespace, ttydIngress),
+      this.createIngressIfNotExists(fileBrowserIngressName, namespace, fileBrowserIngress),
     ])
   }
 
@@ -1107,6 +1213,73 @@ echo "=== Init Container: Completed successfully ==="
   }
 
   /**
+   * Create FileBrowser Ingress
+   */
+  private createFileBrowserIngress(
+    sandboxName: string,
+    k8sProjectName: string,
+    namespace: string,
+    serviceName: string,
+    ingressDomain: string
+  ): k8s.V1Ingress {
+    const ingressName = this.getFileBrowserIngressName(sandboxName)
+    const host = `${sandboxName}-filebrowser.${ingressDomain}`
+
+    return {
+      apiVersion: 'networking.k8s.io/v1',
+      kind: 'Ingress',
+      metadata: {
+        name: ingressName,
+        namespace,
+        labels: {
+          'cloud.sealos.io/app-deploy-manager': sandboxName,
+          'cloud.sealos.io/app-deploy-manager-domain': `${sandboxName}-filebrowser`,
+          'project.fullstackagent.io/name': k8sProjectName,
+        },
+        annotations: {
+          'kubernetes.io/ingress.class': 'nginx',
+          'nginx.ingress.kubernetes.io/proxy-body-size': '32m',
+          'nginx.ingress.kubernetes.io/ssl-redirect': 'false',
+          'nginx.ingress.kubernetes.io/backend-protocol': 'HTTP',
+          'nginx.ingress.kubernetes.io/client-body-buffer-size': '64k',
+          'nginx.ingress.kubernetes.io/proxy-buffer-size': '64k',
+          'nginx.ingress.kubernetes.io/proxy-send-timeout': '300',
+          'nginx.ingress.kubernetes.io/proxy-read-timeout': '300',
+          'nginx.ingress.kubernetes.io/server-snippet':
+            'client_header_buffer_size 64k;\nlarge_client_header_buffers 4 128k;',
+        },
+      },
+      spec: {
+        rules: [
+          {
+            host,
+            http: {
+              paths: [
+                {
+                  pathType: 'Prefix',
+                  path: '/',
+                  backend: {
+                    service: {
+                      name: serviceName,
+                      port: { number: 8080 },
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        ],
+        tls: [
+          {
+            hosts: [host],
+            secretName: 'wildcard-cert',
+          },
+        ],
+      },
+    }
+  }
+
+  /**
    * Delete StatefulSet (exact deletion)
    */
   private async deleteStatefulSet(sandboxName: string, namespace: string): Promise<void> {
@@ -1150,15 +1323,17 @@ echo "=== Init Container: Completed successfully ==="
   }
 
   /**
-   * Delete Ingresses (exact deletion of App and Ttyd Ingress)
+   * Delete Ingresses (exact deletion of App, Ttyd, and FileBrowser Ingress)
    */
   private async deleteIngresses(sandboxName: string, namespace: string): Promise<void> {
     const appIngressName = this.getAppIngressName(sandboxName)
     const ttydIngressName = this.getTtydIngressName(sandboxName)
+    const fileBrowserIngressName = this.getFileBrowserIngressName(sandboxName)
 
     await Promise.all([
       this.deleteIngress(appIngressName, namespace),
       this.deleteIngress(ttydIngressName, namespace),
+      this.deleteIngress(fileBrowserIngressName, namespace),
     ])
   }
 

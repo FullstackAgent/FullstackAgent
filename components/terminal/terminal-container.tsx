@@ -120,7 +120,7 @@ export function TerminalContainer({ project, sandbox }: TerminalContainerProps) 
             <TerminalDisplay
               key={tab.id}
               ttydUrl={sandbox?.ttydUrl}
-              status={project.status}
+              status={sandbox?.status ?? 'CREATING'}
               tabId={tab.id}
             />
           </div>
