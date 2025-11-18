@@ -137,3 +137,26 @@ Multi-level shadow effects optimized for dark theme:
 - `--radius-md`: `calc(var(--radius) - 2px)`
 - `--radius-lg`: `var(--radius)`
 - `--radius-xl`: `calc(var(--radius) + 4px)`
+
+## Tabs Component Styling
+
+### Tab Container Colors
+
+| Variable | Hex Value | Usage |
+|----------|-----------|-------|
+| `--tabs-background` | `#252526` | Tab container background |
+
+### Tab Item States
+
+| Variable | Hex Value | Usage |
+|----------|-----------|-------|
+| `--tab-background` | `#292929` | Default/inactive tab background |
+| `--tab-foreground` | `#A0A0A0` | Default/inactive tab text color |
+| `--tab-active-background` | `#1E1E1E` | Active tab background |
+| `--tab-active-foreground` | `#FFFFFF` | Active tab text color |
+
+### Implementation Notes
+
+- **Visual Hierarchy**: Active tabs use a darker background (`#1E1E1E`) with white text for maximum contrast
+- **Inactive State**: Default tabs use a lighter background (`#292929`) with muted gray text (`#A0A0A0`)
+- **Container**: Tab container uses a distinct purple-tinted background (`#252556`) to differentiate from main content

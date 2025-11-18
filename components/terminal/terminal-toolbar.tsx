@@ -115,16 +115,16 @@ export function TerminalToolbar({
 
   return (
     <>
-      <div className="h-9 bg-[#2d2d30] border-b border-[#3e3e42] flex items-center justify-between px-2">
+      <div className="h-12 bg-tabs-background border-b border-[#3e3e42] flex items-center justify-between px-2">
         {/* Terminal Tabs */}
-        <div className="flex items-center gap-1 flex-1 min-w-0">
+        <div className="flex items-center gap-1 flex-1 min-w-0 h-full">
           {tabs.map((tab) => (
             <div
               key={tab.id}
               className={cn(
-                'flex items-center gap-1 px-2 py-1 rounded text-xs cursor-pointer transition-colors',
+                'flex items-center gap-1 rounded text-xs cursor-pointer transition-colors',
                 activeTabId === tab.id
-                  ? 'bg-[#1e1e1e] text-white'
+                  ? 'bg-tab-background text-tab-foreground'
                   : 'text-gray-400 hover:bg-[#37373d]'
               )}
               onClick={() => onTabSelect(tab.id)}

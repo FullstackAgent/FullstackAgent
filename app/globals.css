@@ -91,6 +91,11 @@
   --sidebar-border: oklch(1.00 0 0 / 10%);
   --sidebar-ring: oklch(0.55 0.02 285.93);
   --content-background: #1E1E1E;
+  --tabs-background: #252526;
+  --tab-background: #292929;
+  --tab-foreground: #A0A0A0;
+  --tab-active-background: #1E1E1E;
+  --tab-active-foreground: #FFFFFF;
   --font-serif: Source Serif 4, serif;
   --font-mono: JetBrains Mono, monospace;
   --radius: 0.375rem;
@@ -141,6 +146,11 @@
   --color-sidebar-ring: var(--sidebar-ring);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-content-background: var(--content-background);
+  --color-tabs-background: var(--tabs-background);
+  --color-tab-background: var(--tab-background);
+  --color-tab-foreground: var(--tab-foreground);
+  --color-tab-active-background: var(--tab-active-background);
+  --color-tab-active-foreground: var(--tab-active-foreground);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
   --font-serif: var(--font-serif);
