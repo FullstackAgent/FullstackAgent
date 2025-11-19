@@ -765,7 +765,7 @@ exec filebrowser --database /database/filebrowser.db
                 },
                 volumeMounts: [
                   {
-                    name: 'vn-homevn-agent',
+                    name: 'vn-homevn-fulling',
                     mountPath: '/srv',
                   },
                   {
