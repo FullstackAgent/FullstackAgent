@@ -1,4 +1,5 @@
 import * as k8s from '@kubernetes/client-node'
+import { PassThrough } from 'stream'
 
 import { logger as baseLogger } from '@/lib/logger'
 
@@ -1487,11 +1488,9 @@ echo "{\\"cwd\\":\\"$CWD\\",\\"homeDir\\":\\"$HOME_DIR\\",\\"isInHome\\":$IS_IN_
     let errorOutput = ''
 
     try {
-      const stream = await import('stream')
-
       await new Promise<void>((resolve, reject) => {
-        const stdoutStream = new stream.PassThrough()
-        const stderrStream = new stream.PassThrough()
+        const stdoutStream = new PassThrough()
+        const stderrStream = new PassThrough()
 
         stdoutStream.on('data', (chunk) => {
           output += chunk.toString()
