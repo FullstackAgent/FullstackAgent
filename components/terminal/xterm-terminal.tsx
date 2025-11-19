@@ -1,29 +1,39 @@
 /**
  * XtermTerminal Component
  *
- * Terminal component built with xterm.js, supporting WebSocket connection to ttyd backend.
- * Implements dynamic imports for SSR compatibility and proper lifecycle management.
+ * Production-grade terminal component built with xterm.js, supporting WebSocket connection
+ * to ttyd backend with comprehensive file upload integration.
  *
- * Features:
- * - SSR-safe dynamic module loading
- * - WebSocket auto-reconnection
- * - Smart scroll behavior with indicator
- * - Multiple renderer support (WebGL, Canvas, DOM)
- * - Proper cleanup and memory management
- * - Seamless file upload via drag & drop or paste (Ctrl+V)
- * - Integration with FileBrowser
+ * Core Features:
+ * - SSR-safe dynamic module loading for Next.js compatibility
+ * - WebSocket auto-reconnection with graceful error handling
+ * - Smart scroll behavior with new content indicator
+ * - Multiple renderer support (WebGL → Canvas → DOM fallback)
+ * - Proper cleanup and memory management on unmount
  *
- * File Upload UX:
- * - Global paste support (works even when terminal has focus)
+ * File Upload System:
+ * - Drag & drop and paste (Ctrl+V) support
+ * - Smart directory detection via terminal session tracking
+ * - Uploads to current working directory (not fixed location)
+ * - Multi-terminal isolation via container-scoped event listeners
+ * - FileBrowser integration with TUS protocol
+ * - Security: Only allows uploads within home directory
+ * - Toast notifications with absolute path display and filename clipboard copy
  * - Background upload without blocking terminal interaction
- * - Toast notifications for progress and status
- * - No intrusive overlays
+ *
+ * Session Tracking Architecture:
+ * - Frontend generates unique session ID per terminal instance
+ * - Session ID passed to ttyd-auth.sh via URL parameter (?arg=TOKEN&arg=SESSION_ID)
+ * - ttyd-auth.sh stores shell PID in /tmp/.terminal-session-{SESSION_ID}
+ * - Backend reads shell PID to detect current working directory via /proc/{PID}/cwd
+ * - Solves process isolation issue (K8s exec creates new shell, can't see original env vars)
  */
 
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ITerminalOptions, Terminal as ITerminal } from '@xterm/xterm';
+import { toast } from 'sonner';
 
 import { useFileDrop } from './hooks/use-file-drop';
 import { useFileUpload } from './hooks/use-file-upload';
@@ -53,6 +63,7 @@ enum ClientCommand {
 
 export interface XtermTerminalProps {
   wsUrl: string;
+  sandboxId: string; // Sandbox ID for API calls
   theme?: {
     foreground?: string;
     background?: string;
@@ -93,6 +104,7 @@ export interface XtermTerminalProps {
 
 export function XtermTerminal({
   wsUrl,
+  sandboxId,
   theme,
   fontSize = 14,
   fontFamily = 'Consolas, Liberation Mono, Menlo, Courier, monospace',
@@ -109,13 +121,17 @@ export function XtermTerminal({
   // State & Refs
   // =========================================================================
 
-  const containerRef = useRef<HTMLDivElement>(null);
+  const fileDropContainerRef = useRef<HTMLDivElement>(null); // Wrapper for file drop events
+  const containerRef = useRef<HTMLDivElement>(null); // Xterm.js container
   const terminalRef = useRef<ITerminal | null>(null);
   const hasNewContentRef = useRef(false);
   const newLineCountRef = useRef(0);
 
   const [hasNewContent, setHasNewContent] = useState(false);
   const [newLineCount, setNewLineCount] = useState(0);
+
+  // Terminal session ID for multi-terminal support
+  const terminalSessionId = useRef(`terminal-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
   // =========================================================================
   // File Upload Integration
@@ -134,24 +150,71 @@ export function XtermTerminal({
     async (files: File[]) => {
       if (files.length === 0) return;
 
-      // Upload in background (uploadFiles will show toast with progress)
+      // Get current working directory from sandbox
+      let targetPath: string | undefined = undefined;
+      let absolutePath: string | undefined = undefined;
+
+      try {
+        const response = await fetch(
+          `/api/sandbox/${sandboxId}/cwd?sessionId=${terminalSessionId.current}`
+        );
+
+        if (response.ok) {
+          const cwdInfo = await response.json();
+
+          // Check if current directory is within home directory
+          if (cwdInfo.isInHome && cwdInfo.cwd && cwdInfo.homeDir) {
+            // Convert container absolute path to FileBrowser relative path
+            // FileBrowser root (/srv) is mounted to /home/fulling
+            // Example: /home/fulling/next/src -> /next/src
+            const relativePath = cwdInfo.cwd.startsWith(cwdInfo.homeDir)
+              ? cwdInfo.cwd.slice(cwdInfo.homeDir.length) || '/'
+              : '/';
+
+            targetPath = relativePath;
+            absolutePath = cwdInfo.cwd; // Store absolute path for toast display
+          } else if (!cwdInfo.isInHome) {
+            toast.warning('Upload to home directory', {
+              description: `Current directory (${cwdInfo.cwd}) is outside home. Uploading to home directory instead.`,
+              duration: 4000,
+            });
+            // Will use default path (/) with homeDir as absolute path
+            absolutePath = cwdInfo.homeDir;
+          }
+        } else {
+          console.warn('[XtermTerminal] Failed to get cwd, using default upload path');
+        }
+      } catch (error) {
+        console.warn('[XtermTerminal] Failed to get cwd:', error);
+        // Continue with default path
+      }
+
+      // Upload files - if targetPath is undefined, uploadFiles will use default root path
       try {
         await uploadFiles(files, {
           showToast: true,
           copyToClipboard: true,
+          targetPath: targetPath, // undefined = use default root path
+          absolutePath: absolutePath, // Absolute container path for toast display
         });
       } catch (error) {
         console.error('[XtermTerminal] Upload failed:', error);
+        toast.error('Upload failed', {
+          description: error instanceof Error ? error.message : 'Unknown error',
+          duration: 5000,
+        });
       }
     },
-    [uploadFiles]
+    [uploadFiles, sandboxId]
   );
 
   // Setup drag and drop / paste event handling
+  // Listen on terminal container element instead of window for proper multi-terminal isolation
   useFileDrop({
     enabled: isConfigured && !isUploading,
     onFilesDropped: handleFilesReceived,
     onFilesPasted: handleFilesReceived,
+    containerRef: fileDropContainerRef, // Listen on this terminal's container only
   });
 
   // =========================================================================
@@ -200,7 +263,6 @@ export function XtermTerminal({
     const terminal = terminalRef.current;
     if (terminal) {
       terminal.scrollToBottom();
-      console.log('[XtermTerminal] User scrolled to bottom');
     }
     setHasNewContent(false);
     setNewLineCount(0);
@@ -254,10 +316,10 @@ export function XtermTerminal({
     };
 
     // -----------------------------------------------------------------------
-    // Helper: Parse WebSocket URL
+    // Helper: Parse WebSocket URL and add session ID
     // -----------------------------------------------------------------------
 
-    const parseUrl = (): { wsFullUrl: string; token: string } | null => {
+    const parseUrl = (): string | null => {
       try {
         const url = new URL(wsUrl);
         const token = url.searchParams.get('arg') || '';
@@ -267,12 +329,16 @@ export function XtermTerminal({
           return null;
         }
 
+        // Add session ID as second arg parameter for ttyd-auth.sh
+        // URL format: ?arg=TOKEN&arg=SESSION_ID
+        url.searchParams.append('arg', terminalSessionId.current);
+
         const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsPath = url.pathname.replace(/\/$/, '') + '/ws';
         const wsFullUrl = `${wsProtocol}//${url.host}${wsPath}${url.search}`;
 
         console.log('[XtermTerminal] Connecting to:', wsFullUrl.replace(token, '***'));
-        return { wsFullUrl, token };
+        return wsFullUrl;
       } catch (error) {
         console.error('[XtermTerminal] Failed to parse URL:', error);
         return null;
@@ -354,13 +420,11 @@ export function XtermTerminal({
     const connectWebSocket = () => {
       if (!terminal || !isMounted) return;
 
-      const urlInfo = parseUrl();
-      if (!urlInfo) {
+      const wsFullUrl = parseUrl();
+      if (!wsFullUrl) {
         stableOnDisconnected();
         return;
       }
-
-      const { wsFullUrl, token } = urlInfo;
 
       console.log('[XtermTerminal] Creating WebSocket connection...');
       socket = new WebSocket(wsFullUrl, ['tty']);
@@ -371,12 +435,16 @@ export function XtermTerminal({
         console.log('[XtermTerminal] WebSocket connected');
         stableOnConnected();
 
-        const authMsg = JSON.stringify({
-          AuthToken: token,
+        // Send initial terminal size to ttyd
+        // Note: AuthToken field removed - this project uses shell script authentication
+        // instead of ttyd's built-in WebSocket authentication (server->credential = NULL)
+        // See: docs/technical-notes/TTYD_AUTHENTICATION.md
+        const initMsg = JSON.stringify({
           columns: terminal!.cols,
           rows: terminal!.rows,
         });
-        socket?.send(textEncoder.encode(authMsg));
+        socket?.send(textEncoder.encode(initMsg));
+
         terminal!.focus();
       };
 
@@ -587,7 +655,7 @@ export function XtermTerminal({
   // =========================================================================
 
   return (
-    <div className="relative w-full h-full">
+    <div ref={fileDropContainerRef} className="relative w-full h-full">
       <div ref={containerRef} className="w-full h-full" style={{ padding: '5px' }} />
 
       {/* Scroll to bottom button */}

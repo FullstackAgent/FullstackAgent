@@ -32,6 +32,7 @@ import { XtermTerminal } from './xterm-terminal';
 // ============================================================================
 
 export interface TerminalDisplayProps {
+  sandboxId: string;
   ttydUrl?: string | null;
   status: string;
   tabId: string;
@@ -47,6 +48,7 @@ type ConnectionStatus = 'connecting' | 'connected' | 'error';
 // ============================================================================
 
 export function TerminalDisplay({
+  sandboxId,
   ttydUrl,
   status,
   tabId,
@@ -109,6 +111,7 @@ export function TerminalDisplay({
           <XtermTerminal
             key={`xterm-${tabId}`}
             wsUrl={ttydUrl}
+            sandboxId={sandboxId}
             theme={{
               foreground: '#d2d2d2',
               background: '#1e1e1e',

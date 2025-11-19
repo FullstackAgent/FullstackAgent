@@ -1410,4 +1410,130 @@ echo "=== Init Container: Completed successfully ==="
       // The PVCs might have already been deleted by K8s retention policy
     }
   }
+
+  /**
+   * Get current working directory of a terminal session in sandbox
+   *
+   * Uses session ID to find the shell process via proc filesystem environ
+   * and reads its working directory from proc pid cwd
+   *
+   * @param namespace - Kubernetes namespace
+   * @param sandboxName - Sandbox StatefulSet name
+   * @param sessionId - Terminal session ID (from TERMINAL_SESSION_ID env var)
+   * @returns Current working directory info
+   */
+  async getSandboxCurrentDirectory(
+    namespace: string,
+    sandboxName: string,
+    sessionId: string
+  ): Promise<{ cwd: string; homeDir: string; isInHome: boolean }> {
+    const exec = new k8s.Exec(this.kc)
+    const podName = `${sandboxName}-0` // StatefulSet pod naming
+
+    // Combined script: Find PID from session file and get working directory
+    // We store the shell PID in a file because K8s exec creates a new shell
+    // that can't see the environment variables of the ttyd shell
+    const combinedScript = `
+#!/bin/bash
+# Find shell process by reading PID from session file
+
+# Step 1: Read shell PID from session file
+SESSION_FILE="/tmp/.terminal-session-${sessionId}"
+if [ ! -f "$SESSION_FILE" ]; then
+  echo "ERROR: Session file not found: $SESSION_FILE" >&2
+  echo "HINT: Make sure the terminal has fully loaded" >&2
+  exit 1
+fi
+
+SHELL_PID=$(cat "$SESSION_FILE" 2>/dev/null)
+if [ -z "$SHELL_PID" ]; then
+  echo "ERROR: Failed to read PID from session file: $SESSION_FILE" >&2
+  exit 1
+fi
+
+# Verify the process exists
+if [ ! -d "/proc/$SHELL_PID" ]; then
+  echo "ERROR: Process $SHELL_PID no longer exists" >&2
+  echo "HINT: The terminal session may have been closed" >&2
+  exit 1
+fi
+
+# Step 2: Get current working directory
+CWD=$(readlink -f /proc/$SHELL_PID/cwd 2>/dev/null)
+if [ $? -ne 0 ] || [ -z "$CWD" ]; then
+  echo "ERROR: Failed to read current directory for PID $SHELL_PID" >&2
+  exit 1
+fi
+
+# Get home directory
+HOME_DIR=$(eval echo ~$(stat -c '%U' /proc/$SHELL_PID 2>/dev/null))
+if [ -z "$HOME_DIR" ]; then
+  HOME_DIR="/home/agent"  # Fallback to default
+fi
+
+# Check if CWD is within HOME_DIR
+if [[ "$CWD" == "$HOME_DIR"* ]]; then
+  IS_IN_HOME="true"
+else
+  IS_IN_HOME="false"
+fi
+
+# Output JSON
+echo "{\\"cwd\\":\\"$CWD\\",\\"homeDir\\":\\"$HOME_DIR\\",\\"isInHome\\":$IS_IN_HOME}"
+`
+
+    let output = ''
+    let errorOutput = ''
+
+    try {
+      const stream = await import('stream')
+
+      await new Promise<void>((resolve, reject) => {
+        const stdoutStream = new stream.PassThrough()
+        const stderrStream = new stream.PassThrough()
+
+        stdoutStream.on('data', (chunk) => {
+          output += chunk.toString()
+        })
+
+        stderrStream.on('data', (chunk) => {
+          errorOutput += chunk.toString()
+        })
+
+        exec.exec(
+          namespace,
+          podName,
+          sandboxName, // Use sandboxName as container name (matches StatefulSet definition)
+          ['bash', '-c', combinedScript],
+          stdoutStream,
+          stderrStream,
+          null,
+          false,
+          (status) => {
+            if (status.status === 'Success') {
+              resolve()
+            } else {
+              reject(new Error(`Command failed: ${status.message || errorOutput}`))
+            }
+          }
+        )
+      })
+    } catch (error) {
+      throw new Error(`Failed to get current directory: ${error} - ${errorOutput}`)
+    }
+
+    // Parse JSON output
+    try {
+      const result = JSON.parse(output.trim())
+      return {
+        cwd: result.cwd,
+        homeDir: result.homeDir,
+        isInHome: result.isInHome,
+      }
+    } catch (parseError) {
+      throw new Error(
+        `Failed to parse directory info. Output: ${output}, Parse Error: ${parseError}, Stderr: ${errorOutput}`
+      )
+    }
+  }
 }

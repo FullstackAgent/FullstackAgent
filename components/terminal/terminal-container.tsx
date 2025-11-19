@@ -137,6 +137,7 @@ export function TerminalContainer({ project, sandbox }: TerminalContainerProps) 
             {/* Each tab maintains its own terminal instance */}
             <TerminalDisplay
               key={tab.id}
+              sandboxId={sandbox?.id ?? ''}
               ttydUrl={sandbox?.ttydUrl}
               status={sandbox?.status ?? 'CREATING'}
               tabId={tab.id}

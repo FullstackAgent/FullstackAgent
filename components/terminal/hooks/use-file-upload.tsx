@@ -44,6 +44,10 @@ export interface UploadOptions {
   showToast?: boolean;
   /** Copy path to clipboard after successful upload */
   copyToClipboard?: boolean;
+  /** Target directory path for upload (defaults to root if not specified) */
+  targetPath?: string;
+  /** Absolute container path for display in toast (e.g., /home/fulling/next/src) */
+  absolutePath?: string;
 }
 
 // ============================================================================
@@ -127,7 +131,8 @@ export function useFileUpload(config: FileUploadConfig) {
                 description: currentFile ? `Current: ${currentFile}` : 'Processing...',
               });
             }
-          }
+          },
+          options.targetPath // Pass target path to upload function
         );
 
         // Dismiss loading toast
@@ -139,8 +144,13 @@ export function useFileUpload(config: FileUploadConfig) {
         // Handle results
         if (result.succeeded.length > 0) {
           const totalSize = result.succeeded.reduce((sum, r) => sum + r.size, 0);
+
+          // For clipboard: copy only filename (single file) or directory path (multiple files)
           const pathToCopy =
-            result.succeeded.length === 1 ? result.succeeded[0].path : result.rootPath;
+            result.succeeded.length === 1 ? result.succeeded[0].filename : result.rootPath;
+
+          // For display: use absolute path if provided, otherwise use relative path
+          const displayPath = options.absolutePath || result.rootPath;
 
           // Copy to clipboard
           let clipboardSuccess = false;
@@ -159,24 +169,24 @@ export function useFileUpload(config: FileUploadConfig) {
               // All succeeded
               if (result.succeeded.length === 1) {
                 const file = result.succeeded[0];
-                const clipboardHint = clipboardSuccess ? ' • Path copied!' : '';
+                const clipboardHint = clipboardSuccess ? ' • Filename copied!' : '';
                 toast.success('File uploaded', {
-                  description: `${file.filename} (${formatFileSize(file.size)}) • ${pathToCopy}${clipboardHint}`,
+                  description: `${file.filename} (${formatFileSize(file.size)}) → ${displayPath}${clipboardHint}`,
                   duration: 5000,
                 });
               } else {
-                const clipboardHint = clipboardSuccess ? ' • Path copied!' : '';
+                const clipboardHint = clipboardSuccess ? ' • Directory path copied!' : '';
                 toast.success(`${result.succeeded.length} files uploaded`, {
-                  description: `Total: ${formatFileSize(totalSize)} • ${pathToCopy}${clipboardHint}`,
+                  description: `Total: ${formatFileSize(totalSize)} → ${displayPath}${clipboardHint}`,
                   duration: 5000,
                 });
               }
             } else {
               // Partial success
               const failedNames = result.failed.map((f) => f.filename).join(', ');
-              const clipboardHint = clipboardSuccess ? ' • Path copied!' : '';
+              const clipboardHint = clipboardSuccess ? ' • Directory path copied!' : '';
               toast.warning(`Uploaded ${result.succeeded.length} of ${result.total} files`, {
-                description: `${formatFileSize(totalSize)} uploaded • Failed: ${failedNames}${clipboardHint}`,
+                description: `${formatFileSize(totalSize)} uploaded → ${displayPath} • Failed: ${failedNames}${clipboardHint}`,
                 duration: 6000,
               });
             }

@@ -34,6 +34,10 @@ export interface UseTerminalReturn {
   reconnect: () => void
   /** Disconnect and stop auto-reconnect */
   disconnect: () => void
+  /** Callback to handle connected event from XtermTerminal */
+  handleConnected: () => void
+  /** Callback to handle disconnected event from XtermTerminal */
+  handleDisconnected: () => void
 }
 
 export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
@@ -138,5 +142,7 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
     wsUrl,
     reconnect,
     disconnect,
+    handleConnected,
+    handleDisconnected,
   }
 }

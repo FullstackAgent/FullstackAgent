@@ -88,27 +88,44 @@ export async function loginToFileBrowser(
  * Upload a single file to FileBrowser using TUS protocol
  *
  * TUS (Tus Resumable Upload) protocol:
- * - POST /api/tus/{filename}?override=false - Create upload session
- * - PATCH /api/tus/{filename} - Upload file content in chunks
+ * - POST /api/tus/{path}/{filename}?override=false - Create upload session
+ * - PATCH /api/tus/{path}/{filename} - Upload file content in chunks
  *
  * @param fileBrowserUrl - Base URL of FileBrowser
  * @param token - JWT token from loginToFileBrowser()
  * @param file - File to upload
+ * @param targetPath - Target directory path (e.g., "/home/fulling/next", default: "/")
  * @returns Upload result with file path and metadata
  * @throws Error if upload fails
  */
 export async function uploadFileToFileBrowser(
   fileBrowserUrl: string,
   token: string,
-  file: File
+  file: File,
+  targetPath: string = '/'
 ): Promise<UploadResult> {
   // Dynamic import for client-side only (tus-js-client uses browser APIs)
   const tus = await import('tus-js-client')
 
-  // FileBrowser TUS endpoint format: /api/tus/{filename}?override=false
-  // Filename must be in URL, not in metadata
+  // Normalize target path: remove trailing slash, ensure leading slash
+  let normalizedPath = targetPath.trim()
+  if (normalizedPath !== '/' && normalizedPath.endsWith('/')) {
+    normalizedPath = normalizedPath.slice(0, -1)
+  }
+  if (!normalizedPath.startsWith('/')) {
+    normalizedPath = '/' + normalizedPath
+  }
+
+  // FileBrowser TUS endpoint format: /api/tus/{path}/{filename}?override=false
+  // Filename and path must be in URL, not in metadata
   const encodedFilename = encodeURIComponent(file.name)
-  const tusEndpoint = `${fileBrowserUrl}/api/tus/${encodedFilename}?override=false`
+  const encodedPath = normalizedPath
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/')
+
+  // Build TUS endpoint with path
+  const tusEndpoint = `${fileBrowserUrl}/api/tus${encodedPath}/${encodedFilename}?override=false`
 
   return new Promise<UploadResult>((resolve, reject) => {
     const upload = new tus.Upload(file, {
@@ -122,8 +139,8 @@ export async function uploadFileToFileBrowser(
         reject(new Error(`Upload failed: ${error.message}`))
       },
       onSuccess: () => {
-        // FileBrowser uploads to root directory
-        const uploadedPath = `/${file.name}`
+        // FileBrowser uploads to specified directory
+        const uploadedPath = `${normalizedPath}/${file.name}`
         resolve({
           path: uploadedPath,
           filename: file.name,
@@ -145,6 +162,7 @@ export async function uploadFileToFileBrowser(
  * @param password - FileBrowser password
  * @param files - Array of files to upload
  * @param onProgress - Optional callback for upload progress
+ * @param targetPath - Target directory path relative to FileBrowser root (e.g., "/next/src"). Defaults to "/" if not provided.
  * @returns Batch upload result with succeeded/failed files
  */
 export async function uploadFilesToFileBrowser(
@@ -152,8 +170,12 @@ export async function uploadFilesToFileBrowser(
   username: string,
   password: string,
   files: File[],
-  onProgress?: (completed: number, total: number, currentFile: string) => void
+  onProgress?: (completed: number, total: number, currentFile: string) => void,
+  targetPath?: string
 ): Promise<UploadBatchResult> {
+  // Default to root path if not provided
+  const uploadPath = targetPath || '/'
+
   // Login once and reuse token for all uploads
   const token = await loginToFileBrowser(fileBrowserUrl, username, password)
 
@@ -167,7 +189,7 @@ export async function uploadFilesToFileBrowser(
     onProgress?.(i, total, file.name)
 
     try {
-      const result = await uploadFileToFileBrowser(fileBrowserUrl, token, file)
+      const result = await uploadFileToFileBrowser(fileBrowserUrl, token, file, uploadPath)
       succeeded.push(result)
     } catch (error) {
       failed.push({
@@ -187,7 +209,7 @@ export async function uploadFilesToFileBrowser(
     failed,
     total,
     allImages,
-    rootPath: '/', // FileBrowser uploads to root directory
+    rootPath: uploadPath, // Return the target path used for upload
   }
 }
 
