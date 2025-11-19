@@ -590,6 +590,9 @@ kubectl exec -it <pod-name> -n <namespace> -- env | grep TTYD_ACCESS_TOKEN
 - [ttyd Protocol Documentation](https://github.com/tsl0922/ttyd/blob/main/docs/protocol.md)
 - [Kubernetes Secrets](https://kubernetes.io/docs/concepts/configuration/secret/)
 - [FullstackAgent Architecture](./TECHNICAL_DOCUMENTATION.md)
+- [ttyd server.c](https://github.com/tsl0922/ttyd/blob/eccebc6bb1dfbaf0c46f1fd9c53b89abc773784d/src/server.c)
+- [ttyd protocol.c](https://github.com/tsl0922/ttyd/blob/eccebc6bb1dfbaf0c46f1fd9c53b89abc773784d/src/protocol.c)
+- [ttyd xterm](https://github.com/tsl0922/ttyd/blob/eccebc6bb1dfbaf0c46f1fd9c53b89abc773784d/html/src/components/terminal/xterm/index.ts#L264)
 
 ---
 
