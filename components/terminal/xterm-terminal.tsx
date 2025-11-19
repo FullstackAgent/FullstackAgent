@@ -24,8 +24,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ITerminalOptions, Terminal as ITerminal } from '@xterm/xterm';
-import { Upload } from 'lucide-react';
-import { toast } from 'sonner';
 
 import { useFileDrop } from './hooks/use-file-drop';
 import { useFileUpload } from './hooks/use-file-upload';
@@ -133,16 +131,10 @@ export function XtermTerminal({
 
   // Handle file drop and paste events
   const handleFilesReceived = useCallback(
-    async (files: File[], source: 'drop' | 'paste') => {
+    async (files: File[]) => {
       if (files.length === 0) return;
 
-      // Show quick info toast
-      toast.info(`${source === 'paste' ? 'Pasted' : 'Dropped'} ${files.length} file(s)`, {
-        description: 'Starting upload...',
-        duration: 2000,
-      });
-
-      // Upload in background
+      // Upload in background (uploadFiles will show toast with progress)
       try {
         await uploadFiles(files, {
           showToast: true,
@@ -156,10 +148,10 @@ export function XtermTerminal({
   );
 
   // Setup drag and drop / paste event handling
-  const { isDragging } = useFileDrop({
+  useFileDrop({
     enabled: isConfigured && !isUploading,
-    onFilesDropped: (files) => handleFilesReceived(files, 'drop'),
-    onFilesPasted: (files) => handleFilesReceived(files, 'paste'),
+    onFilesDropped: handleFilesReceived,
+    onFilesPasted: handleFilesReceived,
   });
 
   // =========================================================================
@@ -631,62 +623,6 @@ export function XtermTerminal({
             {newLineCount} new {newLineCount === 1 ? 'line' : 'lines'}
           </span>
         </button>
-      )}
-
-      {/* Subtle drag indicator - only shown when dragging files */}
-      {isConfigured && isDragging && (
-        <div
-          className="absolute top-4 left-1/2 -translate-x-1/2
-                     bg-blue-600/95 text-white
-                     px-4 py-2 rounded-lg
-                     shadow-lg
-                     flex items-center gap-2
-                     z-50
-                     pointer-events-none
-                     animate-fade-in"
-        >
-          <Upload className="w-4 h-4" />
-          <span className="text-sm font-medium">Drop files to upload</span>
-        </div>
-      )}
-
-      {/* Upload progress indicator - shown as floating badge */}
-      {isUploading && (
-        <div
-          className="absolute top-4 right-4
-                     bg-gray-900/95 text-white
-                     px-4 py-2 rounded-lg
-                     shadow-lg border border-gray-700
-                     flex items-center gap-2
-                     z-50
-                     pointer-events-none
-                     animate-fade-in"
-        >
-          <div className="animate-spin">
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              />
-            </svg>
-          </div>
-          <span className="text-sm font-medium">Uploading...</span>
-        </div>
       )}
     </div>
   );

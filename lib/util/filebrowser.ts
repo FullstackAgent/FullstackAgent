@@ -10,6 +10,8 @@
  * 3. Files are uploaded to FileBrowser root directory (/)
  */
 
+export { copyToClipboard } from './common-web'
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -295,39 +297,4 @@ export async function extractFilesFromDataTransfer(dataTransfer: DataTransfer): 
   }
 
   return files
-}
-
-// ============================================================================
-// Clipboard Utilities
-// ============================================================================
-
-/**
- * Copy text to clipboard with fallback for older browsers
- *
- * @param text - Text to copy
- * @throws Error if copy fails
- */
-export async function copyToClipboard(text: string): Promise<void> {
-  // Try modern Clipboard API first
-  try {
-    await navigator.clipboard.writeText(text)
-    return
-  } catch {
-    // Fallback for older browsers or security restrictions
-  }
-
-  // Fallback: Create temporary textarea
-  const textArea = document.createElement('textarea')
-  textArea.value = text
-  textArea.style.position = 'fixed'
-  textArea.style.left = '-999999px'
-  document.body.appendChild(textArea)
-  textArea.select()
-
-  try {
-    // Note: document.execCommand is deprecated but needed for fallback
-    document.execCommand('copy')
-  } finally {
-    document.body.removeChild(textArea)
-  }
 }

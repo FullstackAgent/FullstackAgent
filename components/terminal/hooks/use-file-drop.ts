@@ -22,9 +22,9 @@
  * ```
  */
 
-'use client';
+'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 // ============================================================================
 // Types
@@ -32,13 +32,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 export interface FileDropConfig {
   /** Enable/disable file drop and paste handling */
-  enabled?: boolean;
+  enabled?: boolean
   /** Callback when files are dropped */
-  onFilesDropped?: (files: File[]) => void;
+  onFilesDropped?: (files: File[]) => void
   /** Callback when files are pasted */
-  onFilesPasted?: (files: File[]) => void;
+  onFilesPasted?: (files: File[]) => void
   /** Container element to attach events to (defaults to window) */
-  containerRef?: React.RefObject<HTMLElement | null>;
+  containerRef?: React.RefObject<HTMLElement | null>
 }
 
 // ============================================================================
@@ -46,193 +46,195 @@ export interface FileDropConfig {
 // ============================================================================
 
 export function useFileDrop(config: FileDropConfig) {
-  const [isDragging, setIsDragging] = useState(false);
-  const dragCounterRef = useRef(0);
+  const [isDragging, setIsDragging] = useState(false)
+  const dragCounterRef = useRef(0)
 
   /**
    * Extract files from clipboard data
    */
   const extractFilesFromClipboard = useCallback(
     async (clipboardData: DataTransfer): Promise<File[]> => {
-      const files: File[] = [];
-      const items = clipboardData.items;
+      const files: File[] = []
+      const items = clipboardData.items
 
-      if (!items) return files;
+      if (!items) return files
 
       // Extract files from clipboard items
       for (let i = 0; i < items.length; i++) {
-        const item = items[i];
+        const item = items[i]
         if (item.kind === 'file') {
-          const file = item.getAsFile();
+          const file = item.getAsFile()
           if (file) {
-            files.push(file);
+            files.push(file)
           }
         }
       }
 
-      return files;
+      return files
     },
     []
-  );
+  )
 
   /**
    * Extract files from DataTransfer (supports folders)
    */
   const extractFilesFromDataTransfer = useCallback(
     async (dataTransfer: DataTransfer): Promise<File[]> => {
-      const { extractFilesFromDataTransfer: extractFiles } = await import(
-        '@/lib/utils/filebrowser'
-      );
-      return extractFiles(dataTransfer);
+      const { extractFilesFromDataTransfer: extractFiles } = await import('@/lib/util/filebrowser')
+      return extractFiles(dataTransfer)
     },
     []
-  );
+  )
 
   /**
    * Handle drag enter event
    */
   const handleDragEnter = useCallback(
-    (e: DragEvent) => {
-      if (!config.enabled) return;
+    (evt: Event) => {
+      if (!config.enabled) return
 
-      e.preventDefault();
-      e.stopPropagation();
+      const e = evt as DragEvent
+      e.preventDefault()
+      e.stopPropagation()
 
-      dragCounterRef.current++;
+      dragCounterRef.current++
 
       // Check if drag contains files
-      const hasFiles = Array.from(e.dataTransfer?.items || []).some(
-        (item) => item.kind === 'file'
-      );
+      const hasFiles = Array.from(e.dataTransfer?.items || []).some((item) => item.kind === 'file')
 
       if (hasFiles && dragCounterRef.current === 1) {
-        setIsDragging(true);
+        setIsDragging(true)
       }
     },
     [config.enabled]
-  );
+  )
 
   /**
    * Handle drag over event
    */
   const handleDragOver = useCallback(
-    (e: DragEvent) => {
-      if (!config.enabled) return;
-      e.preventDefault();
-      e.stopPropagation();
+    (evt: Event) => {
+      if (!config.enabled) return
+
+      const e = evt as DragEvent
+      e.preventDefault()
+      e.stopPropagation()
     },
     [config.enabled]
-  );
+  )
 
   /**
    * Handle drag leave event
    */
   const handleDragLeave = useCallback(
-    (e: DragEvent) => {
-      if (!config.enabled) return;
+    (evt: Event) => {
+      if (!config.enabled) return
 
-      e.preventDefault();
-      e.stopPropagation();
+      const e = evt as DragEvent
+      e.preventDefault()
+      e.stopPropagation()
 
-      dragCounterRef.current--;
+      dragCounterRef.current--
 
       if (dragCounterRef.current === 0) {
-        setIsDragging(false);
+        setIsDragging(false)
       }
     },
     [config.enabled]
-  );
+  )
 
   /**
    * Handle drop event
    */
   const handleDrop = useCallback(
-    async (e: DragEvent) => {
-      if (!config.enabled) return;
+    async (evt: Event) => {
+      if (!config.enabled) return
 
-      e.preventDefault();
-      e.stopPropagation();
+      const e = evt as DragEvent
+      e.preventDefault()
+      e.stopPropagation()
 
       // Reset drag state
-      dragCounterRef.current = 0;
-      setIsDragging(false);
+      dragCounterRef.current = 0
+      setIsDragging(false)
 
-      if (!e.dataTransfer) return;
+      if (!e.dataTransfer) return
 
       try {
-        const files = await extractFilesFromDataTransfer(e.dataTransfer);
+        const files = await extractFilesFromDataTransfer(e.dataTransfer)
 
         if (files.length > 0) {
-          config.onFilesDropped?.(files);
+          config.onFilesDropped?.(files)
         }
       } catch (error) {
-        console.error('[useFileDrop] Failed to extract files from drop:', error);
+        console.error('[useFileDrop] Failed to extract files from drop:', error)
       }
     },
-    [config.enabled, config.onFilesDropped, extractFilesFromDataTransfer]
-  );
+    [config, extractFilesFromDataTransfer]
+  )
 
   /**
    * Handle paste event
    */
   const handlePaste = useCallback(
-    async (e: ClipboardEvent) => {
-      if (!config.enabled) return;
+    async (evt: Event) => {
+      if (!config.enabled) return
 
-      const clipboardData = e.clipboardData;
-      if (!clipboardData) return;
+      const e = evt as ClipboardEvent
+      const clipboardData = e.clipboardData
+      if (!clipboardData) return
 
       try {
-        const files = await extractFilesFromClipboard(clipboardData);
+        const files = await extractFilesFromClipboard(clipboardData)
 
         if (files.length > 0) {
           // Prevent default paste behavior when files are detected
-          e.preventDefault();
-          e.stopPropagation();
+          e.preventDefault()
+          e.stopPropagation()
 
-          config.onFilesPasted?.(files);
+          config.onFilesPasted?.(files)
         }
       } catch (error) {
-        console.error('[useFileDrop] Failed to extract files from paste:', error);
+        console.error('[useFileDrop] Failed to extract files from paste:', error)
       }
     },
-    [config.enabled, config.onFilesPasted, extractFilesFromClipboard]
-  );
+    [config, extractFilesFromClipboard]
+  )
 
   /**
    * Setup event listeners
    */
   useEffect(() => {
-    if (!config.enabled) return;
+    if (!config.enabled) return
 
     // Use provided container or default to window
-    const target = config.containerRef?.current || window;
-    if (!target) return;
+    const target = config.containerRef?.current || window
+    if (!target) return
 
     // Add event listeners
     // Note: drag events use bubble phase (default)
-    target.addEventListener('dragenter', handleDragEnter as any);
-    target.addEventListener('dragover', handleDragOver as any);
-    target.addEventListener('dragleave', handleDragLeave as any);
-    target.addEventListener('drop', handleDrop as any);
+    target.addEventListener('dragenter', handleDragEnter)
+    target.addEventListener('dragover', handleDragOver)
+    target.addEventListener('dragleave', handleDragLeave)
+    target.addEventListener('drop', handleDrop)
 
     // CRITICAL: Use capture phase for paste to intercept before xterm!
     // xterm blocks paste event propagation, so we must listen in capture phase
-    target.addEventListener('paste', handlePaste as any, true);
+    target.addEventListener('paste', handlePaste, true)
 
     // Cleanup
     return () => {
-      target.removeEventListener('dragenter', handleDragEnter as any);
-      target.removeEventListener('dragover', handleDragOver as any);
-      target.removeEventListener('dragleave', handleDragLeave as any);
-      target.removeEventListener('drop', handleDrop as any);
+      target.removeEventListener('dragenter', handleDragEnter)
+      target.removeEventListener('dragover', handleDragOver)
+      target.removeEventListener('dragleave', handleDragLeave)
+      target.removeEventListener('drop', handleDrop)
       // Must match the addEventListener call (with capture=true)
-      target.removeEventListener('paste', handlePaste as any, true);
+      target.removeEventListener('paste', handlePaste, true)
 
       // Reset state
-      dragCounterRef.current = 0;
-      setIsDragging(false);
-    };
+      dragCounterRef.current = 0
+      setIsDragging(false)
+    }
   }, [
     config.enabled,
     config.containerRef,
@@ -241,9 +243,9 @@ export function useFileDrop(config: FileDropConfig) {
     handleDragLeave,
     handleDrop,
     handlePaste,
-  ]);
+  ])
 
   return {
     isDragging,
-  };
+  }
 }

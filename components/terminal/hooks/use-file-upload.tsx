@@ -100,21 +100,16 @@ export function useFileUpload(config: FileUploadConfig) {
 
       // Show initial toast
       if (options.showToast) {
-        uploadToastIdRef.current = toast.loading(
-          `Uploading ${files.length} file(s)...`,
-          {
-            description: 'Please wait',
-          }
-        );
+        uploadToastIdRef.current = toast.loading(`Uploading ${files.length} file(s)...`, {
+          description: 'Please wait',
+        });
       }
 
       try {
         // Dynamic import for tree-shaking
-        const {
-          uploadFilesToFileBrowser,
-          copyToClipboard,
-          formatFileSize,
-        } = await import('@/lib/utils/filebrowser');
+        const { uploadFilesToFileBrowser, copyToClipboard, formatFileSize } = await import(
+          '@/lib/util/filebrowser'
+        );
 
         // Upload with progress tracking
         const result = await uploadFilesToFileBrowser(
@@ -148,40 +143,42 @@ export function useFileUpload(config: FileUploadConfig) {
             result.succeeded.length === 1 ? result.succeeded[0].path : result.rootPath;
 
           // Copy to clipboard
+          let clipboardSuccess = false;
           if (options.copyToClipboard) {
             try {
               await copyToClipboard(pathToCopy);
+              clipboardSuccess = true;
             } catch (error) {
               console.warn('[useFileUpload] Failed to copy to clipboard:', error);
             }
           }
 
-          // Show success toast
+          // Show success toast with clipboard feedback
           if (options.showToast) {
             if (result.failed.length === 0) {
               // All succeeded
               if (result.succeeded.length === 1) {
                 const file = result.succeeded[0];
+                const clipboardHint = clipboardSuccess ? ' • Path copied!' : '';
                 toast.success('File uploaded', {
-                  description: `${file.filename} (${formatFileSize(file.size)}) • Path: ${pathToCopy}`,
+                  description: `${file.filename} (${formatFileSize(file.size)}) • ${pathToCopy}${clipboardHint}`,
                   duration: 5000,
                 });
               } else {
+                const clipboardHint = clipboardSuccess ? ' • Path copied!' : '';
                 toast.success(`${result.succeeded.length} files uploaded`, {
-                  description: `Total: ${formatFileSize(totalSize)} • Path: ${pathToCopy}`,
+                  description: `Total: ${formatFileSize(totalSize)} • ${pathToCopy}${clipboardHint}`,
                   duration: 5000,
                 });
               }
             } else {
               // Partial success
               const failedNames = result.failed.map((f) => f.filename).join(', ');
-              toast.warning(
-                `Uploaded ${result.succeeded.length} of ${result.total} files`,
-                {
-                  description: `${formatFileSize(totalSize)} uploaded • Failed: ${failedNames}`,
-                  duration: 6000,
-                }
-              );
+              const clipboardHint = clipboardSuccess ? ' • Path copied!' : '';
+              toast.warning(`Uploaded ${result.succeeded.length} of ${result.total} files`, {
+                description: `${formatFileSize(totalSize)} uploaded • Failed: ${failedNames}${clipboardHint}`,
+                duration: 6000,
+              });
             }
           }
         } else {
@@ -218,12 +215,7 @@ export function useFileUpload(config: FileUploadConfig) {
         setUploadProgress(null);
       }
     },
-    [
-      isConfigured,
-      config.fileBrowserUrl,
-      config.fileBrowserUsername,
-      config.fileBrowserPassword,
-    ]
+    [isConfigured, config.fileBrowserUrl, config.fileBrowserUsername, config.fileBrowserPassword]
   );
 
   return {

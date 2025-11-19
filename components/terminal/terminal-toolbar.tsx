@@ -73,17 +73,21 @@ export function TerminalToolbar({
   const [showPassword, setShowPassword] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  const networkEndpoints = [
-    { domain: sandbox?.publicUrl || '', port: 3000, protocol: 'HTTPS', label: 'Application' },
-    { domain: sandbox?.ttydUrl || '', port: 7681, protocol: 'HTTPS', label: 'Terminal' },
+  // Build network endpoints list, filtering out any without URLs
+  const allEndpoints = [
+    { domain: sandbox?.publicUrl, port: 3000, protocol: 'HTTPS', label: 'Application' },
+    { domain: sandbox?.ttydUrl, port: 7681, protocol: 'HTTPS', label: 'Terminal' },
     {
-      domain: sandbox?.fileBrowserUrl || '',
+      domain: sandbox?.fileBrowserUrl,
       port: 8080,
       protocol: 'HTTPS',
       label: 'File Browser',
       hasCredentials: true,
     },
   ];
+
+  // Only show endpoints that have a valid domain URL
+  const networkEndpoints = allEndpoints.filter(endpoint => endpoint.domain);
 
   const copyToClipboard = async (text: string, field: string) => {
     try {
@@ -180,7 +184,7 @@ export function TerminalToolbar({
                   <span className="text-xs text-[#858585] font-mono">{endpoint.protocol}</span>
                 </div>
                 <a
-                  href={endpoint.domain}
+                  href={endpoint.domain || undefined}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-xs text-[#3794ff] hover:text-[#4fc1ff] break-all underline underline-offset-2 hover:underline-offset-4 transition-all"
