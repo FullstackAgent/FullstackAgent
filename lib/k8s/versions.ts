@@ -6,7 +6,7 @@ import { env } from '@/lib/env'
 
 export const VERSIONS = {
   // Runtime container image version - now using centralized version
-  RUNTIME_IMAGE: env.RUNTIME_IMAGE || 'fullstackagent/fullstack-web-runtime:v0.0.1-alpha.12',
+  RUNTIME_IMAGE: env.RUNTIME_IMAGE || 'docker.io/limbo2342/fullstack-web-runtime:sha-ca2470e',
 
   // PostgreSQL version for KubeBlocks
   POSTGRESQL_VERSION: 'postgresql-14.8.0',
