@@ -23,6 +23,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PATH="/root/.local/bin:/home/fulling/.local/bin:$PATH" \
     TERM=xterm-256color \
     COLORTERM=truecolor \
+    LANG=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8 \
     ANTHROPIC_BASE_URL="" \
     ANTHROPIC_AUTH_TOKEN="" \
     ANTHROPIC_MODEL="" \
@@ -42,8 +44,10 @@ RUN set -eux; \
         build-essential \
         ca-certificates \
         curl \
+        fonts-noto-cjk \
         git \
         gnupg \
+        locales \
         lsb-release \
         nano \
         python3 \
@@ -53,6 +57,8 @@ RUN set -eux; \
         unzip \
         vim \
         wget; \
+    # Generate locales
+    locale-gen en_US.UTF-8 zh_CN.UTF-8; \
     # Add Node.js 22.x LTS repository
     curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION} | bash -; \
     # Add PostgreSQL repository (using new gpg keyring method)

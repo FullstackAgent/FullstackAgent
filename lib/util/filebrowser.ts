@@ -125,7 +125,7 @@ export async function uploadFileToFileBrowser(
     .join('/')
 
   // Build TUS endpoint with path
-  const tusEndpoint = `${fileBrowserUrl}/api/tus${encodedPath}/${encodedFilename}?override=false`
+  const tusEndpoint = `${fileBrowserUrl}/api/tus${encodedPath}/${encodedFilename}?override=true`
 
   return new Promise<UploadResult>((resolve, reject) => {
     const upload = new tus.Upload(file, {
