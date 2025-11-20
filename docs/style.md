@@ -154,6 +154,7 @@ Multi-level shadow effects optimized for dark theme:
 | `--tab-foreground` | `#A0A0A0` | Default/inactive tab text color |
 | `--tab-active-background` | `#1E1E1E` | Active tab background |
 | `--tab-active-foreground` | `#FFFFFF` | Active tab text color |
+| `--tab-hover-background` | `#363637` | Hover background for tab buttons |
 
 ### Implementation Notes
 

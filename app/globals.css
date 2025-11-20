@@ -55,24 +55,33 @@
 }
 
 .dark {
-  --background: #1E1E1E; /*-- main background */
-  --foreground: #CCCCCC; /*-- main text */
-  --card: oklch(0.27 0 0); /*-- container background */
+  --background: #1E1E1E;
+  /*-- main background */
+  --foreground: #CCCCCC;
+  /*-- main text */
+  --card: oklch(0.27 0 0);
+  /*-- container background */
   --card-foreground: oklch(0.92 0 0);
-  --popover: oklch(0.27 0 0); /*-- modal background */
+  --popover: oklch(0.27 0 0);
+  /*-- modal background */
   --popover-foreground: oklch(0.92 0 0);
-  --primary: #10639D; /*-- main brand color */
-  --primary-hover: #155a8a; /*-- main brand color hover for dark mode */
+  --primary: #10639D;
+  /*-- main brand color */
+  --primary-hover: #155a8a;
+  /*-- main brand color hover for dark mode */
   --primary-foreground: oklch(1.00 0 0);
-  --secondary: oklch(0.27 0 0); /*-- secondary brand color */
+  --secondary: oklch(0.27 0 0);
+  /*-- secondary brand color */
   --secondary-foreground: oklch(0.92 0 0);
   --muted: oklch(0.27 0 0);
-  --muted-foreground: oklch(0.72 0 0); /*-- secondary text */
-  --accent: #2B2D2E; /*-- for hover */
+  --muted-foreground: oklch(0.72 0 0);
+  /*-- secondary text */
+  --accent: #2B2D2E;
+  /*-- for hover */
   --accent-foreground: oklch(0.88 0.06 254.63);
   --destructive: oklch(0.64 0.21 25.39);
   --destructive-foreground: oklch(1.0000 0 0);
-  --border: oklch(0.37 0 0);
+  --border: #3E3E3E;
   --input: oklch(0.37 0 0);
   --ring: oklch(0.62 0.19 259.76);
   --chart-1: oklch(0.71 0.14 254.69);
@@ -96,6 +105,8 @@
   --tab-foreground: #A0A0A0;
   --tab-active-background: #1E1E1E;
   --tab-active-foreground: #FFFFFF;
+  --tab-hover-background: #363637;
+  /*-- subtle hover for tab buttons */
   --font-serif: Source Serif 4, serif;
   --font-mono: JetBrains Mono, monospace;
   --radius: 0.375rem;
@@ -151,6 +162,7 @@
   --color-tab-foreground: var(--tab-foreground);
   --color-tab-active-background: var(--tab-active-background);
   --color-tab-active-foreground: var(--tab-active-foreground);
+  --color-tab-hover-background: var(--tab-hover-background);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
   --font-serif: var(--font-serif);
@@ -170,20 +182,25 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground/90;
   }
+
   h1 {
     @apply scroll-m-20 text-4xl tracking-tight text-balance;
   }
+
   h2 {
     @apply scroll-m-20 text-3xl tracking-tight first:mt-0;
   }
+
   p {
     @apply leading-7 text-muted-foreground;
   }
+
   span {
     @apply text-muted-foreground;
   }
@@ -195,6 +212,7 @@
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
