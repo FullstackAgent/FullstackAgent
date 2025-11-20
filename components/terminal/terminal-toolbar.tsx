@@ -9,27 +9,11 @@
 import { useState } from 'react';
 import type { Prisma } from '@prisma/client';
 import {
-  // ChevronDown,
-  // Loader2,
   Network,
-  // Play,
   Plus,
-  // Square,
   Terminal as TerminalIcon,
-  // Trash2,
   X,
 } from 'lucide-react';
-
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import {
   Dialog,
   DialogContent,
@@ -37,15 +21,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-// import {
-//   DropdownMenu,
-//   DropdownMenuContent,
-//   DropdownMenuItem,
-//   DropdownMenuSeparator,
-//   DropdownMenuTrigger,
-// } from '@/components/ui/dropdown-menu';
-import { useProjectOperations } from '@/hooks/use-project-operations';
-import { getAvailableProjectActions } from '@/lib/util/action';
 import { getStatusBgClasses } from '@/lib/util/status-colors';
 import { cn } from '@/lib/utils';
 
@@ -93,20 +68,6 @@ export function TerminalToolbar({
   onTabAdd,
 }: TerminalToolbarProps) {
   const [showNetworkDialog, setShowNetworkDialog] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-
-  const { executeOperation, loading } = useProjectOperations(project.id);
-
-  const availableActions = getAvailableProjectActions(project);
-
-  const handleDeleteClick = () => {
-    setShowDeleteDialog(true);
-  };
-
-  const handleDeleteConfirm = () => {
-    setShowDeleteDialog(false);
-    executeOperation('DELETE');
-  };
 
   const networkEndpoints = [
     { domain: sandbox?.publicUrl || '', port: 3000, protocol: 'HTTPS', label: 'Application' },
@@ -115,48 +76,49 @@ export function TerminalToolbar({
 
   return (
     <>
-      <div className="h-12 bg-tabs-background border-b border-[#3e3e42] flex items-center justify-between px-2">
+      <div className="h-12 bg-tabs-background border-b border-[#3e3e42] flex items-center justify-between">
         {/* Terminal Tabs */}
-        <div className="flex items-center gap-1 flex-1 min-w-0 h-full">
+        <div className="flex items-center flex-1 min-w-0 h-full">
           {tabs.map((tab) => (
             <div
               key={tab.id}
               className={cn(
-                'flex items-center gap-1 rounded text-xs cursor-pointer transition-colors',
+                'flex items-center gap-1 px-4 h-full rounded text-sm font-medium cursor-pointer transition-colors',
                 activeTabId === tab.id
-                  ? 'bg-tab-background text-tab-foreground'
-                  : 'text-gray-400 hover:bg-[#37373d]'
+                  ? 'bg-tab-active-background text-tab-active-foreground'
+                  : 'text-tab-foreground'
               )}
               onClick={() => onTabSelect(tab.id)}
             >
-              <TerminalIcon className="h-3 w-3" />
-              <span className="truncate max-w-[100px]">{tab.name}</span>
-              {tabs.length > 1 && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onTabClose(tab.id);
-                  }}
-                  className="ml-1 hover:text-white"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              )}
+              <TerminalIcon className="h-4 w-4" />
+              <span className="truncate max-w-[100px] text-inherit">{tab.name}</span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTabClose(tab.id);
+                }}
+                className={cn(
+                  "ml-1 hover:text-white",
+                  tabs.length <= 1 && "invisible pointer-events-none"
+                )}
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
           ))}
           <button
             onClick={onTabAdd}
-            className="p-1 text-gray-400 hover:text-white hover:bg-[#37373d] rounded transition-colors"
+            className="flex items-center gap-1 px-4 h-full text-tab-foreground hover:text-white transition-colors"
             title="Add new terminal"
           >
-            <Plus className="h-3 w-3" />
+            <Plus className="h-4 w-4" />
           </button>
         </div>
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2">
           {/* Status Badge */}
-          <div className="flex items-center gap-1.5 px-2 py-1 text-xs text-gray-300">
+          <div className="flex items-center gap-1.5 px-2 py-1 text-xs text-tab-foreground">
             <div className={cn('h-1.5 w-1.5 rounded-full', getStatusBgClasses(project.status))} />
             <span>{project.status}</span>
           </div>
@@ -164,59 +126,12 @@ export function TerminalToolbar({
           {/* Network Button */}
           <button
             onClick={() => setShowNetworkDialog(true)}
-            className="px-2 py-1 text-xs text-gray-300 hover:text-white hover:bg-[#37373d] rounded transition-colors flex items-center gap-1"
+            className="px-2 py-1 text-xs text-tab-foreground hover:text-white hover:bg-[#37373d] rounded transition-colors flex items-center gap-1"
             title="View network endpoints"
           >
             <Network className="h-3 w-3" />
             <span>Network</span>
           </button>
-
-          {/* Operations Dropdown */}
-          {/*<DropdownMenu> TODO: delete after Nov 18 */}
-          {/*  <DropdownMenuTrigger asChild>*/}
-          {/*    <button className="px-2 py-1 text-xs text-gray-300 hover:text-white hover:bg-[#37373d] rounded transition-colors flex items-center gap-1">*/}
-          {/*      <span>Operations</span>*/}
-          {/*      <ChevronDown className="h-3 w-3" />*/}
-          {/*    </button>*/}
-          {/*  </DropdownMenuTrigger>*/}
-          {/*  <DropdownMenuContent*/}
-          {/*    align="end"*/}
-          {/*    className="bg-[#252526] border-[#3e3e42] text-white min-w-[160px]"*/}
-          {/*  >*/}
-          {/*    {availableActions.includes('START') && (*/}
-          {/*      <DropdownMenuItem*/}
-          {/*        onClick={() => executeOperation('START')}*/}
-          {/*        disabled={loading !== null}*/}
-          {/*        className="text-xs cursor-pointer focus:bg-[#37373d] focus:text-white"*/}
-          {/*      >*/}
-          {/*        {loading === 'START' ? (*/}
-          {/*          <>*/}
-          {/*            <Loader2 className="mr-2 h-3 w-3 animate-spin" />*/}
-          {/*            Starting...*/}
-          {/*          </>*/}
-          {/*        ) : (*/}
-          {/*          <>*/}
-          {/*            <Play className="mr-2 h-3 w-3" />*/}
-          {/*            Start*/}
-          {/*          </>*/}
-          {/*        )}*/}
-          {/*      </DropdownMenuItem>*/}
-          {/*    )}*/}
-          {/*    {availableActions.includes('STOP') && (*/}
-          {/*      <DropdownMenuItem*/}
-          {/*        onClick={() => executeOperation('STOP')}*/}
-          {/*        disabled={loading !== null}*/}
-          {/*        className="text-xs cursor-pointer focus:bg-[#37373d] focus:text-white"*/}
-          {/*      >*/}
-          {/*        {loading === 'STOP' ? (*/}
-          {/*          <>*/}
-          {/*            <Loader2 className="mr-2 h-3 w-3 animate-spin" />*/}
-          {/*            Stopping...*/}
-          {/*          </>*/}
-          {/*        ) : (*/}
-          {/*          <>*/}
-          {/*            <Square className="mr-2 h-3 w-3" />*/}
-          {/*            Stop*/}
         </div>
       </div>
 
@@ -257,30 +172,6 @@ export function TerminalToolbar({
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent className="bg-[#252526] border-[#3e3e42] text-white">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Project</AlertDialogTitle>
-            <AlertDialogDescription className="text-gray-400">
-              Are you sure you want to delete this project? This will terminate all resources
-              (databases, sandboxes) and cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="bg-[#3e3e42] border-[#3e3e42] text-white hover:bg-[#4e4e52]">
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteConfirm}
-              className="bg-red-600 hover:bg-red-700 text-white"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 }
