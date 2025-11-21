@@ -161,13 +161,15 @@ model Sandbox {
   sandboxName  String
 
   // Ingress URLs
-  publicUrl String? // App ingress (port 3000)
-  ttydUrl   String? // Terminal ingress (port 7681)
+  publicUrl      String? // App ingress (port 3000)
+  ttydUrl        String? // Terminal ingress (port 7681)
+  fileBrowserUrl String? // File browser ingress (port 8080)
 
   // Resource status (managed independently)
   status ResourceStatus @default(CREATING)
 
   // Optimistic locking to prevent concurrent updates
+  // Reconcile job uses this to lock the sandbox and prevent concurrent updates
   lockedUntil DateTime? // Locked until this timestamp, null means unlocked
 
   // Runtime configuration

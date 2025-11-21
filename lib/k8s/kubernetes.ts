@@ -256,6 +256,25 @@ export class KubernetesService {
   getNamespaceFromKubeConfig(): string {
     return KubernetesUtils.getNamespaceFromKubeConfig(this.kc)
   }
+
+  /**
+   * Get current working directory of a terminal session in sandbox
+   *
+   * Delegates to SandboxManager for execution
+   *
+   * @param namespace - Kubernetes namespace
+   * @param sandboxName - Sandbox StatefulSet name
+   * @param sessionId - Terminal session ID (from TERMINAL_SESSION_ID env var)
+   * @returns Current working directory info
+   */
+  async getSandboxCurrentDirectory(
+    namespace: string,
+    sandboxName: string,
+    sessionId: string
+  ): Promise<{ cwd: string; homeDir: string; isInHome: boolean }> {
+    namespace = namespace || this.defaultNamespace
+    return await this.sandboxManager.getSandboxCurrentDirectory(namespace, sandboxName, sessionId)
+  }
 }
 
 // Re-export types for convenience

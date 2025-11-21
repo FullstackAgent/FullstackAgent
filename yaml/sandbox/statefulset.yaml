@@ -52,15 +52,15 @@ spec:
               name: hnkrdxqqlbuq
           imagePullPolicy: Always
           volumeMounts:
-            - name: vn-homevn-agent
-              mountPath: /home/agent
+            - name: vn-homevn-fulling
+              mountPath: /home/fulling
       volumes: []
   volumeClaimTemplates:
     - metadata:
         annotations:
-          path: /home/agent
+          path: /home/fulling
           value: '5'
-        name: vn-homevn-agent
+        name: vn-homevn-fulling
       spec:
         accessModes:
           - ReadWriteOnce

@@ -21,11 +21,11 @@ alias grep='grep --color=auto'
 alias egrep='egrep --color=auto'
 alias fgrep='fgrep --color=auto'
 
-# Function to show path relative to /home/agent
+# Function to show path relative to /home/fulling
 _path() {
     case "${PWD}" in
-        /home/agent) echo "/" ;;
-        /home/agent/*) echo "${PWD#/home/agent}" ;;
+        /home/fulling) echo "/" ;;
+        /home/fulling/*) echo "${PWD#/home/fulling}" ;;
         *) echo "${PWD}" ;;
     esac
 }
@@ -47,9 +47,9 @@ _ps1_update() {
 PROMPT_COMMAND=_ps1_update
 
 # Change to Next.js project directory on shell start
-if [ "$PWD" = "$HOME" ] && [ -d "$HOME/next" ]; then
-    cd "$HOME/next"
-fi
+# if [ "$PWD" = "$HOME" ] && [ -d "$HOME/next" ]; then
+#     cd "$HOME/next"
+# fi
 
 # Auto-start Claude Code CLI on first terminal connection only
 # Use a file flag that persists across ttyd reconnections

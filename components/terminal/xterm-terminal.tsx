@@ -1,21 +1,42 @@
 /**
  * XtermTerminal Component
  *
- * Terminal component built with xterm.js, supporting WebSocket connection to ttyd backend.
- * Implements dynamic imports for SSR compatibility and proper lifecycle management.
+ * Production-grade terminal component built with xterm.js, supporting WebSocket connection
+ * to ttyd backend with comprehensive file upload integration.
  *
- * Features:
- * - SSR-safe dynamic module loading
- * - WebSocket auto-reconnection
- * - Smart scroll behavior with indicator
- * - Multiple renderer support (WebGL, Canvas, DOM)
- * - Proper cleanup and memory management
+ * Core Features:
+ * - SSR-safe dynamic module loading for Next.js compatibility
+ * - WebSocket auto-reconnection with graceful error handling
+ * - Smart scroll behavior with new content indicator
+ * - Multiple renderer support (WebGL → Canvas → DOM fallback)
+ * - Proper cleanup and memory management on unmount
+ *
+ * File Upload System:
+ * - Drag & drop and paste (Ctrl+V) support
+ * - Smart directory detection via terminal session tracking
+ * - Uploads to current working directory (not fixed location)
+ * - Multi-terminal isolation via container-scoped event listeners
+ * - FileBrowser integration with TUS protocol
+ * - Security: Only allows uploads within home directory
+ * - Toast notifications with absolute path display and filename clipboard copy
+ * - Background upload without blocking terminal interaction
+ *
+ * Session Tracking Architecture:
+ * - Frontend generates unique session ID per terminal instance
+ * - Session ID passed to ttyd-auth.sh via URL parameter (?arg=TOKEN&arg=SESSION_ID)
+ * - ttyd-auth.sh stores shell PID in /tmp/.terminal-session-{SESSION_ID}
+ * - Backend reads shell PID to detect current working directory via /proc/{PID}/cwd
+ * - Solves process isolation issue (K8s exec creates new shell, can't see original env vars)
  */
 
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ITerminalOptions, Terminal as ITerminal } from '@xterm/xterm';
+import { toast } from 'sonner';
+
+import { useFileDrop } from './hooks/use-file-drop';
+import { useFileUpload } from './hooks/use-file-upload';
 
 import '@xterm/xterm/css/xterm.css';
 
@@ -42,6 +63,7 @@ enum ClientCommand {
 
 export interface XtermTerminalProps {
   wsUrl: string;
+  sandboxId: string; // Sandbox ID for API calls
   theme?: {
     foreground?: string;
     background?: string;
@@ -69,6 +91,11 @@ export interface XtermTerminalProps {
   onReady?: () => void;
   onConnected?: () => void;
   onDisconnected?: () => void;
+  // FileBrowser upload support
+  fileBrowserUrl?: string;
+  fileBrowserUsername?: string;
+  fileBrowserPassword?: string;
+  enableFileUpload?: boolean;
 }
 
 // ============================================================================
@@ -77,6 +104,7 @@ export interface XtermTerminalProps {
 
 export function XtermTerminal({
   wsUrl,
+  sandboxId,
   theme,
   fontSize = 14,
   fontFamily = 'Consolas, Liberation Mono, Menlo, Courier, monospace',
@@ -84,18 +112,110 @@ export function XtermTerminal({
   onReady,
   onConnected,
   onDisconnected,
+  fileBrowserUrl,
+  fileBrowserUsername,
+  fileBrowserPassword,
+  enableFileUpload = true,
 }: XtermTerminalProps) {
   // =========================================================================
   // State & Refs
   // =========================================================================
 
-  const containerRef = useRef<HTMLDivElement>(null);
+  const fileDropContainerRef = useRef<HTMLDivElement>(null); // Wrapper for file drop events
+  const containerRef = useRef<HTMLDivElement>(null); // Xterm.js container
   const terminalRef = useRef<ITerminal | null>(null);
   const hasNewContentRef = useRef(false);
   const newLineCountRef = useRef(0);
 
   const [hasNewContent, setHasNewContent] = useState(false);
   const [newLineCount, setNewLineCount] = useState(0);
+
+  // Terminal session ID for multi-terminal support
+  const terminalSessionId = useRef(`terminal-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+
+  // =========================================================================
+  // File Upload Integration
+  // =========================================================================
+
+  // Setup file upload hook
+  const { uploadFiles, isUploading, isConfigured } = useFileUpload({
+    fileBrowserUrl,
+    fileBrowserUsername,
+    fileBrowserPassword,
+    enabled: enableFileUpload,
+  });
+
+  // Handle file drop and paste events
+  const handleFilesReceived = useCallback(
+    async (files: File[]) => {
+      if (files.length === 0) return;
+
+      // Get current working directory from sandbox
+      let targetPath: string | undefined = undefined;
+      let absolutePath: string | undefined = undefined;
+
+      try {
+        const response = await fetch(
+          `/api/sandbox/${sandboxId}/cwd?sessionId=${terminalSessionId.current}`
+        );
+
+        if (response.ok) {
+          const cwdInfo = await response.json();
+
+          // Check if current directory is within home directory
+          if (cwdInfo.isInHome && cwdInfo.cwd && cwdInfo.homeDir) {
+            // Convert container absolute path to FileBrowser relative path
+            // FileBrowser root (/srv) is mounted to /home/fulling
+            // Example: /home/fulling/next/src -> /next/src
+            const relativePath = cwdInfo.cwd.startsWith(cwdInfo.homeDir)
+              ? cwdInfo.cwd.slice(cwdInfo.homeDir.length) || '/'
+              : '/';
+
+            targetPath = relativePath;
+            absolutePath = cwdInfo.cwd; // Store absolute path for toast display
+          } else if (!cwdInfo.isInHome) {
+            toast.warning('Upload to home directory', {
+              description: `Current directory (${cwdInfo.cwd}) is outside home. Uploading to home directory instead.`,
+              duration: 4000,
+            });
+            // Will use default path (/) with homeDir as absolute path
+            absolutePath = cwdInfo.homeDir;
+          }
+        } else {
+          console.warn('[XtermTerminal] Failed to get cwd, using default upload path');
+        }
+      } catch (error) {
+        console.warn('[XtermTerminal] Failed to get cwd:', error);
+        // Continue with default path
+      }
+
+      // Upload files - if targetPath is undefined, uploadFiles will use default root path
+      try {
+        await uploadFiles(files, {
+          showToast: true,
+          copyToClipboard: true,
+          targetPath: targetPath, // undefined = use default root path
+          absolutePath: absolutePath, // Absolute container path for toast display
+        });
+      } catch (error) {
+        console.error('[XtermTerminal] Upload failed:', error);
+        toast.error('Upload failed', {
+          description: error instanceof Error ? error.message : 'Unknown error',
+          duration: 5000,
+        });
+      }
+    },
+    [uploadFiles, sandboxId]
+  );
+
+  // Setup drag and drop / paste event handling
+  // Listen on terminal container element instead of window for proper multi-terminal isolation
+  useFileDrop({
+    enabled: isConfigured && !isUploading,
+    onFilesDropped: handleFilesReceived,
+    onFilesPasted: handleFilesReceived,
+    containerRef: fileDropContainerRef, // Listen on this terminal's container only
+  });
 
   // =========================================================================
   // Memoized Configuration
@@ -143,7 +263,6 @@ export function XtermTerminal({
     const terminal = terminalRef.current;
     if (terminal) {
       terminal.scrollToBottom();
-      console.log('[terminal] User scrolled to bottom');
     }
     setHasNewContent(false);
     setNewLineCount(0);
@@ -197,27 +316,31 @@ export function XtermTerminal({
     };
 
     // -----------------------------------------------------------------------
-    // Helper: Parse WebSocket URL
+    // Helper: Parse WebSocket URL and add session ID
     // -----------------------------------------------------------------------
 
-    const parseUrl = (): { wsFullUrl: string; token: string } | null => {
+    const parseUrl = (): string | null => {
       try {
         const url = new URL(wsUrl);
         const token = url.searchParams.get('arg') || '';
 
         if (!token) {
-          console.error('[terminal] No authentication token found in URL');
+          console.error('[XtermTerminal] No authentication token found in URL');
           return null;
         }
+
+        // Add session ID as second arg parameter for ttyd-auth.sh
+        // URL format: ?arg=TOKEN&arg=SESSION_ID
+        url.searchParams.append('arg', terminalSessionId.current);
 
         const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsPath = url.pathname.replace(/\/$/, '') + '/ws';
         const wsFullUrl = `${wsProtocol}//${url.host}${wsPath}${url.search}`;
 
-        console.log('[terminal] Connecting to:', wsFullUrl.replace(token, '***'));
-        return { wsFullUrl, token };
+        console.log('[XtermTerminal] Connecting to:', wsFullUrl.replace(token, '***'));
+        return wsFullUrl;
       } catch (error) {
-        console.error('[terminal] Failed to parse URL:', error);
+        console.error('[XtermTerminal] Failed to parse URL:', error);
         return null;
       }
     };
@@ -268,9 +391,9 @@ export function XtermTerminal({
             const { WebglAddon: WebglAddonClass } = await import('@xterm/addon-webgl');
             webglAddon = new WebglAddonClass();
             terminal.loadAddon(webglAddon);
-            console.log('[terminal] WebGL renderer loaded');
+            console.log('[XtermTerminal] WebGL renderer loaded');
           } catch (e) {
-            console.log('[terminal] WebGL failed, falling back to canvas', e);
+            console.log('[XtermTerminal] WebGL failed, falling back to canvas', e);
             await applyRenderer('canvas');
           }
           break;
@@ -279,13 +402,13 @@ export function XtermTerminal({
             const { CanvasAddon: CanvasAddonClass } = await import('@xterm/addon-canvas');
             canvasAddon = new CanvasAddonClass();
             terminal.loadAddon(canvasAddon);
-            console.log('[terminal] Canvas renderer loaded');
+            console.log('[XtermTerminal] Canvas renderer loaded');
           } catch (e) {
-            console.log('[terminal] Canvas failed, using DOM', e);
+            console.log('[XtermTerminal] Canvas failed, using DOM', e);
           }
           break;
         case 'dom':
-          console.log('[terminal] DOM renderer loaded');
+          console.log('[XtermTerminal] DOM renderer loaded');
           break;
       }
     };
@@ -297,29 +420,31 @@ export function XtermTerminal({
     const connectWebSocket = () => {
       if (!terminal || !isMounted) return;
 
-      const urlInfo = parseUrl();
-      if (!urlInfo) {
+      const wsFullUrl = parseUrl();
+      if (!wsFullUrl) {
         stableOnDisconnected();
         return;
       }
 
-      const { wsFullUrl, token } = urlInfo;
-
-      console.log('[terminal] Creating WebSocket connection...');
+      console.log('[XtermTerminal] Creating WebSocket connection...');
       socket = new WebSocket(wsFullUrl, ['tty']);
       socket.binaryType = 'arraybuffer';
 
       socket.onopen = () => {
         if (!isMounted) return;
-        console.log('[terminal] WebSocket connected');
+        console.log('[XtermTerminal] WebSocket connected');
         stableOnConnected();
 
-        const authMsg = JSON.stringify({
-          AuthToken: token,
+        // Send initial terminal size to ttyd
+        // Note: AuthToken field removed - this project uses shell script authentication
+        // instead of ttyd's built-in WebSocket authentication (server->credential = NULL)
+        // See: docs/technical-notes/TTYD_AUTHENTICATION.md
+        const initMsg = JSON.stringify({
           columns: terminal!.cols,
           rows: terminal!.rows,
         });
-        socket?.send(textEncoder.encode(authMsg));
+        socket?.send(textEncoder.encode(initMsg));
+
         terminal!.focus();
       };
 
@@ -350,17 +475,17 @@ export function XtermTerminal({
             document.title = textDecoder.decode(data);
             break;
           case Command.SET_PREFERENCES:
-            console.log('[terminal] Preferences:', textDecoder.decode(data));
+            console.log('[XtermTerminal] Preferences:', textDecoder.decode(data));
             break;
           default:
-            console.warn('[terminal] Unknown command:', cmd);
+            console.warn('[XtermTerminal] Unknown command:', cmd);
         }
       };
 
       socket.onclose = (event: CloseEvent) => {
         if (!isMounted) return;
 
-        console.log('[terminal] WebSocket closed:', event.code, event.reason);
+        console.log('[XtermTerminal] WebSocket closed:', event.code, event.reason);
         socket = null;
         stableOnDisconnected();
 
@@ -375,7 +500,7 @@ export function XtermTerminal({
       };
 
       socket.onerror = (error) => {
-        console.error('[terminal] WebSocket error:', error);
+        console.error('[XtermTerminal] WebSocket error:', error);
       };
     };
 
@@ -484,9 +609,9 @@ export function XtermTerminal({
         stableOnReady();
         connectWebSocket();
 
-        console.log('[terminal] Initialization complete');
+        console.log('[XtermTerminal] Initialization complete');
       } catch (error) {
-        console.error('[terminal] Initialization failed:', error);
+        console.error('[XtermTerminal] Initialization failed:', error);
       }
     };
 
@@ -497,7 +622,7 @@ export function XtermTerminal({
     // -----------------------------------------------------------------------
 
     return () => {
-      console.log('[terminal] Cleaning up');
+      console.log('[XtermTerminal] Cleaning up');
       isMounted = false;
 
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
@@ -530,9 +655,10 @@ export function XtermTerminal({
   // =========================================================================
 
   return (
-    <div className="relative w-full h-full">
+    <div ref={fileDropContainerRef} className="relative w-full h-full">
       <div ref={containerRef} className="w-full h-full" style={{ padding: '5px' }} />
 
+      {/* Scroll to bottom button */}
       {hasNewContent && (
         <button
           onClick={handleScrollToBottom}

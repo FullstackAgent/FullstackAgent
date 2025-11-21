@@ -32,9 +32,13 @@ import { XtermTerminal } from './xterm-terminal';
 // ============================================================================
 
 export interface TerminalDisplayProps {
+  sandboxId: string;
   ttydUrl?: string | null;
   status: string;
   tabId: string;
+  fileBrowserUrl?: string | null;
+  fileBrowserUsername?: string;
+  fileBrowserPassword?: string;
 }
 
 type ConnectionStatus = 'connecting' | 'connected' | 'error';
@@ -43,7 +47,15 @@ type ConnectionStatus = 'connecting' | 'connected' | 'error';
 // Component
 // ============================================================================
 
-export function TerminalDisplay({ ttydUrl, status, tabId }: TerminalDisplayProps) {
+export function TerminalDisplay({
+  sandboxId,
+  ttydUrl,
+  status,
+  tabId,
+  fileBrowserUrl,
+  fileBrowserUsername,
+  fileBrowserPassword,
+}: TerminalDisplayProps) {
   // =========================================================================
   // State Management
   // =========================================================================
@@ -99,6 +111,7 @@ export function TerminalDisplay({ ttydUrl, status, tabId }: TerminalDisplayProps
           <XtermTerminal
             key={`xterm-${tabId}`}
             wsUrl={ttydUrl}
+            sandboxId={sandboxId}
             theme={{
               foreground: '#d2d2d2',
               background: '#1e1e1e',
@@ -126,6 +139,10 @@ export function TerminalDisplay({ ttydUrl, status, tabId }: TerminalDisplayProps
             onReady={handleReady}
             onConnected={handleConnected}
             onDisconnected={handleDisconnected}
+            fileBrowserUrl={fileBrowserUrl || undefined}
+            fileBrowserUsername={fileBrowserUsername}
+            fileBrowserPassword={fileBrowserPassword}
+            enableFileUpload={true}
           />
         </div>
 

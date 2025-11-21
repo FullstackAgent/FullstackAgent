@@ -253,3 +253,49 @@ export async function verifyProjectAccessWithRelations(projectId: string, userId
   logger.debug(`Project access granted (with relations): projectId=${projectId}, userId=${userId}`)
   return project
 }
+
+/**
+ * Business logic helper: Verify user owns a sandbox
+ *
+ * This verifies that the user has access to the sandbox (through project ownership).
+ *
+ * Example usage:
+ * ```typescript
+ * export const GET = withAuth(async (req, context, session) => {
+ *   const { id } = await context.params
+ *
+ *   // Check if user owns this sandbox
+ *   const sandbox = await verifySandboxAccess(id, session.user.id)
+ *
+ *   // sandbox is guaranteed to exist and belong to the user
+ *   return NextResponse.json(sandbox)
+ * })
+ * ```
+ *
+ * @param sandboxId - Sandbox ID to verify
+ * @param userId - User ID from session
+ * @returns Sandbox if user has access
+ * @throws NextResponse with 404 if sandbox not found or access denied
+ */
+export async function verifySandboxAccess(sandboxId: string, userId: string) {
+  const sandbox = await prisma.sandbox.findFirst({
+    where: {
+      id: sandboxId,
+    },
+    include: {
+      project: {
+        select: {
+          userId: true,
+        },
+      },
+    },
+  })
+
+  if (!sandbox || sandbox.project.userId !== userId) {
+    logger.warn(`Sandbox access denied: sandboxId=${sandboxId}, userId=${userId}`)
+    throw NextResponse.json({ error: 'Sandbox not found' }, { status: 404 })
+  }
+
+  logger.debug(`Sandbox access granted: sandboxId=${sandboxId}, userId=${userId}`)
+  return sandbox
+}

@@ -36,6 +36,7 @@
         "clusterdefinition",
         "clusterversion",
         "fullstackagent",
+        "homevn",
         "kbcli",
         "kubeblocks",
         "Kubeconfig",

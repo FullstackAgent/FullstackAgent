@@ -1,4 +1,5 @@
 import * as k8s from '@kubernetes/client-node'
+import { PassThrough } from 'stream'
 
 import { logger as baseLogger } from '@/lib/logger'
 
@@ -20,6 +21,8 @@ export interface SandboxInfo {
   publicUrl: string
   /** Terminal access URL */
   ttydUrl: string
+  /** File browser access URL */
+  fileBrowserUrl: string
 }
 
 /**
@@ -127,11 +130,15 @@ export class SandboxManager {
     const ttydAccessToken = envVars['TTYD_ACCESS_TOKEN']
     const ttydUrl = ttydAccessToken ? `${baseTtydUrl}?arg=${ttydAccessToken}` : baseTtydUrl
 
+    // Build fileBrowserUrl (no token in URL, uses standard login)
+    const fileBrowserUrl = `https://${sandboxName}-filebrowser.${ingressDomain}`
+
     return {
       statefulSetName: sandboxName,
       serviceName: serviceName,
       publicUrl: `https://${sandboxName}-app.${ingressDomain}`,
       ttydUrl: ttydUrl,
+      fileBrowserUrl: fileBrowserUrl,
     }
   }
 
@@ -544,6 +551,13 @@ export class SandboxManager {
   }
 
   /**
+   * Get FileBrowser Ingress name
+   */
+  private getFileBrowserIngressName(sandboxName: string): string {
+    return `${sandboxName}-filebrowser-ingress`
+  }
+
+  /**
    * Find StatefulSet by exact match
    *
    * @param sandboxName - Sandbox name
@@ -642,8 +656,8 @@ export class SandboxManager {
                 args: [this.generateInitContainerScript()],
                 volumeMounts: [
                   {
-                    name: 'vn-homevn-agent',
-                    mountPath: '/home/agent',
+                    name: 'vn-homevn-fulling',
+                    mountPath: '/home/fulling',
                   },
                 ],
                 securityContext: {
@@ -686,23 +700,107 @@ export class SandboxManager {
                 imagePullPolicy: 'Always',
                 volumeMounts: [
                   {
-                    name: 'vn-homevn-agent',
-                    mountPath: '/home/agent',
+                    name: 'vn-homevn-fulling',
+                    mountPath: '/home/fulling',
+                  },
+                ],
+              },
+              {
+                name: 'filebrowser',
+                // docker pull filebrowser/filebrowser:v2-s6
+                image: 'filebrowser/filebrowser:v2-s6',
+                command: ['/bin/sh', '-c'],
+                args: [
+                  `
+set -e
+
+echo "=== FileBrowser Initialization ==="
+
+# Only initialize if database doesn't exist
+if [ ! -f /database/filebrowser.db ]; then
+  echo "→ Database not found, initializing..."
+
+  # Initialize config and database
+  filebrowser config init \
+    --database /database/filebrowser.db \
+    --root /srv \
+    --address 0.0.0.0 \
+    --port 8080
+
+  echo "✓ Config initialized"
+
+  # Add user with plaintext password (filebrowser will hash it)
+  filebrowser users add "$FILE_BROWSER_USERNAME" "$FILE_BROWSER_PASSWORD" \
+    --database /database/filebrowser.db \
+    --perm.admin
+
+  echo "✓ User created: $FILE_BROWSER_USERNAME"
+else
+  echo "✓ Database already exists, skipping initialization"
+fi
+
+echo "→ Starting FileBrowser..."
+# Start filebrowser
+exec filebrowser --database /database/filebrowser.db
+                  `.trim(),
+                ],
+                env: [
+                  {
+                    name: 'FILE_BROWSER_USERNAME',
+                    value: containerEnv['FILE_BROWSER_USERNAME'] || 'admin',
+                  },
+                  {
+                    name: 'FILE_BROWSER_PASSWORD',
+                    value: containerEnv['FILE_BROWSER_PASSWORD'] || 'admin',
+                  },
+                ],
+                ports: [{ containerPort: 8080, name: 'port-8080' }],
+                resources: {
+                  requests: {
+                    cpu: '50m',
+                    memory: '64Mi',
+                  },
+                  limits: {
+                    cpu: '500m',
+                    memory: '256Mi',
+                  },
+                },
+                volumeMounts: [
+                  {
+                    name: 'vn-homevn-fulling',
+                    mountPath: '/srv',
+                  },
+                  {
+                    name: 'filebrowser-database',
+                    mountPath: '/database',
+                  },
+                  {
+                    name: 'filebrowser-config',
+                    mountPath: '/config',
                   },
                 ],
               },
             ],
-            volumes: [],
+            volumes: [
+              {
+                name: 'filebrowser-database',
+                emptyDir: {},
+              },
+              {
+                name: 'filebrowser-config',
+                emptyDir: {},
+              },
+            ],
           },
         },
         volumeClaimTemplates: [
           {
             metadata: {
               annotations: {
-                path: '/home/agent',
+                path: '/home/fulling',
                 value: VERSIONS.STORAGE.SANDBOX_SIZE.replace('Gi', ''),
               },
-              name: 'vn-homevn-agent',
+              name: 'vn-homevn-fulling',
             },
             spec: {
               accessModes: ['ReadWriteOnce'],
@@ -739,7 +837,7 @@ export class SandboxManager {
   /**
    * Generate init container script
    *
-   * Purpose: Initialize /home/agent PVC with necessary files on first run
+   * Purpose: Initialize /home/fulling PVC with necessary files on first run
    *
    * What gets initialized:
    * 1. .bashrc - Shell configuration (only if doesn't exist, never overwrite user changes)
@@ -761,14 +859,14 @@ echo "=== Init Container: Home Directory Initialization ==="
 # Step 1: Initialize .bashrc (if not exists)
 # Rationale: User may customize .bashrc, so we never overwrite existing file
 # -----------------------------------------------------------------------------
-if [ -f /home/agent/.bashrc ]; then
+if [ -f /home/fulling/.bashrc ]; then
   echo "✓ .bashrc already exists (preserving user configuration)"
 else
   if [ -f /etc/skel/.bashrc ]; then
     echo "→ Copying default .bashrc configuration..."
-    cp /etc/skel/.bashrc /home/agent/.bashrc
-    chown 1001:1001 /home/agent/.bashrc
-    chmod 644 /home/agent/.bashrc
+    cp /etc/skel/.bashrc /home/fulling/.bashrc
+    chown 1001:1001 /home/fulling/.bashrc
+    chmod 644 /home/fulling/.bashrc
     echo "✓ .bashrc initialized"
   else
     echo "⚠ Warning: /etc/skel/.bashrc not found in image"
@@ -779,25 +877,25 @@ fi
 # Step 2: Initialize Next.js project (if not exists or empty)
 # Rationale: ANY file in next/ indicates user work - must not overwrite
 # -----------------------------------------------------------------------------
-if [ -d /home/agent/next ]; then
+if [ -d /home/fulling/next ]; then
   # Directory exists, check if it contains any files (including hidden files)
-  if [ -n "$(ls -A /home/agent/next 2>/dev/null)" ]; then
+  if [ -n "$(ls -A /home/fulling/next 2>/dev/null)" ]; then
     echo "✓ Next.js project already exists (preserving user project)"
-    echo "  Location: /home/agent/next"
+    echo "  Location: /home/fulling/next"
     
     # Skip to end - all initialization done
     echo ""
     echo "=== Initialization Summary ==="
-    echo "✓ .bashrc: $([ -f /home/agent/.bashrc ] && echo 'ready' || echo 'missing')"
+    echo "✓ .bashrc: $([ -f /home/fulling/.bashrc ] && echo 'ready' || echo 'missing')"
     echo "✓ Next.js project: ready (existing)"
     echo "✓ All user data preserved"
     echo ""
     echo "=== Init Container: Completed successfully ==="
     exit 0
   else
-    echo "→ /home/agent/next exists but is empty"
+    echo "→ /home/fulling/next exists but is empty"
     echo "→ Removing empty directory and proceeding with initialization"
-    rmdir /home/agent/next
+    rmdir /home/fulling/next
   fi
 fi
 
@@ -815,22 +913,22 @@ fi
 # Copy Next.js project template (without node_modules)
 echo "→ Copying Next.js project template from /opt/next-template..."
 echo "  Source: /opt/next-template (agent:agent)"
-echo "  Target: /home/agent/next"
+echo "  Target: /home/fulling/next"
 echo "  Note: node_modules NOT included - run 'pnpm install' to install dependencies"
 echo "  This may take 5-10 seconds..."
-mkdir -p /home/agent/next
+mkdir -p /home/fulling/next
 
 # Copy project files (node_modules already removed from image)
 # Using cp instead of rsync for simplicity (rsync is available but cp is sufficient)
-cp -rp /opt/next-template/. /home/agent/next 2>&1 || {
+cp -rp /opt/next-template/. /home/fulling/next 2>&1 || {
   echo "✗ ERROR: Failed to copy template"
   exit 1
 }
 
 # Verify copy was successful
-if [ ! -f /home/agent/next/package.json ]; then
+if [ ! -f /home/fulling/next/package.json ]; then
   echo "✗ ERROR: Project copy incomplete - package.json not found"
-  ls -la /home/agent/next 2>&1 || true
+  ls -la /home/fulling/next 2>&1 || true
   exit 1
 fi
 
@@ -840,22 +938,22 @@ echo "✓ Next.js project template copied successfully"
 # Note: Even though source files are agent:agent in the image,
 # cp creates new files owned by the current user (root in init container)
 echo "→ Setting ownership (agent:1001) and permissions..."
-chown -R 1001:1001 /home/agent/next 2>&1 || {
+chown -R 1001:1001 /home/fulling/next 2>&1 || {
   echo "⚠ Warning: Failed to set ownership, but continuing..."
 }
-chmod -R u+rwX,g+rX,o+rX /home/agent/next 2>&1 || {
+chmod -R u+rwX,g+rX,o+rX /home/fulling/next 2>&1 || {
   echo "⚠ Warning: Failed to set permissions, but continuing..."
 }
 
 # Count files for verification
-FILE_COUNT=$(find /home/agent/next -type f | wc -l)
+FILE_COUNT=$(find /home/fulling/next -type f | wc -l)
 echo "✓ Copied $FILE_COUNT files"
 
 echo ""
 echo "=== Initialization Summary ==="
-echo "✓ .bashrc: $([ -f /home/agent/.bashrc ] && echo 'ready' || echo 'missing')"
+echo "✓ .bashrc: $([ -f /home/fulling/.bashrc ] && echo 'ready' || echo 'missing')"
 echo "✓ Next.js project: ready (newly created)"
-echo "✓ Location: /home/agent/next"
+echo "✓ Location: /home/fulling/next"
 echo "✓ Ownership: agent (1001:1001)"
 echo "✓ Files copied: $FILE_COUNT"
 echo "⚠ node_modules not included - run 'pnpm install' to install dependencies"
@@ -908,6 +1006,7 @@ echo "=== Init Container: Completed successfully ==="
         ports: [
           { port: 3000, targetPort: 3000, name: 'port-3000', protocol: 'TCP' },
           { port: 7681, targetPort: 7681, name: 'port-7681', protocol: 'TCP' },
+          { port: 8080, targetPort: 8080, name: 'port-8080', protocol: 'TCP' },
         ],
         selector: {
           app: sandboxName,
@@ -919,7 +1018,7 @@ echo "=== Init Container: Completed successfully ==="
   }
 
   /**
-   * Create Ingresses (App and Ttyd) - idempotent
+   * Create Ingresses (App, Ttyd, and FileBrowser) - idempotent
    */
   private async createIngresses(
     sandboxName: string,
@@ -930,6 +1029,7 @@ echo "=== Init Container: Completed successfully ==="
   ): Promise<void> {
     const appIngressName = this.getAppIngressName(sandboxName)
     const ttydIngressName = this.getTtydIngressName(sandboxName)
+    const fileBrowserIngressName = this.getFileBrowserIngressName(sandboxName)
 
     const appIngress = this.createAppIngress(
       sandboxName,
@@ -945,10 +1045,18 @@ echo "=== Init Container: Completed successfully ==="
       serviceName,
       ingressDomain
     )
+    const fileBrowserIngress = this.createFileBrowserIngress(
+      sandboxName,
+      k8sProjectName,
+      namespace,
+      serviceName,
+      ingressDomain
+    )
 
     await Promise.all([
       this.createIngressIfNotExists(appIngressName, namespace, appIngress),
       this.createIngressIfNotExists(ttydIngressName, namespace, ttydIngress),
+      this.createIngressIfNotExists(fileBrowserIngressName, namespace, fileBrowserIngress),
     ])
   }
 
@@ -1107,6 +1215,84 @@ echo "=== Init Container: Completed successfully ==="
   }
 
   /**
+   * Create FileBrowser Ingress
+   */
+  private createFileBrowserIngress(
+    sandboxName: string,
+    k8sProjectName: string,
+    namespace: string,
+    serviceName: string,
+    ingressDomain: string
+  ): k8s.V1Ingress {
+    const ingressName = this.getFileBrowserIngressName(sandboxName)
+    const host = `${sandboxName}-filebrowser.${ingressDomain}`
+
+    return {
+      apiVersion: 'networking.k8s.io/v1',
+      kind: 'Ingress',
+      metadata: {
+        name: ingressName,
+        namespace,
+        labels: {
+          'cloud.sealos.io/app-deploy-manager': sandboxName,
+          'cloud.sealos.io/app-deploy-manager-domain': `${sandboxName}-filebrowser`,
+          'project.fullstackagent.io/name': k8sProjectName,
+        },
+        annotations: {
+          'kubernetes.io/ingress.class': 'nginx',
+          'nginx.ingress.kubernetes.io/proxy-body-size': '32m',
+          'nginx.ingress.kubernetes.io/ssl-redirect': 'false',
+          'nginx.ingress.kubernetes.io/backend-protocol': 'HTTP',
+          'nginx.ingress.kubernetes.io/client-body-buffer-size': '64k',
+          'nginx.ingress.kubernetes.io/proxy-buffer-size': '64k',
+          'nginx.ingress.kubernetes.io/proxy-send-timeout': '300',
+          'nginx.ingress.kubernetes.io/proxy-read-timeout': '300',
+          // CORS configuration for TUS resumable file uploads from browser
+          'nginx.ingress.kubernetes.io/enable-cors': 'true',
+          'nginx.ingress.kubernetes.io/cors-allow-origin': '*',
+          'nginx.ingress.kubernetes.io/cors-allow-methods':
+            'GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS',
+          'nginx.ingress.kubernetes.io/cors-allow-headers':
+            'DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization,X-Auth,Upload-Length,Upload-Offset,Tus-Resumable,Upload-Metadata,Upload-Defer-Length,Upload-Concat',
+          'nginx.ingress.kubernetes.io/cors-expose-headers':
+            'Upload-Offset,Location,Upload-Length,Tus-Version,Tus-Resumable,Tus-Max-Size,Tus-Extension,Upload-Metadata',
+          'nginx.ingress.kubernetes.io/cors-allow-credentials': 'true',
+          'nginx.ingress.kubernetes.io/cors-max-age': '1728000',
+          'nginx.ingress.kubernetes.io/server-snippet':
+            'client_header_buffer_size 64k;\nlarge_client_header_buffers 4 128k;',
+        },
+      },
+      spec: {
+        rules: [
+          {
+            host,
+            http: {
+              paths: [
+                {
+                  pathType: 'Prefix',
+                  path: '/',
+                  backend: {
+                    service: {
+                      name: serviceName,
+                      port: { number: 8080 },
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        ],
+        tls: [
+          {
+            hosts: [host],
+            secretName: 'wildcard-cert',
+          },
+        ],
+      },
+    }
+  }
+
+  /**
    * Delete StatefulSet (exact deletion)
    */
   private async deleteStatefulSet(sandboxName: string, namespace: string): Promise<void> {
@@ -1150,15 +1336,17 @@ echo "=== Init Container: Completed successfully ==="
   }
 
   /**
-   * Delete Ingresses (exact deletion of App and Ttyd Ingress)
+   * Delete Ingresses (exact deletion of App, Ttyd, and FileBrowser Ingress)
    */
   private async deleteIngresses(sandboxName: string, namespace: string): Promise<void> {
     const appIngressName = this.getAppIngressName(sandboxName)
     const ttydIngressName = this.getTtydIngressName(sandboxName)
+    const fileBrowserIngressName = this.getFileBrowserIngressName(sandboxName)
 
     await Promise.all([
       this.deleteIngress(appIngressName, namespace),
       this.deleteIngress(ttydIngressName, namespace),
+      this.deleteIngress(fileBrowserIngressName, namespace),
     ])
   }
 
@@ -1187,7 +1375,7 @@ echo "=== Init Container: Completed successfully ==="
    * Delete PVCs associated with a StatefulSet
    *
    * StatefulSets create PVCs with names: {volumeClaimTemplate.name}-{statefulset.name}-{ordinal}
-   * For our case: vn-homevn-agent-{sandboxName}-0
+   * For our case: vn-homevn-fulling-{sandboxName}-0
    *
    * This method handles both:
    * 1. Clusters with persistentVolumeClaimRetentionPolicy support (Kubernetes 1.23+)
@@ -1200,7 +1388,7 @@ echo "=== Init Container: Completed successfully ==="
     try {
       // List all PVCs in namespace that belong to this StatefulSet
       // StatefulSet PVC naming: {volumeClaimTemplate.name}-{statefulset.name}-{ordinal}
-      const pvcName = `vn-homevn-agent-${sandboxName}-0`
+      const pvcName = `vn-homevn-fulling-${sandboxName}-0`
 
       try {
         await this.k8sApi.deleteNamespacedPersistentVolumeClaim({
@@ -1222,6 +1410,130 @@ echo "=== Init Container: Completed successfully ==="
       logger.error(`Failed to delete PVCs for sandbox: ${sandboxName} - ${errorMessage}`)
       // Don't throw - PVC deletion failure shouldn't block sandbox cleanup
       // The PVCs might have already been deleted by K8s retention policy
+    }
+  }
+
+  /**
+   * Get current working directory of a terminal session in sandbox
+   *
+   * Uses session ID to find the shell process via proc filesystem environ
+   * and reads its working directory from proc pid cwd
+   *
+   * @param namespace - Kubernetes namespace
+   * @param sandboxName - Sandbox StatefulSet name
+   * @param sessionId - Terminal session ID (from TERMINAL_SESSION_ID env var)
+   * @returns Current working directory info
+   */
+  async getSandboxCurrentDirectory(
+    namespace: string,
+    sandboxName: string,
+    sessionId: string
+  ): Promise<{ cwd: string; homeDir: string; isInHome: boolean }> {
+    const exec = new k8s.Exec(this.kc)
+    const podName = `${sandboxName}-0` // StatefulSet pod naming
+
+    // Combined script: Find PID from session file and get working directory
+    // We store the shell PID in a file because K8s exec creates a new shell
+    // that can't see the environment variables of the ttyd shell
+    const combinedScript = `
+#!/bin/bash
+# Find shell process by reading PID from session file
+
+# Step 1: Read shell PID from session file
+SESSION_FILE="/tmp/.terminal-session-${sessionId}"
+if [ ! -f "$SESSION_FILE" ]; then
+  echo "ERROR: Session file not found: $SESSION_FILE" >&2
+  echo "HINT: Make sure the terminal has fully loaded" >&2
+  exit 1
+fi
+
+SHELL_PID=$(cat "$SESSION_FILE" 2>/dev/null)
+if [ -z "$SHELL_PID" ]; then
+  echo "ERROR: Failed to read PID from session file: $SESSION_FILE" >&2
+  exit 1
+fi
+
+# Verify the process exists
+if [ ! -d "/proc/$SHELL_PID" ]; then
+  echo "ERROR: Process $SHELL_PID no longer exists" >&2
+  echo "HINT: The terminal session may have been closed" >&2
+  exit 1
+fi
+
+# Step 2: Get current working directory
+CWD=$(readlink -f /proc/$SHELL_PID/cwd 2>/dev/null)
+if [ $? -ne 0 ] || [ -z "$CWD" ]; then
+  echo "ERROR: Failed to read current directory for PID $SHELL_PID" >&2
+  exit 1
+fi
+
+# Get home directory
+HOME_DIR=$(eval echo ~$(stat -c '%U' /proc/$SHELL_PID 2>/dev/null))
+if [ -z "$HOME_DIR" ]; then
+  HOME_DIR="/home/agent"  # Fallback to default
+fi
+
+# Check if CWD is within HOME_DIR
+if [[ "$CWD" == "$HOME_DIR"* ]]; then
+  IS_IN_HOME="true"
+else
+  IS_IN_HOME="false"
+fi
+
+# Output JSON
+echo "{\\"cwd\\":\\"$CWD\\",\\"homeDir\\":\\"$HOME_DIR\\",\\"isInHome\\":$IS_IN_HOME}"
+`
+
+    let output = ''
+    let errorOutput = ''
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const stdoutStream = new PassThrough()
+        const stderrStream = new PassThrough()
+
+        stdoutStream.on('data', (chunk) => {
+          output += chunk.toString()
+        })
+
+        stderrStream.on('data', (chunk) => {
+          errorOutput += chunk.toString()
+        })
+
+        exec.exec(
+          namespace,
+          podName,
+          sandboxName, // Use sandboxName as container name (matches StatefulSet definition)
+          ['bash', '-c', combinedScript],
+          stdoutStream,
+          stderrStream,
+          null,
+          false,
+          (status) => {
+            if (status.status === 'Success') {
+              resolve()
+            } else {
+              reject(new Error(`Command failed: ${status.message || errorOutput}`))
+            }
+          }
+        )
+      })
+    } catch (error) {
+      throw new Error(`Failed to get current directory: ${error} - ${errorOutput}`)
+    }
+
+    // Parse JSON output
+    try {
+      const result = JSON.parse(output.trim())
+      return {
+        cwd: result.cwd,
+        homeDir: result.homeDir,
+        isInHome: result.isInHome,
+      }
+    } catch (parseError) {
+      throw new Error(
+        `Failed to parse directory info. Output: ${output}, Parse Error: ${parseError}, Stderr: ${errorOutput}`
+      )
     }
   }
 }

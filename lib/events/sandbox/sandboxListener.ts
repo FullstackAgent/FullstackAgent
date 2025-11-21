@@ -52,11 +52,16 @@ async function handleCreateSandbox(payload: SandboxEventPayload): Promise<void> 
     )
 
     logger.info(
-      `Sandbox ${sandbox.id} created in Kubernetes: ${sandboxInfo.publicUrl}, ${sandboxInfo.ttydUrl}`
+      `Sandbox ${sandbox.id} created in Kubernetes: ${sandboxInfo.publicUrl}, ${sandboxInfo.ttydUrl}, ${sandboxInfo.fileBrowserUrl}`
     )
 
     // Update sandbox with URLs
-    await updateSandboxUrls(sandbox.id, sandboxInfo.publicUrl, sandboxInfo.ttydUrl)
+    await updateSandboxUrls(
+      sandbox.id,
+      sandboxInfo.publicUrl,
+      sandboxInfo.ttydUrl,
+      sandboxInfo.fileBrowserUrl
+    )
 
     // Change status to STARTING
     await updateSandboxStatus(sandbox.id, 'STARTING')
