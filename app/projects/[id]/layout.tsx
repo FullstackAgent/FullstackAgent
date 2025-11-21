@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { notFound } from 'next/navigation';
 
+import { StatusBar } from '@/components/layout/status-bar';
 import PrimarySidebar from '@/components/sidebars/primary-sidebar';
 import ProjectSidebar from '@/components/sidebars/project-sidebar';
 import { auth } from '@/lib/auth';
@@ -39,21 +40,25 @@ export default async function ProjectLayout({
 
 
   return (
-    <div className="h-screen flex text-foreground overflow-hidden">
-      {/* Primary Sidebar - VSCode style */}
-      <PrimarySidebar currentProjectId={id} userId={session.user.id} />
+    <div className="h-screen flex flex-col text-foreground overflow-hidden">
+      <div className="flex-1 flex overflow-hidden">
+        {/* Primary Sidebar - VSCode style */}
+        <PrimarySidebar currentProjectId={id} userId={session.user.id} />
 
-      {/* Secondary Sidebar - Project Settings */}
-      <ProjectSidebar
-        project={project}
-        sandboxes={project.sandboxes}
-        envVars={project.environments}
-      />
+        {/* Secondary Sidebar - Project Settings */}
+        <ProjectSidebar
+          project={project}
+          sandboxes={project.sandboxes}
+          envVars={project.environments}
+        />
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 relative overflow-hidden">
-        {children}
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col min-w-0 relative overflow-hidden">
+          {children}
+        </div>
       </div>
+      
+      <StatusBar project={project} />
     </div>
   );
 }

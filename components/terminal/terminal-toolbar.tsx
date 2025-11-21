@@ -14,6 +14,7 @@ import {
   Terminal as TerminalIcon,
   X,
 } from 'lucide-react';
+
 import {
   Dialog,
   DialogContent,
