@@ -13,14 +13,14 @@ import { Loader2, MoreVertical, Play, Square, Trash2 } from 'lucide-react';
 
 import {
   AlertDialog,
+  AlertDialogContent,
   AlertDialogAction,
   AlertDialogCancel,
-  AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+} from '@/components/ui/alert-dialog-vscode';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -133,9 +133,9 @@ export default function ProjectCardDropdown({ project }: ProjectCardDropdownProp
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Project</AlertDialogTitle>
+            <AlertDialogTitle>Are you sure you want to delete &quot;{project.name}&quot;?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete &quot;{project.name}&quot;? This will terminate all resources
+              This will terminate all resources
               (databases, sandboxes) and cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
