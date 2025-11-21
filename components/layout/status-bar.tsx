@@ -25,20 +25,6 @@ export function StatusBar({ project }: StatusBarProps) {
   return (
     <div className="h-6 bg-primary text-card-foreground [&_span]:text-card-foreground flex items-center justify-between px-2 text-xs select-none z-50">
       <div className="flex items-center gap-4">
-        <div className="flex items-center gap-1 hover:bg-card-foreground/10 px-1 rounded cursor-pointer transition-colors">
-          <GitBranch className="w-3 h-3" />
-          <span>main</span>
-        </div>
-        <div className="flex items-center gap-2 hover:bg-card-foreground/10 px-1 rounded cursor-pointer transition-colors">
-          <div className="flex items-center gap-0.5">
-            <XCircle className="w-3 h-3" />
-            <span>0</span>
-          </div>
-          <div className="flex items-center gap-0.5">
-            <AlertCircle className="w-3 h-3" />
-            <span>0</span>
-          </div>
-        </div>
       </div>
 
       <div className="flex items-center gap-4">
