@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 
 import { StatusBar } from '@/components/layout/status-bar';
 import PrimarySidebar from '@/components/sidebars/primary-sidebar';
-import ProjectSidebar from '@/components/sidebars/project-sidebar';
+import ProjectSidebar from '@/components/sidebars/project-sidebar-new';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 
