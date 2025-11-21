@@ -1,6 +1,6 @@
 import React from 'react';
 import { Prisma } from '@prisma/client';
-import { AlertCircle, Bell, Box, Check, Database, GitBranch, XCircle } from 'lucide-react';
+import { Box, Database } from 'lucide-react';
 
 type ProjectWithRelations = Prisma.ProjectGetPayload<{
   include: {
