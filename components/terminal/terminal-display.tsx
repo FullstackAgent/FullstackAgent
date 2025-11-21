@@ -95,7 +95,7 @@ export function TerminalDisplay({ ttydUrl, status, tabId }: TerminalDisplayProps
         )}
 
         {/* Terminal Instance */}
-        <div className="flex-1 w-full">
+        <div className="flex-1 w-full p-2">
           <XtermTerminal
             key={`xterm-${tabId}`}
             wsUrl={ttydUrl}
